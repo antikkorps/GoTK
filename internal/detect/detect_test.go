@@ -3,7 +3,7 @@ package detect
 import (
 	"testing"
 
-	"github.com/fMusic/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/filter"
 )
 
 func TestIdentify(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fMusic/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/filter"
 )
 
 // CmdType represents a category of command for specialized filtering.
@@ -105,6 +105,12 @@ func splitGrepLine(line string) (file, rest string, ok bool) {
 
 	// Skip if file part looks like it has spaces (probably not a grep line)
 	if strings.Contains(file, " ") {
+		return "", "", false
+	}
+
+	// A valid grep file path should contain a dot (extension) or slash (path separator).
+	// Plain words like ERROR, FAIL, panic, Warning are not file paths.
+	if !strings.Contains(file, ".") && !strings.Contains(file, "/") {
 		return "", "", false
 	}
 

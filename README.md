@@ -16,13 +16,13 @@ Results vary by output size and content. Use `--stats` to see exact savings per 
 ## Installation
 
 ```bash
-go install github.com/fMusic/GoTK/cmd/gotk@latest
+go install github.com/antikkorps/GoTK/cmd/gotk@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/fMusic/GoTK.git
+git clone https://github.com/antikkorps/GoTK.git
 cd GoTK
 go build -o gotk ./cmd/gotk/
 ```

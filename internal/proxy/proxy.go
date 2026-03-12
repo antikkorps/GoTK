@@ -8,9 +8,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/fMusic/GoTK/internal/config"
-	"github.com/fMusic/GoTK/internal/detect"
-	"github.com/fMusic/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/config"
+	"github.com/antikkorps/GoTK/internal/detect"
+	"github.com/antikkorps/GoTK/internal/filter"
 )
 
 // BuildChain creates a filter chain controlled by config and command type.
@@ -37,6 +37,10 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType) *filter.Chain {
 	if cfg.Filters.TrimDecorative {
 		chain.Add(filter.TrimEmpty)
 	}
+
+	// Stack trace compression runs on all output (generic filter) since
+	// panics/tracebacks can appear in any command's stderr captured as stdout.
+	chain.Add(filter.CompressStackTraces)
 
 	if cfg.Filters.Truncate {
 		chain.Add(filter.Truncate)

@@ -245,16 +245,16 @@ Collapses consecutive `ok` (passing package) lines into a summary count. Preserv
 
 **Before:**
 ```
-ok  	github.com/fMusic/GoTK/internal/filter	0.003s
-ok  	github.com/fMusic/GoTK/internal/detect	0.002s
-ok  	github.com/fMusic/GoTK/internal/exec	0.001s
-FAIL	github.com/fMusic/GoTK/cmd/gotk	0.005s
+ok  	github.com/antikkorps/GoTK/internal/filter	0.003s
+ok  	github.com/antikkorps/GoTK/internal/detect	0.002s
+ok  	github.com/antikkorps/GoTK/internal/exec	0.001s
+FAIL	github.com/antikkorps/GoTK/cmd/gotk	0.005s
 ```
 
 **After:**
 ```
   3 packages passed
-FAIL	github.com/fMusic/GoTK/cmd/gotk	0.005s
+FAIL	github.com/antikkorps/GoTK/cmd/gotk	0.005s
 ```
 
 ### Ls: `compressLsOutput`

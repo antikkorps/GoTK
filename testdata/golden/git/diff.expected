@@ -1,0 +1,29 @@
+diff --git a/src/server/handler.go b/src/server/handler.go
+--- a/src/server/handler.go
++++ b/src/server/handler.go
+@@ -14,7 +14,9 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
+ 	ctx := r.Context()
+ 	userID := ctx.Value("user_id").(string)
+
+-	result, err := processRequest(userID, r.Body)
++	result, err := processRequest(ctx, userID, r.Body)
++	if err != nil {
++		http.Error(w, err.Error(), http.StatusInternalServerError)
++		return
++	}
+
+ 	json.NewEncoder(w).Encode(result)
+diff --git a/src/server/process.go b/src/server/process.go
+--- a/src/server/process.go
++++ b/src/server/process.go
+@@ -8,8 +8,8 @@ import (
+ 	"io"
+ )
+
+-func processRequest(userID string, body io.Reader) (*Result, error) {
+-	data, err := io.ReadAll(body)
++func processRequest(ctx context.Context, userID string, body io.Reader) (*Result, error) {
++	data, err := io.ReadAll(io.LimitReader(body, maxBodySize))
+ 	if err != nil {
+ 		return nil, fmt.Errorf("read body: %w", err)
+ 	}

@@ -1,0 +1,7 @@
+[35msrc/main.go[0m:[33m12[0m:func [1;31mmain[0m() {
+[35msrc/main.go[0m:[33m25[0m:	fmt.Println("[1;31mmain[0m: starting")
+[35msrc/utils.go[0m:[33m8[0m:// Called from [1;31mmain[0m
+[35msrc/utils.go[0m:[33m44[0m:	log.Printf("[1;31mmain[0m loop iteration %d", i)
+[35mlib/core.go[0m:[33m99[0m:	// See [1;31mmain[0m for usage
+[36m-- [0m
+[1;32mMatches: 5[0m

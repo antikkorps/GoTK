@@ -1,0 +1,23 @@
+commit a1b2c3d4e5f6789012345678901234567890abcd
+Author: Jane Developer <jane@example.com>
+Date:   Mon Jan 15 14:30:00 2024 -0800
+
+    feat: add user authentication module
+
+    Implements JWT-based authentication with refresh tokens.
+    Closes #42.
+
+ src/auth/jwt.go       | 145 +++++++++++++++++++++++
+ src/auth/jwt_test.go  |  89 ++++++++++++++++
+ src/auth/middleware.go |  67 ++++++++++++
+ 3 files changed, 301 insertions(+)
+
+commit b2c3d4e5f6789012345678901234567890abcdef
+Author: John Coder <john@example.com>
+Date:   Sun Jan 14 09:15:00 2024 -0800
+
+    fix: resolve race condition in connection pool
+
+ src/db/pool.go      | 23 +++++++-----
+ src/db/pool_test.go | 45 +++++++++++++++++++
+ 2 files changed, 59 insertions(+), 9 deletions(-)

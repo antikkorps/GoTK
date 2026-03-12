@@ -1,0 +1,7 @@
+src/main.go:12:func main() {
+src/main.go:25:	fmt.Println("main: starting")
+src/utils.go:8:// Called from main
+src/utils.go:44:	log.Printf("main loop iteration %d", i)
+lib/core.go:99:	// See main for usage
+--
+Matches: 5

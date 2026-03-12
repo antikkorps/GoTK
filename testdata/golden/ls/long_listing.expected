@@ -1,0 +1,10 @@
+drwxr-xr-x 384 .
+drwxr-xr-x 160 ..
+-rw-r--r-- 1234 main.go
+-rw-r--r-- 567 go.mod
+-rw-r--r-- 15234 go.sum
+drwxr-xr-x 128 internal
+drwxr-xr-x 96 cmd
+-rw-r--r-- 2048 README.md
+-rw-r--r-- 456 Makefile
+lrwxr-xr-x 12 gotk -> cmd/gotk/main.go

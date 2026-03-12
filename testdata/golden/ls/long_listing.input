@@ -1,0 +1,11 @@
+total 128
+drwxr-xr-x  12 user  staff    384 Jan 15 10:00 .
+drwxr-xr-x   5 user  staff    160 Jan 10 08:00 ..
+-rw-r--r--   1 user  staff   1234 Jan 15 09:55 main.go
+-rw-r--r--   1 user  staff    567 Jan 14 16:30 go.mod
+-rw-r--r--   1 user  staff  15234 Jan 14 16:30 go.sum
+drwxr-xr-x   4 user  staff    128 Jan 13 11:00 internal
+drwxr-xr-x   3 user  staff     96 Jan 12 09:00 cmd
+-rw-r--r--   1 user  staff   2048 Jan 11 14:00 README.md
+-rw-r--r--   1 user  staff    456 Jan 10 08:30 Makefile
+lrwxr-xr-x   1 user  staff     12 Jan 10 08:00 gotk -> cmd/gotk/main.go

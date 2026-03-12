@@ -1,0 +1,23 @@
+Starting deployment...
+Pulling image registry.example.com/app:v2.1.0
+Image pulled successfully
+Stopping old container...
+WARNING: Container health check failing, forcing stop
+Container stopped
+Starting new container...
+ERROR: Failed to bind port 8080: address already in use
+Error: container failed to start within timeout
+Stack trace:
+  at deployment.Start (deploy.go:145)
+  at deployment.Execute (deploy.go:89)
+  at main.run (main.go:34)
+  at main.main (main.go:12)
+FATAL: Deployment failed, initiating rollback
+Warning: rollback may take up to 60 seconds
+Rolling back to v2.0.9...
+panic: runtime error: nil pointer dereference
+goroutine 1 [running]:
+main.rollback(0x0)
+	/app/main.go:78 +0x1a2
+main.main()
+	/app/main.go:35 +0x3f1

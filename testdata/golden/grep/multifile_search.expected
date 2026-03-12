@@ -1,0 +1,17 @@
+>> src/server/handler.go
+  14:func HandleRequest(w http.ResponseWriter, r *http.Request) {
+  28:	// HandleRequest processes incoming HTTP requests
+  55:	log.Printf("HandleRequest: method=%s path=%s", r.Method, r.URL.Path)
+
+>> src/server/middleware.go
+  9:func AuthMiddleware(next http.Handler) http.Handler {
+  33:	// Validate token before HandleRequest
+
+>> src/client/api.go
+  22:func (c *Client) SendRequest(ctx context.Context, req *Request) (*Response, error) {
+  71:	return c.SendRequest(ctx, &Request{Method: "GET", Path: path})
+  85:	return c.SendRequest(ctx, &Request{Method: "POST", Path: path, Body: body})
+
+>> pkg/models/request.go
+  5:type Request struct {
+  12:// NewRequest creates a request with defaults.
