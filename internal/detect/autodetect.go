@@ -19,6 +19,14 @@ var (
 	goTestPattern = regexp.MustCompile(`^(ok|FAIL|---\s+(FAIL|PASS))\s+`)
 	// ls -l style: permission bits at start
 	lsPattern = regexp.MustCompile(`^[drwxlstST-]{10}`)
+	// Docker build output: "Step N/M :" or "STEP N:"
+	autoDockerBuildPattern = regexp.MustCompile(`^(Step|STEP) \d+(/\d+)?\s*:`)
+	// npm output: "npm warn", "added N packages"
+	autoNpmPattern = regexp.MustCompile(`^npm (warn|ERR!|http)|^added \d+ packages`)
+	// Cargo output: "Compiling ", "Downloading ", "Finished"
+	autoCargoPattern = regexp.MustCompile(`^\s*(Compiling|Downloading|Finished)\s+`)
+	// Make output: "make[N]:" or "make:"
+	autoMakePattern = regexp.MustCompile(`^make(\[\d+\])?:`)
 )
 
 // AutoDetect analyzes output content to guess the source command type.
@@ -46,6 +54,9 @@ func AutoDetect(output string) CmdType {
 		if gitLogPattern.MatchString(line) || gitDiffPattern.MatchString(line) {
 			return CmdGit
 		}
+		if autoDockerBuildPattern.MatchString(line) {
+			return CmdDocker
+		}
 	}
 
 	// Count matches for frequency-based patterns
@@ -61,6 +72,12 @@ func AutoDetect(output string) CmdType {
 			scores[CmdLs]++
 		case findPathPattern.MatchString(line):
 			scores[CmdFind]++
+		case autoNpmPattern.MatchString(line):
+			scores[CmdNpm]++
+		case autoCargoPattern.MatchString(line):
+			scores[CmdCargo]++
+		case autoMakePattern.MatchString(line):
+			scores[CmdMake]++
 		}
 	}
 

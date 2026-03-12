@@ -35,6 +35,27 @@ func TestIdentify(t *testing.T) {
 		{"eza", "eza", CmdLs},
 		{"lsd", "lsd", CmdLs},
 
+		// Docker family
+		{"docker", "docker", CmdDocker},
+		{"docker-compose", "docker-compose", CmdDocker},
+		{"podman", "podman", CmdDocker},
+
+		// Npm family
+		{"npm", "npm", CmdNpm},
+		{"yarn", "yarn", CmdNpm},
+		{"pnpm", "pnpm", CmdNpm},
+		{"npx", "npx", CmdNpm},
+		{"bun", "bun", CmdNpm},
+
+		// Cargo family
+		{"cargo", "cargo", CmdCargo},
+		{"rustc", "rustc", CmdCargo},
+
+		// Make family
+		{"make", "make", CmdMake},
+		{"cmake", "cmake", CmdMake},
+		{"ninja", "ninja", CmdMake},
+
 		// Unknown
 		{"unknown command", "curl", CmdGeneric},
 		{"empty string", "", CmdGeneric},
@@ -73,6 +94,10 @@ func TestFiltersFor(t *testing.T) {
 		{"git filters", CmdGit, 1},
 		{"go filters", CmdGoTool, 2},
 		{"ls filters", CmdLs, 1},
+		{"docker filters", CmdDocker, 1},
+		{"npm filters", CmdNpm, 1},
+		{"cargo filters", CmdCargo, 1},
+		{"make filters", CmdMake, 1},
 		{"generic filters", CmdGeneric, 1},
 	}
 

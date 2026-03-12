@@ -98,6 +98,55 @@ func TestAutoDetect(t *testing.T) {
 			want: CmdGeneric,
 		},
 		{
+			name: "docker build format",
+			output: strings.Join([]string{
+				"Sending build context to Docker daemon  2.048kB",
+				"Step 1/5 : FROM golang:1.21-alpine",
+				" ---> abc123def456",
+				"Step 2/5 : WORKDIR /app",
+				" ---> Running in 1234567890ab",
+				"Step 3/5 : COPY . .",
+				"Step 4/5 : RUN go build -o /app/server .",
+				"Step 5/5 : CMD [\"/app/server\"]",
+			}, "\n"),
+			want: CmdDocker,
+		},
+		{
+			name: "npm output format",
+			output: strings.Join([]string{
+				"npm warn deprecated inflight@1.0.6: This module is not supported",
+				"npm warn deprecated rimraf@3.0.2: Not supported",
+				"npm warn deprecated glob@7.2.0: Not supported",
+				"npm warn deprecated mkdirp@0.5.6: Not supported",
+				"npm warn deprecated gauge@4.0.4: Not supported",
+				"added 523 packages in 12s",
+			}, "\n"),
+			want: CmdNpm,
+		},
+		{
+			name: "cargo build format",
+			output: strings.Join([]string{
+				"   Compiling proc-macro2 v1.0.67",
+				"   Compiling unicode-ident v1.0.12",
+				"   Compiling quote v1.0.33",
+				"   Compiling syn v2.0.37",
+				"   Compiling serde v1.0.188",
+				"    Finished dev [unoptimized + debuginfo] target(s) in 10.5s",
+			}, "\n"),
+			want: CmdCargo,
+		},
+		{
+			name: "make output format",
+			output: strings.Join([]string{
+				"make[1]: Entering directory '/home/user/project/src'",
+				"gcc -Wall -c main.c -o main.o",
+				"make[1]: Leaving directory '/home/user/project/src'",
+				"make[1]: Entering directory '/home/user/project/lib'",
+				"make[1]: Leaving directory '/home/user/project/lib'",
+			}, "\n"),
+			want: CmdMake,
+		},
+		{
 			name: "go test format",
 			output: strings.Join([]string{
 				"ok  \tgithub.com/example/pkg1\t0.5s",

@@ -17,6 +17,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/filter"
 	"github.com/antikkorps/GoTK/internal/mcp"
 	"github.com/antikkorps/GoTK/internal/proxy"
+	"github.com/antikkorps/GoTK/internal/watch"
 )
 
 var (
@@ -83,6 +84,9 @@ func main() {
 	// Handle subcommands
 	var cmdArgs []string
 	switch args[0] {
+	case "watch":
+		runWatch(args[1:])
+		os.Exit(0)
 	case "exec":
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "gotk exec: missing command")
@@ -266,6 +270,94 @@ func runStreaming(cmdArgs []string) int {
 	return code
 }
 
+// runWatch parses watch-specific flags and starts the watch loop.
+// Arguments before "--" are watch flags; arguments after are the command.
+func runWatch(args []string) {
+	var (
+		interval   = 2 * time.Second
+		extensions []string
+		paths      []string
+	)
+
+	// Split args at "--" separator.
+	var watchFlags, cmdArgs []string
+	dashIdx := -1
+	for i, a := range args {
+		if a == "--" {
+			dashIdx = i
+			break
+		}
+	}
+	if dashIdx >= 0 {
+		watchFlags = args[:dashIdx]
+		cmdArgs = args[dashIdx+1:]
+	} else {
+		// No "--" — treat all args as command.
+		cmdArgs = args
+	}
+
+	// Parse watch-specific flags.
+	for i := 0; i < len(watchFlags); i++ {
+		switch watchFlags[i] {
+		case "--interval", "-i":
+			if i+1 < len(watchFlags) {
+				if d, err := time.ParseDuration(watchFlags[i+1]); err == nil {
+					interval = d
+				}
+				i++
+			}
+		case "--ext", "-e":
+			if i+1 < len(watchFlags) {
+				extensions = append(extensions, watchFlags[i+1])
+				i++
+			}
+		case "--path", "-p":
+			if i+1 < len(watchFlags) {
+				paths = append(paths, watchFlags[i+1])
+				i++
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "gotk watch: unknown flag %q\n", watchFlags[i])
+			os.Exit(1)
+		}
+	}
+
+	if len(cmdArgs) == 0 {
+		fmt.Fprintln(os.Stderr, "gotk watch: missing command (use -- to separate flags from command)")
+		os.Exit(1)
+	}
+
+	// Set up context with signal handling for graceful shutdown.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		// First signal: cancel context (stops current run).
+		cancel()
+		<-sigCh
+		// Second signal: hard exit.
+		os.Exit(130)
+	}()
+
+	wcfg := watch.Config{
+		Command:    cmdArgs,
+		Interval:   interval,
+		Debounce:   500 * time.Millisecond,
+		Paths:      paths,
+		Extensions: extensions,
+		MaxLines:   maxLines,
+		GoTKConfig: cfg,
+	}
+
+	if err := watch.Run(ctx, wcfg); err != nil && err != context.Canceled {
+		fmt.Fprintf(os.Stderr, "gotk watch: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
@@ -279,6 +371,7 @@ Usage:
   gotk --shell                              Proxy shell mode
   gotk -c "command"                         Shell-compatible execution
   gotk --mcp                                MCP server (JSON-RPC over stdio)
+  gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
 
 Examples:
   gotk grep -rn "func main" .
@@ -290,6 +383,9 @@ Examples:
   SHELL=/path/to/gotk gotk --shell          LLM integration
   gotk -c "grep -rn foo ."                  Single command
   gotk --stream make build                   Stream filtered output in real-time
+  gotk watch --ext .go -- go test ./...     Watch .go files, re-run tests
+  gotk watch --interval 5s -- make build    Poll every 5s
+  gotk watch -e .py -p src -- python -m pytest
 
 Flags:
   -s, --stats        Show reduction statistics on stderr
@@ -301,6 +397,11 @@ Flags:
   --mcp              Start MCP server (Model Context Protocol)
   -h, --help         Show this help
   -v, --version      Show version
+
+Watch flags (before --):
+  -i, --interval D   Polling interval (default: 2s, e.g., 5s, 500ms)
+  -e, --ext EXT      File extension to watch (repeatable, e.g., -e .go -e .mod)
+  -p, --path PATH    Path to watch (repeatable, default: ".")
 
 Config:
   ~/.config/gotk/config.toml    Global config

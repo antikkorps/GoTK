@@ -17,6 +17,10 @@ const (
 	CmdGit
 	CmdGoTool
 	CmdLs
+	CmdDocker
+	CmdNpm
+	CmdCargo
+	CmdMake
 )
 
 // Identify detects the command type from the binary name.
@@ -35,6 +39,14 @@ func Identify(command string) CmdType {
 		return CmdGoTool
 	case base == "ls" || base == "exa" || base == "eza" || base == "lsd":
 		return CmdLs
+	case base == "docker" || base == "docker-compose" || base == "podman":
+		return CmdDocker
+	case base == "npm" || base == "yarn" || base == "pnpm" || base == "npx" || base == "bun":
+		return CmdNpm
+	case base == "cargo" || base == "rustc":
+		return CmdCargo
+	case base == "make" || base == "cmake" || base == "ninja":
+		return CmdMake
 	default:
 		return CmdGeneric
 	}
@@ -53,6 +65,14 @@ func FiltersFor(cmdType CmdType) []filter.FilterFunc {
 		return []filter.FilterFunc{filter.CompressPaths, compressGoOutput}
 	case CmdLs:
 		return []filter.FilterFunc{compressLsOutput}
+	case CmdDocker:
+		return []filter.FilterFunc{compressDockerOutput}
+	case CmdNpm:
+		return []filter.FilterFunc{compressNpmOutput}
+	case CmdCargo:
+		return []filter.FilterFunc{compressCargoOutput}
+	case CmdMake:
+		return []filter.FilterFunc{compressMakeOutput}
 	default:
 		return []filter.FilterFunc{filter.CompressPaths}
 	}
