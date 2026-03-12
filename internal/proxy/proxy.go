@@ -51,6 +51,9 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filte
 		chain.Add(filter.RedactSecrets)
 	}
 
+	// Summary goes before truncation so LLM always sees the overview
+	chain.Add(filter.Summarize)
+
 	if cfg.Filters.Truncate {
 		chain.Add(filter.TruncateWithLimit(maxLines))
 	}

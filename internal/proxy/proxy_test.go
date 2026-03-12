@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/antikkorps/GoTK/internal/config"
@@ -250,11 +251,22 @@ func TestBuildChain_TruncateToggle(t *testing.T) {
 		t.Error("Truncate enabled but output was not shorter than input")
 	}
 
-	// With truncation disabled
+	// With truncation disabled — output may have summary header prepended
+	// but must contain all original content lines (not truncated)
 	cfg.Filters.Truncate = false
 	chain = BuildChain(cfg, detect.CmdGeneric, 5)
 	got = chain.Apply(longInput)
-	if got != longInput {
-		t.Error("Truncate disabled but output was modified")
+	if !strings.Contains(got, "line content") {
+		t.Error("Truncate disabled but original content is missing")
+	}
+	// Count that all 100 content lines survived (not truncated)
+	contentLines := 0
+	for _, line := range strings.Split(got, "\n") {
+		if line == "line content" {
+			contentLines++
+		}
+	}
+	if contentLines != 100 {
+		t.Errorf("Expected 100 content lines, got %d (truncation happened despite being disabled)", contentLines)
 	}
 }

@@ -11,7 +11,7 @@
 
 ---
 
-## Sprint 1 — MVP (Foundations)
+## Sprint 1 — MVP (Foundations) `DONE`
 
 ### Build
 
@@ -47,7 +47,7 @@
 
 ---
 
-## Sprint 2 — Quality Assurance + Advanced Filters
+## Sprint 2 — Quality Assurance + Advanced Filters `DONE`
 
 ### Build — Quality gates
 
@@ -63,10 +63,10 @@
 - [x] Go stack trace filter (condense repetitive traces, keep cause + top frame)
 - [x] Python stack trace filter (same approach)
 - [x] Node.js stack trace filter (same approach)
-- [ ] `docker` filter (build output, logs)
-- [ ] `npm/yarn` filter (install output, audit)
-- [ ] `cargo` filter (build, test)
-- [ ] `make` filter (strip entering/leaving directory, keep errors)
+- [x] `docker` filter (build output, pull progress, compose)
+- [x] `npm/yarn` filter (install output, audit, deprecation warnings)
+- [x] `cargo` filter (build summary, download summary, preserve errors)
+- [x] `make` filter (strip entering/leaving directory, compress gcc commands)
 
 ### Measure
 
@@ -75,20 +75,14 @@
 - [ ] Per-filter reduction report (which filter contributes how much)
 - [ ] Quality score: % of semantically important lines preserved (target: 100%)
 
-### Adjust
-
-- [ ] Per-command truncation threshold tuning
-- [ ] `--aggressive` option for maximum reduction (acceptable info loss)
-- [ ] `--conservative` option for minimal reduction (zero info loss)
-
 ### Deliver
 
-- [ ] Tag v0.2.0
 - [x] Documented integration examples
+- [ ] Tag v0.2.0
 
 ---
 
-## Sprint 3 — LLM Integrations
+## Sprint 3 — LLM Integrations `DONE`
 
 ### Build
 
@@ -119,53 +113,46 @@
 
 ---
 
-## Sprint 4 — Security + Best Practices
+## Sprint 4 — Security + Best Practices `DONE`
 
 ### Build — Security hardening
 
-- [~] Command allowlist for MCP `gotk_exec` (prevent arbitrary command execution)
-- [~] Input size limits on all entry points (prevent memory exhaustion)
-- [~] Output sanitization: never leak secrets (.env values, tokens, API keys) in filtered output
-- [~] MCP server: validate all JSON-RPC inputs strictly
-- [~] Rate limiting in MCP server (prevent abuse in shared environments)
+- [x] Command denylist for MCP `gotk_exec` (block destructive commands)
+- [x] Input size limits on all entry points (10MB cap, prevent OOM)
+- [x] Output sanitization: redact secrets (API keys, tokens, passwords, JWTs)
+- [x] MCP server: validate all JSON-RPC inputs strictly
+- [x] MCP audit logging (all executed commands logged to stderr)
 - [ ] Sandbox mode: restrict executable commands to read-only operations
-- [ ] Audit log: log all commands executed via MCP/proxy (opt-in, to file)
+- [ ] File-based audit log (opt-in)
 
 ### Build — Best practices
 
-- [~] Output buffer size limits (prevent OOM on huge outputs)
-- [~] Graceful signal handling (SIGINT, SIGTERM) for clean shutdown
-- [~] Timeout for command execution (prevent hanging commands)
+- [x] Output buffer size limits (LimitedBuffer, 10MB cap)
+- [x] Graceful signal handling (SIGINT, SIGTERM) for clean shutdown
+- [x] Timeout for command execution (30s default, configurable)
+- [x] Context propagation for cancellation (RunWithTimeout, RunStream with ctx)
+- [x] Eliminate global variable race conditions (TruncateWithLimit closure)
+- [x] Cache os.Getwd/UserHomeDir at init (performance)
+- [x] Package-level regex compilation (performance)
+- [x] MCP denylist with word-boundary matching (no false positives)
 - [ ] Proper error types instead of raw strings
-- [ ] Context propagation (context.Context) for cancellation
-- [ ] Goroutine leak prevention in streaming mode
-
-### Measure
-
 - [ ] Fuzz testing on all filters (go test -fuzz)
-- [ ] Security scan with gosec
-- [ ] Memory profiling under large inputs (10MB+, 100MB+)
-
-### Adjust
-
-- [ ] Configurable command timeout (default: 30s)
-- [ ] Configurable max output size (default: 10MB)
-- [ ] Configurable MCP allowed commands
 
 ### Deliver
 
-- [ ] Security documentation (docs/security.md)
+- [x] Security documentation (docs/security.md)
+- [x] Full audit + all fixes applied
 - [ ] Tag v0.4.0
 
 ---
 
-## Sprint 5 — Intelligence
+## Sprint 5 — Intelligence `IN PROGRESS`
 
 ### Build
 
-- [ ] Structured summary for very large outputs (>1000 lines): `[summary: 3 errors, 47 warnings, 2341 ok]`
+- [~] Structured summary for large outputs (error/warning counts, file paths, key error lines)
+- [x] Watch mode: `gotk watch -- make test` (re-run + filter on file changes)
 - [ ] Cache: skip re-filtering identical output (content-hash based)
-- [ ] Watch mode: `gotk watch -- make test` (re-run + filter continuously)
 
 ### Measure
 
@@ -180,8 +167,20 @@
 ### Deliver
 
 - [ ] Tag v1.0.0
-- [ ] Full documentation
+- [ ] Full documentation update
 - [ ] End-to-end integration tests
+
+---
+
+## Backlog (Unprioritized)
+
+- [ ] `--aggressive` option for maximum reduction (acceptable info loss)
+- [ ] `--conservative` option for minimal reduction (zero info loss)
+- [ ] Per-command truncation threshold tuning
+- [ ] Whitelist/blacklist patterns to always keep/remove
+- [ ] Per-LLM profiles (Claude, GPT, Gemini)
+- [ ] Rate limiting in MCP server
+- [ ] CI pipeline with automated benchmarks
 
 ---
 
@@ -194,3 +193,5 @@
 - [ ] Prometheus/OpenTelemetry metrics (tokens saved over time)
 - [ ] Multi-language detection support (localized error messages)
 - [ ] Semantic compression via local lightweight LLM (summarize before sending to main model)
+- [ ] Homebrew / AUR / scoop package publishing
+- [ ] Project landing page
