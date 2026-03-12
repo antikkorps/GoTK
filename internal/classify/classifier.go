@@ -76,6 +76,9 @@ var (
 	pureANSI       = regexp.MustCompile(`^\x1b\[[0-9;]*[a-zA-Z]$`)
 	ansiContent    = regexp.MustCompile(`\x1b\[`)
 	decorativeLine = regexp.MustCompile(`^[-=_~]{10,}$`)
+
+	// ansiStripPattern is used to strip ANSI escape sequences for content check.
+	ansiStripPattern = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 )
 
 // Classify returns the semantic importance level of a line.
@@ -94,7 +97,7 @@ func Classify(line string) Level {
 	}
 	// Line that is only ANSI codes with no visible text
 	if ansiContent.MatchString(trimmed) {
-		stripped := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`).ReplaceAllString(trimmed, "")
+		stripped := ansiStripPattern.ReplaceAllString(trimmed, "")
 		if strings.TrimSpace(stripped) == "" {
 			return Noise
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
@@ -22,6 +24,7 @@ var (
 	shellMode  bool
 	shellCmd   string // -c "command"
 	streamMode bool
+	maxLines   int
 	cfg        *config.Config
 )
 
@@ -32,7 +35,7 @@ func main() {
 	// Load config (file-based defaults)
 	cfg = config.Load()
 	showStats = cfg.General.Stats
-	filter.MaxLines = cfg.General.MaxLines
+	maxLines = cfg.General.MaxLines
 	shellMode = cfg.General.ShellMode
 
 	args := os.Args[1:]
@@ -42,13 +45,13 @@ func main() {
 
 	// Shell mode: -c "command" (sh-compatible single command execution)
 	if shellCmd != "" {
-		code := proxy.RunCommand(cfg, shellCmd)
+		code := proxy.RunCommand(cfg, shellCmd, maxLines)
 		os.Exit(code)
 	}
 
 	// Shell mode: --shell (proxy shell loop)
 	if shellMode {
-		code := proxy.RunShell(cfg)
+		code := proxy.RunShell(cfg, maxLines)
 		os.Exit(code)
 	}
 
@@ -62,12 +65,16 @@ func main() {
 
 	// Pipe mode: <command> | gotk
 	if len(args) == 0 && isPipe {
-		input, _ := io.ReadAll(os.Stdin)
+		input, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk: failed to read stdin: %v\n", err)
+			os.Exit(1)
+		}
 		raw := string(input)
 
 		// Auto-detect command type from output format
 		cmdType := detect.AutoDetect(raw)
-		chain := proxy.BuildChain(cfg, cmdType)
+		chain := proxy.BuildChain(cfg, cmdType, maxLines)
 		cleaned := chain.Apply(raw)
 		printWithStats(raw, cleaned)
 		return
@@ -125,7 +132,7 @@ func main() {
 	if mapped, ok := cfg.Commands[cmdArgs[0]]; ok {
 		cmdType = detect.Identify(mapped)
 	}
-	chain := proxy.BuildChain(cfg, cmdType)
+	chain := proxy.BuildChain(cfg, cmdType, maxLines)
 
 	// Apply filters
 	cleaned := chain.Apply(result.Stdout)
@@ -150,12 +157,12 @@ func parseFlags(args []string) []string {
 		case "--max-lines", "-m":
 			if i+1 < len(args) {
 				if n, err := strconv.Atoi(args[i+1]); err == nil {
-					filter.MaxLines = n
+					maxLines = n
 				}
 				i++
 			}
 		case "--no-truncate":
-			filter.MaxLines = 0
+			maxLines = 0
 		case "--shell":
 			shellMode = true
 		case "--stream":
@@ -210,7 +217,15 @@ func runStreaming(cmdArgs []string) int {
 		NormalizeWhitespace: cfg.Filters.NormalizeWhitespace,
 	})
 
-	ch, wait := exec.RunStream(cmdArgs[0], cmdArgs[1:]...)
+	// Create a context with timeout for streaming
+	timeout := time.Duration(cfg.Security.CommandTimeout) * time.Second
+	if timeout <= 0 {
+		timeout = exec.DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ch, wait := exec.RunStream(ctx, cmdArgs[0], cmdArgs[1:]...)
 
 	rawBytes := 0
 	cleanBytes := 0

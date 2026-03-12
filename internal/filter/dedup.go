@@ -10,9 +10,6 @@ func Dedup(input string) string {
 	}
 
 	lines := strings.Split(input, "\n")
-	if len(lines) == 0 {
-		return input
-	}
 
 	var result []string
 	prev := lines[0]

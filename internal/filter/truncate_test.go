@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestTruncate(t *testing.T) {
+func TestTruncateWithLimit(t *testing.T) {
 	// Helper to generate N lines
 	makeLines := func(n int) string {
 		var lines []string
@@ -16,32 +16,28 @@ func TestTruncate(t *testing.T) {
 		return strings.Join(lines, "\n") + "\n"
 	}
 
-	// Save and restore MaxLines around each test
-	origMaxLines := MaxLines
-	defer func() { MaxLines = origMaxLines }()
-
 	t.Run("under limit no-op", func(t *testing.T) {
-		MaxLines = 50
+		truncate := TruncateWithLimit(50)
 		input := makeLines(10)
-		got := Truncate(input)
+		got := truncate(input)
 		if got != input {
-			t.Errorf("expected no truncation for 10 lines with MaxLines=50")
+			t.Errorf("expected no truncation for 10 lines with maxLines=50")
 		}
 	})
 
 	t.Run("exactly at limit no-op", func(t *testing.T) {
-		MaxLines = 10
+		truncate := TruncateWithLimit(10)
 		input := makeLines(10)
-		got := Truncate(input)
+		got := truncate(input)
 		if got != input {
-			t.Errorf("expected no truncation for 10 lines with MaxLines=10")
+			t.Errorf("expected no truncation for 10 lines with maxLines=10")
 		}
 	})
 
 	t.Run("over limit with head tail split", func(t *testing.T) {
-		MaxLines = 10
+		truncate := TruncateWithLimit(10)
 		input := makeLines(20)
-		got := Truncate(input)
+		got := truncate(input)
 
 		// Should contain head lines
 		if !strings.Contains(got, "line 1") {
@@ -60,9 +56,9 @@ func TestTruncate(t *testing.T) {
 	})
 
 	t.Run("omitted count accuracy", func(t *testing.T) {
-		MaxLines = 10
+		truncate := TruncateWithLimit(10)
 		input := makeLines(100)
-		got := Truncate(input)
+		got := truncate(input)
 
 		headCount := int(float64(10) * HeadTailRatio) // 7
 		tailCount := 10 - headCount                   // 3
@@ -74,21 +70,21 @@ func TestTruncate(t *testing.T) {
 		}
 	})
 
-	t.Run("MaxLines 0 disables truncation", func(t *testing.T) {
-		MaxLines = 0
+	t.Run("maxLines 0 disables truncation", func(t *testing.T) {
+		truncate := TruncateWithLimit(0)
 		input := makeLines(1000)
-		got := Truncate(input)
+		got := truncate(input)
 		if got != input {
-			t.Error("expected no truncation when MaxLines=0")
+			t.Error("expected no truncation when maxLines=0")
 		}
 	})
 
-	t.Run("negative MaxLines disables truncation", func(t *testing.T) {
-		MaxLines = -1
+	t.Run("negative maxLines disables truncation", func(t *testing.T) {
+		truncate := TruncateWithLimit(-1)
 		input := makeLines(100)
-		got := Truncate(input)
+		got := truncate(input)
 		if got != input {
-			t.Error("expected no truncation when MaxLines=-1")
+			t.Error("expected no truncation when maxLines=-1")
 		}
 	})
 }

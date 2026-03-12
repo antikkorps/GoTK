@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,45 +17,126 @@ import (
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
-// dangerousCommands is a denylist of destructive commands that should be blocked.
-var dangerousCommands = []string{
-	"rm -rf /",
-	"rm -rf /*",
-	"rm -fr /",
-	"rm -fr /*",
-	"mkfs",
-	"mkfs.",       // mkfs.ext4, mkfs.xfs, etc.
-	"dd if=",
-	"format c:",
-	"format C:",
-	":(){:|:&};:", // fork bomb
-	"chmod -R 777 /",
-	"chown -R",
-	"shutdown",
-	"reboot",
-	"halt",
-	"init 0",
-	"init 6",
-	"mv / ",
-	"mv /* ",
-	"> /dev/sda",
-	"wipefs",
+// dangerousBaseCommands is a denylist of base command names that are always blocked.
+var dangerousBaseCommands = map[string]bool{
+	"mkfs":     true,
+	"shutdown": true,
+	"reboot":   true,
+	"halt":     true,
+	"wipefs":   true,
+	"format":   true,
+}
+
+// dangerousArgPattern describes a command with specific dangerous argument combinations.
+type dangerousArgPattern struct {
+	cmd      string   // base command name
+	flags    []string // required flags (checked as substrings for combined flags like -rf)
+	exactArg string   // an argument that must appear as an exact field match (e.g., "/" or "/*")
+}
+
+// dangerousPatterns is a list of command + argument patterns that need special matching.
+var dangerousPatterns = []dangerousArgPattern{
+	{cmd: "rm", flags: []string{"-rf"}, exactArg: "/"},
+	{cmd: "rm", flags: []string{"-rf"}, exactArg: "/*"},
+	{cmd: "rm", flags: []string{"-fr"}, exactArg: "/"},
+	{cmd: "rm", flags: []string{"-fr"}, exactArg: "/*"},
+	{cmd: "dd", flags: []string{"if="}},
+	{cmd: "chmod", flags: []string{"-R", "777"}, exactArg: "/"},
+	{cmd: "chown", flags: []string{"-R"}},
+	{cmd: "mv", exactArg: "/"},
+	{cmd: "mv", exactArg: "/*"},
+	{cmd: "init", exactArg: "0"},
+	{cmd: "init", exactArg: "6"},
 }
 
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
 const maxInputSize = 10 * 1024 * 1024
 
+// extractCommand returns the base command name from a command line,
+// skipping common prefixes like sudo, env, nice, etc.
+func extractCommand(fields []string) string {
+	skip := map[string]bool{"sudo": true, "env": true, "nice": true, "nohup": true}
+	for _, f := range fields {
+		base := strings.ToLower(filepath.Base(f))
+		// Skip env var assignments (FOO=bar)
+		if strings.Contains(f, "=") {
+			continue
+		}
+		if skip[base] {
+			continue
+		}
+		return base
+	}
+	if len(fields) > 0 {
+		return strings.ToLower(filepath.Base(fields[0]))
+	}
+	return ""
+}
+
 // validateCommand checks whether a command is on the denylist of dangerous commands.
 // Returns an error message if the command is blocked, empty string if allowed.
 func validateCommand(command string) string {
 	normalized := strings.TrimSpace(command)
-	lower := strings.ToLower(normalized)
-
-	for _, dangerous := range dangerousCommands {
-		if strings.Contains(lower, strings.ToLower(dangerous)) {
-			return fmt.Sprintf("command blocked: contains dangerous pattern %q", dangerous)
-		}
+	fields := strings.Fields(normalized)
+	if len(fields) == 0 {
+		return ""
 	}
+
+	// Extract the actual command name, skipping sudo/env prefixes
+	cmdName := extractCommand(fields)
+
+	// Check if the base command itself is dangerous (exact match or mkfs.* prefix)
+	if dangerousBaseCommands[cmdName] || strings.HasPrefix(cmdName, "mkfs.") {
+		return fmt.Sprintf("command blocked: dangerous command %q", cmdName)
+	}
+
+	// Check fork bomb pattern
+	if strings.Contains(normalized, ":(){ :|:&};:") || strings.Contains(normalized, ":(){:|:&};:") {
+		return "command blocked: fork bomb detected"
+	}
+
+	// Check redirect to device
+	if strings.Contains(normalized, "> /dev/sda") {
+		return "command blocked: destructive device write"
+	}
+
+	// Check dangerous command + argument patterns using the actual command name
+	for _, pattern := range dangerousPatterns {
+		if cmdName != pattern.cmd {
+			continue
+		}
+
+		rest := strings.Join(fields[1:], " ")
+
+		// Check that all required flags are present (substring match for combined flags)
+		flagsMatch := true
+		for _, flag := range pattern.flags {
+			if !strings.Contains(rest, flag) {
+				flagsMatch = false
+				break
+			}
+		}
+		if !flagsMatch {
+			continue
+		}
+
+		// If an exact argument is required, check that it appears as a standalone field
+		if pattern.exactArg != "" {
+			found := false
+			for _, f := range fields[1:] {
+				if f == pattern.exactArg {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		return fmt.Sprintf("command blocked: dangerous pattern %q", cmdName)
+	}
+
 	return ""
 }
 
@@ -68,10 +150,10 @@ type jsonRPCRequest struct {
 }
 
 type jsonRPCResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
+	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   *rpcError   `json:"error,omitempty"`
+	Result  interface{}     `json:"result,omitempty"`
+	Error   *rpcError       `json:"error,omitempty"`
 }
 
 type rpcError struct {
@@ -108,9 +190,9 @@ type toolDef struct {
 }
 
 type inputSchema struct {
-	Type       string                 `json:"type"`
-	Properties map[string]propDef     `json:"properties"`
-	Required   []string               `json:"required"`
+	Type       string             `json:"type"`
+	Properties map[string]propDef `json:"properties"`
+	Required   []string           `json:"required"`
 }
 
 type propDef struct {
@@ -290,15 +372,14 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 	// Audit log: record all executed commands
 	logErr("EXEC: %s", args.Command)
 
-	// Configure max lines
-	savedMaxLines := filter.MaxLines
+	// Determine max lines for this request
+	maxLines := cfg.General.MaxLines
 	if args.MaxLines > 0 {
-		filter.MaxLines = args.MaxLines
+		maxLines = args.MaxLines
 	}
 	if args.NoTruncate {
-		filter.MaxLines = 0
+		maxLines = 0
 	}
-	defer func() { filter.MaxLines = savedMaxLines }()
 
 	// Parse the command to detect type
 	parts := strings.Fields(args.Command)
@@ -335,7 +416,7 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		cmdType = detect.Identify(mapped)
 	}
 
-	chain := proxy.BuildChain(cfg, cmdType)
+	chain := proxy.BuildChain(cfg, cmdType, maxLines)
 	cleaned := chain.Apply(raw)
 
 	// Redact secrets if enabled
@@ -379,12 +460,11 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 		return
 	}
 
-	// Configure max lines
-	savedMaxLines := filter.MaxLines
+	// Determine max lines for this request
+	maxLines := cfg.General.MaxLines
 	if args.MaxLines > 0 {
-		filter.MaxLines = args.MaxLines
+		maxLines = args.MaxLines
 	}
-	defer func() { filter.MaxLines = savedMaxLines }()
 
 	// Detect command type from hint or auto-detect
 	var cmdType detect.CmdType
@@ -394,7 +474,7 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 		cmdType = detect.AutoDetect(args.Input)
 	}
 
-	chain := proxy.BuildChain(cfg, cmdType)
+	chain := proxy.BuildChain(cfg, cmdType, maxLines)
 	cleaned := chain.Apply(args.Input)
 
 	// Redact secrets if enabled

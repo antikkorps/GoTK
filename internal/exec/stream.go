@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
-	"time"
 )
 
 // StreamResult is sent for each line of output.
@@ -18,8 +17,9 @@ type StreamResult struct {
 // RunStream executes a command and streams output line-by-line via a channel.
 // The channel is closed when the command completes.
 // Returns the channel and a function that waits for completion and returns the exit code.
-func RunStream(name string, args ...string) (<-chan StreamResult, func() int) {
-	return RunStreamWithTimeout(context.Background(), name, args...)
+// For timeout support, pass a context with a deadline.
+func RunStream(ctx context.Context, name string, args ...string) (<-chan StreamResult, func() int) {
+	return RunStreamWithTimeout(ctx, name, args...)
 }
 
 // RunStreamWithTimeout executes a command with timeout support and streams output
@@ -110,6 +110,3 @@ func RunStreamWithTimeout(ctx context.Context, name string, args ...string) (<-c
 
 	return ch, waitFn
 }
-
-// StreamTimeout is the default timeout for streaming commands.
-var StreamTimeout = 5 * time.Minute

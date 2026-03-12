@@ -1,13 +1,14 @@
 package exec
 
 import (
+	"context"
 	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestRunStream_Echo(t *testing.T) {
-	ch, wait := RunStream("echo", "hello world")
+	ch, wait := RunStream(context.Background(), "echo", "hello world")
 
 	var lines []StreamResult
 	for r := range ch {
@@ -32,7 +33,7 @@ func TestRunStream_Echo(t *testing.T) {
 
 func TestRunStream_MultipleLines(t *testing.T) {
 	// Use printf to emit multiple lines.
-	ch, wait := RunStream("printf", "line1\nline2\nline3\n")
+	ch, wait := RunStream(context.Background(), "printf", "line1\nline2\nline3\n")
 
 	var lines []string
 	for r := range ch {
@@ -60,7 +61,7 @@ func TestRunStream_MultipleLines(t *testing.T) {
 
 func TestRunStream_Stderr(t *testing.T) {
 	// Write to stderr using sh -c.
-	ch, wait := RunStream("sh", "-c", "echo err >&2")
+	ch, wait := RunStream(context.Background(), "sh", "-c", "echo err >&2")
 
 	var stderrLines []string
 	for r := range ch {
@@ -80,7 +81,7 @@ func TestRunStream_Stderr(t *testing.T) {
 }
 
 func TestRunStream_NonZeroExit(t *testing.T) {
-	ch, wait := RunStream("sh", "-c", "exit 42")
+	ch, wait := RunStream(context.Background(), "sh", "-c", "exit 42")
 
 	// Drain channel.
 	for range ch {
@@ -94,7 +95,7 @@ func TestRunStream_NonZeroExit(t *testing.T) {
 
 func TestRunStream_MixedOutput(t *testing.T) {
 	// Produce both stdout and stderr.
-	ch, wait := RunStream("sh", "-c", "echo out; echo err >&2; echo out2")
+	ch, wait := RunStream(context.Background(), "sh", "-c", "echo out; echo err >&2; echo out2")
 
 	var stdout, stderr []string
 	for r := range ch {
@@ -121,8 +122,8 @@ func TestRunStream_MixedOutput(t *testing.T) {
 }
 
 func TestRunStream_PartialLine(t *testing.T) {
-	// printf without trailing newline — scanner should still emit it.
-	ch, wait := RunStream("printf", "no-newline")
+	// printf without trailing newline -- scanner should still emit it.
+	ch, wait := RunStream(context.Background(), "printf", "no-newline")
 
 	var lines []string
 	for r := range ch {
@@ -142,7 +143,7 @@ func TestRunStream_PartialLine(t *testing.T) {
 }
 
 func TestRunStream_CommandNotFound(t *testing.T) {
-	ch, wait := RunStream("__nonexistent_command_xyz__")
+	ch, wait := RunStream(context.Background(), "__nonexistent_command_xyz__")
 
 	for range ch {
 	}
@@ -154,7 +155,7 @@ func TestRunStream_CommandNotFound(t *testing.T) {
 }
 
 func TestRunStream_WaitIdempotent(t *testing.T) {
-	ch, wait := RunStream("echo", "test")
+	ch, wait := RunStream(context.Background(), "echo", "test")
 	for range ch {
 	}
 

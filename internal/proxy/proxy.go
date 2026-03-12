@@ -2,19 +2,22 @@ package proxy
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
+	gotkexec "github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
 )
 
-// BuildChain creates a filter chain controlled by config and command type.
-func BuildChain(cfg *config.Config, cmdType detect.CmdType) *filter.Chain {
+// BuildChain creates a filter chain controlled by config, command type, and max lines.
+func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filter.Chain {
 	chain := filter.NewChain()
 
 	if cfg.Filters.StripANSI {
@@ -42,14 +45,14 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType) *filter.Chain {
 	// panics/tracebacks can appear in any command's stderr captured as stdout.
 	chain.Add(filter.CompressStackTraces)
 
-	// Secret redaction — always runs before truncation to ensure no secrets
+	// Secret redaction -- always runs before truncation to ensure no secrets
 	// leak even in truncated output.
 	if cfg.Security.RedactSecrets {
 		chain.Add(filter.RedactSecrets)
 	}
 
 	if cfg.Filters.Truncate {
-		chain.Add(filter.Truncate)
+		chain.Add(filter.TruncateWithLimit(maxLines))
 	}
 
 	return chain
@@ -62,27 +65,39 @@ func passthrough() bool {
 
 // RunCommand executes a single command string through the shell, filters
 // stdout, and passes stderr through unmodified. Returns the exit code.
-func RunCommand(cfg *config.Config, command string) int {
+func RunCommand(cfg *config.Config, command string, maxLines int) int {
 	shell := findShell()
-	cmd := exec.Command(shell, "-c", command)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+
+	// Use exec.RunWithTimeout with the configured timeout
+	timeout := time.Duration(cfg.Security.CommandTimeout) * time.Second
+	if timeout <= 0 {
+		timeout = gotkexec.DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	if passthrough() {
+		cmd := exec.CommandContext(ctx, shell, "-c", command)
+		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		return exitCode(err)
 	}
 
-	// Capture stdout for filtering
-	stdout, err := cmd.Output()
+	result, err := gotkexec.RunWithTimeout(ctx, shell, "-c", command)
 	if err != nil {
 		// Still process any output we got
 	}
 
-	raw := string(stdout)
+	raw := result.Stdout
 	if raw == "" {
-		return exitCode(err)
+		return exitCodeFromResult(result, err)
+	}
+
+	// Pass stderr through unmodified
+	if result.Stderr != "" {
+		fmt.Fprint(os.Stderr, result.Stderr)
 	}
 
 	// Detect command type from the first word
@@ -96,18 +111,18 @@ func RunCommand(cfg *config.Config, command string) int {
 		}
 	}
 
-	chain := BuildChain(cfg, cmdType)
+	chain := BuildChain(cfg, cmdType, maxLines)
 	cleaned := chain.Apply(raw)
 	fmt.Fprint(os.Stdout, cleaned)
 
-	return exitCode(err)
+	return exitCodeFromResult(result, err)
 }
 
 // RunShell starts an interactive-ish proxy shell that reads commands from
 // stdin, executes them, and writes filtered output to stdout. This mode
 // is designed for LLM tool integration where the caller sets
 // SHELL=/path/to/gotk and sends commands one at a time.
-func RunShell(cfg *config.Config) int {
+func RunShell(cfg *config.Config, maxLines int) int {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// Increase scanner buffer for large commands
@@ -125,7 +140,7 @@ func RunShell(cfg *config.Config) int {
 			break
 		}
 
-		code := RunCommand(cfg, line)
+		code := RunCommand(cfg, line, maxLines)
 		_ = code // We don't exit the shell loop on non-zero
 	}
 
@@ -172,4 +187,11 @@ func exitCode(err error) int {
 		return 1
 	}
 	return 1
+}
+
+func exitCodeFromResult(result *gotkexec.Result, err error) int {
+	if result != nil {
+		return result.ExitCode
+	}
+	return exitCode(err)
 }

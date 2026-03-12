@@ -5,23 +5,31 @@ import (
 	"strings"
 )
 
+var (
+	cachedCwd  string
+	cachedHome string
+)
+
+func init() {
+	cachedCwd, _ = os.Getwd()
+	cachedHome, _ = os.UserHomeDir()
+}
+
 // CompressPaths shortens absolute paths by replacing the working directory
 // prefix with "./" to reduce token usage.
 func CompressPaths(input string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
+	if cachedCwd == "" {
 		return input
 	}
 
 	// Replace cwd prefix with "./"
-	result := strings.ReplaceAll(input, cwd+"/", "./")
-	result = strings.ReplaceAll(result, cwd, ".")
+	result := strings.ReplaceAll(input, cachedCwd+"/", "./")
+	result = strings.ReplaceAll(result, cachedCwd, ".")
 
 	// Also compress home directory
-	home, err := os.UserHomeDir()
-	if err == nil && home != "" {
-		result = strings.ReplaceAll(result, home+"/", "~/")
-		result = strings.ReplaceAll(result, home, "~")
+	if cachedHome != "" {
+		result = strings.ReplaceAll(result, cachedHome+"/", "~/")
+		result = strings.ReplaceAll(result, cachedHome, "~")
 	}
 
 	return result

@@ -241,7 +241,6 @@ func compressPythonTracebacks(input string) string {
 	for i < len(lines) {
 		if strings.TrimSpace(lines[i]) == "Traceback (most recent call last):" {
 			// Found a traceback. Collect all lines until the exception line.
-			tbStart := i
 			tbLines := []string{lines[i]}
 			i++
 
@@ -317,7 +316,6 @@ func compressPythonTracebacks(input string) string {
 
 			// Exception line(s)
 			result = append(result, exceptionLines...)
-			_ = tbStart
 		} else if isChainedExceptionMarker(lines[i]) {
 			// Keep chained exception markers — they will be followed by another traceback.
 			result = append(result, lines[i])
