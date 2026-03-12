@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "shell_command_output": [
+      {
+        "matcher": "",
+        "command": "gotk"
+      }
+    ]
+  }
+}
