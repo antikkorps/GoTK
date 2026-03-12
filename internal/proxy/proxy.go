@@ -42,6 +42,12 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType) *filter.Chain {
 	// panics/tracebacks can appear in any command's stderr captured as stdout.
 	chain.Add(filter.CompressStackTraces)
 
+	// Secret redaction — always runs before truncation to ensure no secrets
+	// leak even in truncated output.
+	if cfg.Security.RedactSecrets {
+		chain.Add(filter.RedactSecrets)
+	}
+
 	if cfg.Filters.Truncate {
 		chain.Add(filter.Truncate)
 	}

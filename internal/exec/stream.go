@@ -2,9 +2,11 @@ package exec
 
 import (
 	"bufio"
+	"context"
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // StreamResult is sent for each line of output.
@@ -17,9 +19,16 @@ type StreamResult struct {
 // The channel is closed when the command completes.
 // Returns the channel and a function that waits for completion and returns the exit code.
 func RunStream(name string, args ...string) (<-chan StreamResult, func() int) {
+	return RunStreamWithTimeout(context.Background(), name, args...)
+}
+
+// RunStreamWithTimeout executes a command with timeout support and streams output
+// line-by-line via a channel. The channel is closed when the command completes
+// or the context is cancelled/timed out.
+func RunStreamWithTimeout(ctx context.Context, name string, args ...string) (<-chan StreamResult, func() int) {
 	ch := make(chan StreamResult, 64)
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(ctx, name, args...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -63,7 +72,8 @@ func RunStream(name string, args ...string) (<-chan StreamResult, func() int) {
 
 	// Close the channel after both readers finish.
 	var cmdErr error
-	var once sync.Once
+	var exitOnce sync.Once
+	var exitCode int
 	done := make(chan struct{})
 
 	go func() {
@@ -74,21 +84,32 @@ func RunStream(name string, args ...string) (<-chan StreamResult, func() int) {
 	}()
 
 	waitFn := func() int {
-		// Ensure we only wait once and return the same result.
-		once.Do(func() {
+		exitOnce.Do(func() {
 			<-done
-		})
-		if cmdErr == nil {
-			return 0
-		}
-		if exitErr, ok := cmdErr.(*exec.ExitError); ok {
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				return status.ExitStatus()
+			if cmdErr == nil {
+				exitCode = 0
+				return
 			}
-			return 1
-		}
-		return 1
+			// Check for context cancellation/timeout
+			if ctx.Err() != nil {
+				exitCode = 124 // conventional timeout exit code
+				return
+			}
+			if exitErr, ok := cmdErr.(*exec.ExitError); ok {
+				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+					exitCode = status.ExitStatus()
+					return
+				}
+				exitCode = 1
+				return
+			}
+			exitCode = 1
+		})
+		return exitCode
 	}
 
 	return ch, waitFn
 }
+
+// StreamTimeout is the default timeout for streaming commands.
+var StreamTimeout = 5 * time.Minute

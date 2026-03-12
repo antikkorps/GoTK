@@ -2,10 +2,12 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
@@ -13,6 +15,48 @@ import (
 	"github.com/antikkorps/GoTK/internal/filter"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
+
+// dangerousCommands is a denylist of destructive commands that should be blocked.
+var dangerousCommands = []string{
+	"rm -rf /",
+	"rm -rf /*",
+	"rm -fr /",
+	"rm -fr /*",
+	"mkfs",
+	"mkfs.",       // mkfs.ext4, mkfs.xfs, etc.
+	"dd if=",
+	"format c:",
+	"format C:",
+	":(){:|:&};:", // fork bomb
+	"chmod -R 777 /",
+	"chown -R",
+	"shutdown",
+	"reboot",
+	"halt",
+	"init 0",
+	"init 6",
+	"mv / ",
+	"mv /* ",
+	"> /dev/sda",
+	"wipefs",
+}
+
+// maxInputSize is the maximum allowed input size for MCP requests (10MB).
+const maxInputSize = 10 * 1024 * 1024
+
+// validateCommand checks whether a command is on the denylist of dangerous commands.
+// Returns an error message if the command is blocked, empty string if allowed.
+func validateCommand(command string) string {
+	normalized := strings.TrimSpace(command)
+	lower := strings.ToLower(normalized)
+
+	for _, dangerous := range dangerousCommands {
+		if strings.Contains(lower, strings.ToLower(dangerous)) {
+			return fmt.Sprintf("command blocked: contains dangerous pattern %q", dangerous)
+		}
+	}
+	return ""
+}
 
 // JSON-RPC request/response types
 
@@ -219,6 +263,12 @@ func handleToolCall(cfg *config.Config, req jsonRPCRequest) {
 }
 
 func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+	// Input size validation
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
 	var args execArgs
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		sendError(id, -32602, "Invalid arguments: "+err.Error())
@@ -229,6 +279,16 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		sendError(id, -32602, "command is required")
 		return
 	}
+
+	// Command validation: check against denylist
+	if reason := validateCommand(args.Command); reason != "" {
+		logErr("BLOCKED command: %q - %s", args.Command, reason)
+		sendError(id, -32602, reason)
+		return
+	}
+
+	// Audit log: record all executed commands
+	logErr("EXEC: %s", args.Command)
 
 	// Configure max lines
 	savedMaxLines := filter.MaxLines
@@ -247,9 +307,15 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		return
 	}
 
-	// Execute via shell for proper argument handling
+	// Execute via shell with timeout
 	shell := findShell()
-	result, err := exec.Run(shell, "-c", args.Command)
+	timeout := time.Duration(cfg.Security.CommandTimeout) * time.Second
+	if timeout <= 0 {
+		timeout = exec.DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := exec.RunWithTimeout(ctx, shell, "-c", args.Command)
 	if err != nil {
 		sendError(id, -32603, "execution failed: "+err.Error())
 		return
@@ -272,6 +338,11 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 	chain := proxy.BuildChain(cfg, cmdType)
 	cleaned := chain.Apply(raw)
 
+	// Redact secrets if enabled
+	if cfg.Security.RedactSecrets {
+		cleaned = filter.RedactSecrets(cleaned)
+	}
+
 	// Build stats text
 	stats := buildStats(len(raw), len(cleaned))
 
@@ -291,6 +362,12 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 }
 
 func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+	// Input size validation
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
 	var args filterArgs
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		sendError(id, -32602, "Invalid arguments: "+err.Error())
@@ -319,6 +396,11 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 
 	chain := proxy.BuildChain(cfg, cmdType)
 	cleaned := chain.Apply(args.Input)
+
+	// Redact secrets if enabled
+	if cfg.Security.RedactSecrets {
+		cleaned = filter.RedactSecrets(cleaned)
+	}
 
 	stats := buildStats(len(args.Input), len(cleaned))
 

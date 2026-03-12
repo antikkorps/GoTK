@@ -11,7 +11,15 @@ import (
 type Config struct {
 	General  GeneralConfig
 	Filters  FiltersConfig
+	Security SecurityConfig
 	Commands map[string]string // custom command-type mappings
+}
+
+// SecurityConfig controls security-related settings.
+type SecurityConfig struct {
+	CommandTimeout int  // seconds, 0 means no timeout
+	MaxOutputBytes int  // max bytes captured per stream (stdout/stderr)
+	RedactSecrets  bool // whether to redact secrets from output
 }
 
 // GeneralConfig holds general settings.
@@ -46,6 +54,11 @@ func Default() *Config {
 			CompressPaths:       true,
 			TrimDecorative:      true,
 			Truncate:            true,
+		},
+		Security: SecurityConfig{
+			CommandTimeout: 30,
+			MaxOutputBytes: 10 * 1024 * 1024, // 10MB
+			RedactSecrets:  true,
 		},
 		Commands: map[string]string{},
 	}
@@ -142,6 +155,19 @@ func applyTOML(cfg *Config, data string) {
 				cfg.Filters.TrimDecorative = b
 			case "truncate":
 				cfg.Filters.Truncate = b
+			}
+		case "security":
+			switch key {
+			case "command_timeout":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Security.CommandTimeout = n
+				}
+			case "max_output_bytes":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Security.MaxOutputBytes = n
+				}
+			case "redact_secrets":
+				cfg.Security.RedactSecrets = parseBool(val)
 			}
 		case "commands":
 			cfg.Commands[key] = val

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
@@ -24,6 +26,9 @@ var (
 )
 
 func main() {
+	// Set up graceful shutdown on SIGINT and SIGTERM
+	setupSignalHandler()
+
 	// Load config (file-based defaults)
 	cfg = config.Load()
 	showStats = cfg.General.Stats
@@ -291,4 +296,35 @@ Environment:
   GOTK_SHELL=/bin/bash  Shell used for -c and --shell execution`
 
 	fmt.Println(strings.TrimSpace(usage))
+}
+
+// setupSignalHandler catches SIGINT and SIGTERM for graceful shutdown.
+// It cleans up any running child processes and exits cleanly.
+func setupSignalHandler() {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigCh
+		fmt.Fprintf(os.Stderr, "\n[gotk] received signal %s, shutting down...\n", sig)
+
+		// Kill our entire process group so child processes are cleaned up.
+		// Use negative PID to signal the process group.
+		pgid, err := syscall.Getpgid(os.Getpid())
+		if err == nil {
+			// Send SIGTERM to the process group (excluding ourselves, since
+			// we are already shutting down).
+			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		}
+
+		// Exit with 128 + signal number (Unix convention)
+		switch sig {
+		case syscall.SIGINT:
+			os.Exit(130)
+		case syscall.SIGTERM:
+			os.Exit(143)
+		default:
+			os.Exit(1)
+		}
+	}()
 }

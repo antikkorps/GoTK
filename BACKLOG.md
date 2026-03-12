@@ -33,8 +33,8 @@
 - [x] Auto-detect command type in pipe mode
 - [x] Improved grep filters (file grouping with `>> file` headers)
 - [x] Improved ls filters (permissions+size+name only)
-- [x] Improved git filters (strip diff headers, Author/Date)
-- [x] Go test filters (summarize passing packages)
+- [x] Improved git filters (strip redundant diff metadata)
+- [x] Go test filters (summarize passing packages with names)
 
 ### Deliver
 
@@ -43,7 +43,7 @@
 - [x] Unit tests
 - [x] Config file (~/.config/gotk/config.toml)
 - [x] Proxy shell mode (`--shell`, `-c "cmd"`)
-- [ ] First tag v0.1.0
+- [x] Tag v0.1.0
 
 ---
 
@@ -51,18 +51,18 @@
 
 ### Build — Quality gates
 
-- [ ] Golden-file test framework (fixtures/ with .input and .expected for each filter)
-- [ ] Quality validation: ensure no error/warning lines are ever removed
-- [ ] Quality validation: ensure file paths tied to errors are preserved
-- [ ] Quality validation: ensure structural indentation is preserved
-- [ ] Semantic line classifier (error / warning / info / debug / noise)
-- [ ] Priority-based filtering: errors and warnings are NEVER removed
+- [x] Golden-file test framework (testdata/ with .input and .expected for each filter)
+- [x] Quality validation: ensure no error/warning lines are ever removed
+- [x] Quality validation: ensure file paths tied to errors are preserved
+- [x] Quality validation: ensure structural indentation is preserved
+- [x] Semantic line classifier (error / warning / info / debug / noise)
+- [x] Priority-based filtering: errors and warnings are NEVER removed
 
 ### Build — Advanced filters
 
-- [ ] Go stack trace filter (condense repetitive traces, keep cause + top frame)
-- [ ] Python stack trace filter (same approach)
-- [ ] Node.js stack trace filter (same approach)
+- [x] Go stack trace filter (condense repetitive traces, keep cause + top frame)
+- [x] Python stack trace filter (same approach)
+- [x] Node.js stack trace filter (same approach)
 - [ ] `docker` filter (build output, logs)
 - [ ] `npm/yarn` filter (install output, audit)
 - [ ] `cargo` filter (build, test)
@@ -70,7 +70,7 @@
 
 ### Measure
 
-- [ ] Automated benchmark suite (fixtures + golden files)
+- [x] Automated benchmark suite (golden files)
 - [ ] CI: measure reduction on realistic command corpus
 - [ ] Per-filter reduction report (which filter contributes how much)
 - [ ] Quality score: % of semantically important lines preserved (target: 100%)
@@ -84,7 +84,7 @@
 ### Deliver
 
 - [ ] Tag v0.2.0
-- [ ] Documented integration examples
+- [x] Documented integration examples
 
 ---
 
@@ -92,12 +92,12 @@
 
 ### Build
 
-- [ ] MCP Server mode (Model Context Protocol) for Claude Code
-- [ ] Claude Code shell hook
-- [ ] Aider plugin/wrapper
-- [ ] Cursor plugin/wrapper
-- [ ] Continue.dev plugin/wrapper
-- [ ] Streaming mode (real-time filtering, not batch-only)
+- [x] MCP Server mode (Model Context Protocol) for Claude Code
+- [x] Claude Code shell hook
+- [x] Aider plugin/wrapper
+- [x] Cursor plugin/wrapper
+- [x] Continue.dev plugin/wrapper
+- [x] Streaming mode (real-time filtering, not batch-only)
 
 ### Measure
 
@@ -119,14 +119,52 @@
 
 ---
 
-## Sprint 4 — Intelligence
+## Sprint 4 — Security + Best Practices
+
+### Build — Security hardening
+
+- [~] Command allowlist for MCP `gotk_exec` (prevent arbitrary command execution)
+- [~] Input size limits on all entry points (prevent memory exhaustion)
+- [~] Output sanitization: never leak secrets (.env values, tokens, API keys) in filtered output
+- [~] MCP server: validate all JSON-RPC inputs strictly
+- [~] Rate limiting in MCP server (prevent abuse in shared environments)
+- [ ] Sandbox mode: restrict executable commands to read-only operations
+- [ ] Audit log: log all commands executed via MCP/proxy (opt-in, to file)
+
+### Build — Best practices
+
+- [~] Output buffer size limits (prevent OOM on huge outputs)
+- [~] Graceful signal handling (SIGINT, SIGTERM) for clean shutdown
+- [~] Timeout for command execution (prevent hanging commands)
+- [ ] Proper error types instead of raw strings
+- [ ] Context propagation (context.Context) for cancellation
+- [ ] Goroutine leak prevention in streaming mode
+
+### Measure
+
+- [ ] Fuzz testing on all filters (go test -fuzz)
+- [ ] Security scan with gosec
+- [ ] Memory profiling under large inputs (10MB+, 100MB+)
+
+### Adjust
+
+- [ ] Configurable command timeout (default: 30s)
+- [ ] Configurable max output size (default: 10MB)
+- [ ] Configurable MCP allowed commands
+
+### Deliver
+
+- [ ] Security documentation (docs/security.md)
+- [ ] Tag v0.4.0
+
+---
+
+## Sprint 5 — Intelligence
 
 ### Build
 
-- [ ] Semantic content detection (error vs info vs debug)
-- [ ] Priority filtering: keep errors and warnings over informational content
 - [ ] Structured summary for very large outputs (>1000 lines): `[summary: 3 errors, 47 warnings, 2341 ok]`
-- [ ] Cache: skip re-filtering identical output
+- [ ] Cache: skip re-filtering identical output (content-hash based)
 - [ ] Watch mode: `gotk watch -- make test` (re-run + filter continuously)
 
 ### Measure
