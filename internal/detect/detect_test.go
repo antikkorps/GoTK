@@ -1,0 +1,111 @@
+package detect
+
+import (
+	"testing"
+
+	"github.com/fMusic/GoTK/internal/filter"
+)
+
+func TestIdentify(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		want    CmdType
+	}{
+		// Grep family
+		{"grep", "grep", CmdGrep},
+		{"rg", "rg", CmdGrep},
+		{"ag", "ag", CmdGrep},
+		{"ack", "ack", CmdGrep},
+
+		// Find family
+		{"find", "find", CmdFind},
+		{"fd", "fd", CmdFind},
+
+		// Git family
+		{"git", "git", CmdGit},
+		{"gh", "gh", CmdGit},
+
+		// Go tool
+		{"go", "go", CmdGoTool},
+
+		// Ls family
+		{"ls", "ls", CmdLs},
+		{"exa", "exa", CmdLs},
+		{"eza", "eza", CmdLs},
+		{"lsd", "lsd", CmdLs},
+
+		// Unknown
+		{"unknown command", "curl", CmdGeneric},
+		{"empty string", "", CmdGeneric},
+
+		// Path-qualified commands
+		{"absolute path grep", "/usr/bin/grep", CmdGrep},
+		{"absolute path find", "/usr/bin/find", CmdFind},
+		{"absolute path git", "/usr/local/bin/git", CmdGit},
+		{"absolute path go", "/usr/local/go/bin/go", CmdGoTool},
+		{"absolute path ls", "/bin/ls", CmdLs},
+		{"absolute path unknown", "/usr/bin/curl", CmdGeneric},
+
+		// Windows-style .exe suffix
+		{"grep.exe", "grep.exe", CmdGrep},
+		{"git.exe", "git.exe", CmdGit},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Identify(tt.command)
+			if got != tt.want {
+				t.Errorf("Identify(%q) = %d, want %d", tt.command, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFiltersFor(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmdType CmdType
+		minLen  int // minimum number of filters expected
+	}{
+		{"grep filters", CmdGrep, 2},
+		{"find filters", CmdFind, 2},
+		{"git filters", CmdGit, 1},
+		{"go filters", CmdGoTool, 2},
+		{"ls filters", CmdLs, 1},
+		{"generic filters", CmdGeneric, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filters := FiltersFor(tt.cmdType)
+			if len(filters) < tt.minLen {
+				t.Errorf("FiltersFor(%d) returned %d filters, want at least %d", tt.cmdType, len(filters), tt.minLen)
+			}
+
+			// Verify filters are callable (don't panic)
+			for i, f := range filters {
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							t.Errorf("filter %d panicked: %v", i, r)
+						}
+					}()
+					_ = f("test input")
+				}()
+			}
+		})
+	}
+}
+
+func TestFiltersForGrepContainsCompressPaths(t *testing.T) {
+	filters := FiltersFor(CmdGrep)
+	// The first filter for grep should be CompressPaths
+	// Test by checking it produces the same result
+	input := "test"
+	got := filters[0](input)
+	want := filter.CompressPaths(input)
+	if got != want {
+		t.Errorf("first grep filter should be CompressPaths")
+	}
+}
