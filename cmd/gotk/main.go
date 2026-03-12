@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/antikkorps/GoTK/internal/bench"
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
@@ -84,6 +85,9 @@ func main() {
 	// Handle subcommands
 	var cmdArgs []string
 	switch args[0] {
+	case "bench":
+		runBench(args[1:])
+		os.Exit(0)
 	case "watch":
 		runWatch(args[1:])
 		os.Exit(0)
@@ -358,6 +362,44 @@ func runWatch(args []string) {
 	}
 }
 
+// runBench handles the "gotk bench" subcommand.
+func runBench(args []string) {
+	jsonOutput := false
+	perFilter := false
+
+	for _, a := range args {
+		switch a {
+		case "--json":
+			jsonOutput = true
+		case "--per-filter":
+			perFilter = true
+		}
+	}
+
+	if perFilter {
+		// Show per-filter contribution for every built-in fixture.
+		report := bench.RunBenchmarks(cfg)
+		fixtures := bench.AllFixtureInputs()
+		for i, f := range fixtures {
+			contributions := bench.MeasureFilters(cfg, f.Input, f.CmdType)
+			if jsonOutput {
+				fmt.Print(bench.FormatPerFilterJSON(report.Results[i].Name, contributions))
+			} else {
+				fmt.Print(bench.FormatPerFilter(report.Results[i].Name, contributions))
+				fmt.Println()
+			}
+		}
+		return
+	}
+
+	report := bench.RunBenchmarks(cfg)
+	if jsonOutput {
+		fmt.Print(bench.FormatReportJSON(report))
+	} else {
+		fmt.Print(bench.FormatReport(report))
+	}
+}
+
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
@@ -372,6 +414,7 @@ Usage:
   gotk -c "command"                         Shell-compatible execution
   gotk --mcp                                MCP server (JSON-RPC over stdio)
   gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
+  gotk bench [flags]                       Run benchmarks
 
 Examples:
   gotk grep -rn "func main" .
@@ -386,6 +429,9 @@ Examples:
   gotk watch --ext .go -- go test ./...     Watch .go files, re-run tests
   gotk watch --interval 5s -- make build    Poll every 5s
   gotk watch -e .py -p src -- python -m pytest
+  gotk bench                               Run all benchmarks
+  gotk bench --per-filter                  Show per-filter breakdown
+  gotk bench --json                        Output as JSON
 
 Flags:
   -s, --stats        Show reduction statistics on stderr
