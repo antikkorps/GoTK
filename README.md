@@ -10,6 +10,7 @@ GoTK is a CLI tool that sits between shell commands and LLMs, stripping noise fr
 | `git log` | **-90%** |
 | `find` | **-70%** |
 | `ls -la` | **-51%** |
+| `pnpm test` (real project, 5601 lines) | **-98%** |
 
 Results vary by output size and content. Use `--stats` to see exact savings per invocation.
 
@@ -150,6 +151,15 @@ truncate = true
 [security]
 redact_secrets = true
 command_timeout = 30
+
+[rules]
+always_keep = ["^ERROR:", "^FATAL:"]     # regex: these lines are never removed
+always_remove = ["^DEBUG:", "^TRACE:"]   # regex: these lines are always removed
+
+[truncation]
+grep = 30       # per-command max_lines overrides
+test = 200
+git = 100
 ```
 
 ## Filter Catalog

@@ -18,10 +18,12 @@ const (
 
 // Config holds all gotk configuration options.
 type Config struct {
-	General  GeneralConfig
-	Filters  FiltersConfig
-	Security SecurityConfig
-	Commands map[string]string // custom command-type mappings
+	General    GeneralConfig
+	Filters    FiltersConfig
+	Security   SecurityConfig
+	Commands   map[string]string // custom command-type mappings
+	Rules      RulesConfig       // whitelist/blacklist patterns
+	Truncation map[string]int    // per-command max_lines overrides
 }
 
 // SecurityConfig controls security-related settings.
@@ -37,6 +39,15 @@ type GeneralConfig struct {
 	Stats    bool
 	ShellMode bool
 	Mode     FilterMode
+}
+
+// RulesConfig holds whitelist/blacklist regex patterns.
+// Whitelist patterns force lines to be kept even if a filter would remove them.
+// Blacklist patterns force lines to be removed regardless of other filters.
+// Blacklist is applied after whitelist — if a line matches both, it is removed.
+type RulesConfig struct {
+	AlwaysKeep   []string // regex patterns: matching lines are never removed
+	AlwaysRemove []string // regex patterns: matching lines are always removed
 }
 
 // FiltersConfig controls which filters are enabled.
@@ -70,7 +81,9 @@ func Default() *Config {
 			MaxOutputBytes: 10 * 1024 * 1024, // 10MB
 			RedactSecrets:  true,
 		},
-		Commands: map[string]string{},
+		Commands:   map[string]string{},
+		Rules:      RulesConfig{},
+		Truncation: map[string]int{},
 	}
 }
 
@@ -218,8 +231,40 @@ func applyTOML(cfg *Config, data string) {
 			}
 		case "commands":
 			cfg.Commands[key] = val
+		case "rules":
+			switch key {
+			case "always_keep":
+				cfg.Rules.AlwaysKeep = parseTOMLArray(val)
+			case "always_remove":
+				cfg.Rules.AlwaysRemove = parseTOMLArray(val)
+			}
+		case "truncation":
+			if n, err := strconv.Atoi(val); err == nil {
+				cfg.Truncation[key] = n
+			}
 		}
 	}
+}
+
+// parseTOMLArray parses a simple TOML array of strings: ["a", "b", "c"].
+func parseTOMLArray(s string) []string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
+		return nil
+	}
+	s = s[1 : len(s)-1]
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var result []string
+	for _, item := range strings.Split(s, ",") {
+		item = strings.TrimSpace(item)
+		item = strings.Trim(item, "\"")
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func parseBool(s string) bool {
@@ -240,6 +285,15 @@ func (c *Config) ApplyMode() {
 	case ModeBalanced:
 		// Default values — no changes needed
 	}
+}
+
+// MaxLinesForCommand returns the max_lines value for a specific command type.
+// Falls back to General.MaxLines if no per-command override exists.
+func (c *Config) MaxLinesForCommand(cmdName string) int {
+	if n, ok := c.Truncation[cmdName]; ok {
+		return n
+	}
+	return c.General.MaxLines
 }
 
 // ParseMode converts a string to a FilterMode, returning ModeBalanced for unknown values.

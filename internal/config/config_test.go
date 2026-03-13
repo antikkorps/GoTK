@@ -566,6 +566,86 @@ func TestFindProjectConfig_NotFound(t *testing.T) {
 	}
 }
 
+func TestApplyTOML_RulesSection(t *testing.T) {
+	toml := `[rules]
+always_keep = ["^ERROR:", "^FATAL:"]
+always_remove = ["^DEBUG:", "^TRACE:"]
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if len(cfg.Rules.AlwaysKeep) != 2 {
+		t.Fatalf("AlwaysKeep = %v, want 2 entries", cfg.Rules.AlwaysKeep)
+	}
+	if cfg.Rules.AlwaysKeep[0] != "^ERROR:" {
+		t.Errorf("AlwaysKeep[0] = %q, want ^ERROR:", cfg.Rules.AlwaysKeep[0])
+	}
+	if len(cfg.Rules.AlwaysRemove) != 2 {
+		t.Fatalf("AlwaysRemove = %v, want 2 entries", cfg.Rules.AlwaysRemove)
+	}
+	if cfg.Rules.AlwaysRemove[0] != "^DEBUG:" {
+		t.Errorf("AlwaysRemove[0] = %q, want ^DEBUG:", cfg.Rules.AlwaysRemove[0])
+	}
+}
+
+func TestApplyTOML_TruncationSection(t *testing.T) {
+	toml := `[truncation]
+grep = 30
+test = 200
+git = 100
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if cfg.Truncation["grep"] != 30 {
+		t.Errorf("Truncation[grep] = %d, want 30", cfg.Truncation["grep"])
+	}
+	if cfg.Truncation["test"] != 200 {
+		t.Errorf("Truncation[test] = %d, want 200", cfg.Truncation["test"])
+	}
+	if cfg.Truncation["git"] != 100 {
+		t.Errorf("Truncation[git] = %d, want 100", cfg.Truncation["git"])
+	}
+}
+
+func TestMaxLinesForCommand(t *testing.T) {
+	cfg := Default()
+	cfg.Truncation["grep"] = 30
+	cfg.Truncation["test"] = 200
+
+	if got := cfg.MaxLinesForCommand("grep"); got != 30 {
+		t.Errorf("MaxLinesForCommand(grep) = %d, want 30", got)
+	}
+	if got := cfg.MaxLinesForCommand("test"); got != 200 {
+		t.Errorf("MaxLinesForCommand(test) = %d, want 200", got)
+	}
+	if got := cfg.MaxLinesForCommand("unknown"); got != 50 {
+		t.Errorf("MaxLinesForCommand(unknown) = %d, want 50 (default)", got)
+	}
+}
+
+func TestParseTOMLArray(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{"normal", `["a", "b", "c"]`, 3},
+		{"single", `["one"]`, 1},
+		{"empty array", `[]`, 0},
+		{"not array", `hello`, 0},
+		{"empty string", ``, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseTOMLArray(tt.input)
+			if len(got) != tt.want {
+				t.Errorf("parseTOMLArray(%q) returned %d items, want %d", tt.input, len(got), tt.want)
+			}
+		})
+	}
+}
+
 func TestLoad_ProjectConfigPrecedence(t *testing.T) {
 	// Setup: project root has .gotk.toml, subdir has gotk.toml
 	root := t.TempDir()

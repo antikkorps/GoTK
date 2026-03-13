@@ -68,20 +68,30 @@ To **bypass** GoTK in a specific project (e.g., the GoTK repo itself), add an em
 
 ### Method 2: MCP Server
 
-Register GoTK as an MCP tool server for command execution:
+Register GoTK as an MCP tool server. This exposes a `gotk_exec` tool that Claude can use to run commands with filtered output.
+
+**Via CLI (recommended):**
+
+```bash
+claude mcp add --transport stdio --scope project gotk -- /usr/local/bin/gotk --mcp
+```
+
+Use `--scope local` (default) to enable for all projects, or `--scope project` to enable only for the current project (creates `.mcp.json` at the project root).
+
+**Via `.mcp.json` at the project root:**
 
 ```json
 {
   "mcpServers": {
     "gotk": {
-      "command": "gotk",
+      "command": "/usr/local/bin/gotk",
       "args": ["--mcp"]
     }
   }
 }
 ```
 
-This exposes a `gotk_exec` tool that Claude can use to run commands with filtered output.
+> **Note:** The `.mcp.json` file must be at the **project root**, not inside `.claude/`.
 
 ---
 
@@ -230,6 +240,18 @@ normalize_whitespace = true
 dedup = true
 trim_decorative = true
 truncate = true
+
+[rules]
+always_keep = ["^ERROR:", "^FATAL:"]     # regex: never remove matching lines
+always_remove = ["^DEBUG:", "^TRACE:"]   # regex: always remove matching lines
+
+[truncation]
+grep = 30       # per-command max_lines overrides
+test = 200      # more lines for test output
+git = 100
+
+[security]
+command_timeout = 300   # 5 min — important for MCP with test suites
 ```
 
 ---

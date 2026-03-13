@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antikkorps/GoTK/internal/classify"
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
-	"github.com/antikkorps/GoTK/internal/filter"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
@@ -51,6 +51,10 @@ var dangerousPatterns = []dangerousArgPattern{
 
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
 const maxInputSize = 10 * 1024 * 1024
+
+// defaultMCPTimeout is the default timeout for MCP command execution (5 minutes).
+// Higher than CLI default (30s) because MCP is used for heavier operations like test suites.
+const defaultMCPTimeout = 300 * time.Second
 
 // extractCommand returns the base command name from a command line,
 // skipping common prefixes like sudo, env, nice, etc.
@@ -210,6 +214,7 @@ type execArgs struct {
 	MaxLines   int    `json:"max_lines"`
 	NoTruncate bool   `json:"no_truncate"`
 	Aggressive bool   `json:"aggressive"`
+	Timeout    int    `json:"timeout"`
 }
 
 type filterArgs struct {
@@ -298,14 +303,15 @@ func buildToolsList() toolsListResult {
 		Tools: []toolDef{
 			{
 				Name:        "gotk_exec",
-				Description: "Execute a command and return cleaned output with noise removed. Reduces token usage by 51-96%.",
+				Description: "Execute a command and return cleaned output with noise removed. Reduces token usage by 51-96%. For large outputs (test suites, builds), use max_lines to cap output length rather than no_truncate.",
 				InputSchema: inputSchema{
 					Type: "object",
 					Properties: map[string]propDef{
 						"command":     {Type: "string", Description: "The command to execute (e.g., 'grep -rn func ./src/')"},
 						"max_lines":   {Type: "integer", Description: "Maximum output lines (default: 50)"},
-						"no_truncate": {Type: "boolean", Description: "Disable truncation"},
+						"no_truncate": {Type: "boolean", Description: "Disable truncation. WARNING: may produce output exceeding token limits on large test suites or verbose commands. Prefer max_lines instead."},
 						"aggressive":  {Type: "boolean", Description: "Aggressive filtering mode"},
+						"timeout":     {Type: "integer", Description: "Command timeout in seconds (default: 300). Most commands complete well within this limit. Only override if you have a specific reason."},
 					},
 					Required: []string{"command"},
 				},
@@ -372,15 +378,6 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 	// Audit log: record all executed commands
 	logErr("EXEC: %s", args.Command)
 
-	// Determine max lines for this request
-	maxLines := cfg.General.MaxLines
-	if args.MaxLines > 0 {
-		maxLines = args.MaxLines
-	}
-	if args.NoTruncate {
-		maxLines = 0
-	}
-
 	// Parse the command to detect type
 	parts := strings.Fields(args.Command)
 	if len(parts) == 0 {
@@ -388,11 +385,23 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		return
 	}
 
+	// Determine max lines: explicit arg > per-command config > global default
+	maxLines := cfg.MaxLinesForCommand(parts[0])
+	if args.MaxLines > 0 {
+		maxLines = args.MaxLines
+	}
+	if args.NoTruncate {
+		maxLines = 0
+	}
+
 	// Execute via shell with timeout
 	shell := findShell()
-	timeout := time.Duration(cfg.Security.CommandTimeout) * time.Second
-	if timeout <= 0 {
-		timeout = exec.DefaultTimeout
+	timeout := defaultMCPTimeout
+	if cfg.Security.CommandTimeout > 0 {
+		timeout = time.Duration(cfg.Security.CommandTimeout) * time.Second
+	}
+	if args.Timeout > 0 {
+		timeout = time.Duration(args.Timeout) * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -416,16 +425,11 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		cmdType = detect.Identify(mapped)
 	}
 
-	chain := proxy.BuildChain(cfg, cmdType, maxLines)
+	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, raw)
 	cleaned := chain.Apply(raw)
 
-	// Redact secrets if enabled
-	if cfg.Security.RedactSecrets {
-		cleaned = filter.RedactSecrets(cleaned)
-	}
-
 	// Build stats text
-	stats := buildStats(len(raw), len(cleaned))
+	stats := buildStats(raw, cleaned)
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {
@@ -474,15 +478,10 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 		cmdType = detect.AutoDetect(args.Input)
 	}
 
-	chain := proxy.BuildChain(cfg, cmdType, maxLines)
+	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, args.Input)
 	cleaned := chain.Apply(args.Input)
 
-	// Redact secrets if enabled
-	if cfg.Security.RedactSecrets {
-		cleaned = filter.RedactSecrets(cleaned)
-	}
-
-	stats := buildStats(len(args.Input), len(cleaned))
+	stats := buildStats(args.Input, cleaned)
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {
@@ -495,13 +494,48 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 	})
 }
 
-func buildStats(rawBytes, cleanBytes int) string {
-	saved := rawBytes - cleanBytes
+func buildStats(raw, cleaned string) string {
+	rawBytes := len(raw)
+	cleanBytes := len(cleaned)
 	pct := 0
 	if rawBytes > 0 {
-		pct = saved * 100 / rawBytes
+		pct = (rawBytes - cleanBytes) * 100 / rawBytes
 	}
-	return fmt.Sprintf("[gotk: %d -> %d bytes, -%d%% reduction]", rawBytes, cleanBytes, pct)
+
+	rawLines := countLines(raw)
+	cleanLines := countLines(cleaned)
+
+	// Count important lines (errors/warnings/critical) preserved in output
+	important := countImportantLines(cleaned)
+
+	if important > 0 {
+		return fmt.Sprintf("[gotk: %d → %d lines, %d → %d bytes (-%d%%), %d errors/warnings preserved]",
+			rawLines, cleanLines, rawBytes, cleanBytes, pct, important)
+	}
+	return fmt.Sprintf("[gotk: %d → %d lines, %d → %d bytes (-%d%%)]",
+		rawLines, cleanLines, rawBytes, cleanBytes, pct)
+}
+
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	n := strings.Count(s, "\n")
+	if !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
+}
+
+func countImportantLines(s string) int {
+	count := 0
+	for _, line := range strings.Split(s, "\n") {
+		level := classify.Classify(line)
+		if level >= classify.Warning {
+			count++
+		}
+	}
+	return count
 }
 
 func sendResult(id json.RawMessage, result interface{}) {

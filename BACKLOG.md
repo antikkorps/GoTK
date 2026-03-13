@@ -102,7 +102,7 @@
 ### Adjust
 
 - [ ] Feedback loop: are some removed lines re-requested by the LLM?
-- [ ] Whitelist/blacklist patterns to always keep/remove
+- [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini — different needs?)
 
 ### Deliver
@@ -177,8 +177,8 @@
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
-- [ ] Per-command truncation threshold tuning
-- [ ] Whitelist/blacklist patterns to always keep/remove
+- [x] Per-command truncation threshold tuning
+- [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini)
 - [ ] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
