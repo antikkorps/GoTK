@@ -135,7 +135,7 @@
 - [x] Cache os.Getwd/UserHomeDir at init (performance)
 - [x] Package-level regex compilation (performance)
 - [x] MCP denylist with word-boundary matching (no false positives)
-- [ ] Proper error types instead of raw strings
+- [x] Proper error types instead of raw strings
 - [ ] Fuzz testing on all filters (go test -fuzz)
 
 ### Deliver
@@ -163,7 +163,7 @@
 
 ### Adjust
 
-- [ ] Per-project config (.gotk.toml in repo)
+- [x] Per-project config (.gotk.toml in repo, parent directory traversal)
 - [ ] Project-specific pattern learning
 
 ### Deliver
@@ -176,8 +176,7 @@
 
 ## Backlog (Unprioritized)
 
-- [ ] `--aggressive` option for maximum reduction (acceptable info loss)
-- [ ] `--conservative` option for minimal reduction (zero info loss)
+- [x] `--aggressive` / `--balanced` / `--conservative` filter modes
 - [ ] Per-command truncation threshold tuning
 - [ ] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini)
