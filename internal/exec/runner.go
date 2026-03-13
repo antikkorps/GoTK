@@ -3,11 +3,12 @@ package exec
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os/exec"
 	"syscall"
 	"time"
+
+	gotkerrors "github.com/antikkorps/GoTK/internal/errors"
 )
 
 // DefaultTimeout is the default command execution timeout.
@@ -104,7 +105,7 @@ func RunWithTimeout(ctx context.Context, name string, args ...string) (*Result, 
 		// Check if the context caused the error (timeout or cancellation)
 		if ctx.Err() != nil {
 			result.ExitCode = 124 // conventional timeout exit code
-			return result, fmt.Errorf("command timed out: %w", ctx.Err())
+			return result, &gotkerrors.TimeoutError{Cause: ctx.Err()}
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {

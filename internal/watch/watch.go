@@ -10,6 +10,7 @@ import (
 
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
+	gotkerrors "github.com/antikkorps/GoTK/internal/errors"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
@@ -41,7 +42,7 @@ type snapshot map[string]time.Time
 // Run starts the watch loop. Blocks until ctx is cancelled.
 func Run(ctx context.Context, cfg Config) error {
 	if len(cfg.Command) == 0 {
-		return fmt.Errorf("watch: no command specified")
+		return &gotkerrors.ValidationError{Field: "watch command", Message: "no command specified"}
 	}
 	if cfg.Interval <= 0 {
 		cfg.Interval = 2 * time.Second
