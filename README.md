@@ -27,6 +27,14 @@ cd GoTK
 go build -o gotk ./cmd/gotk/
 ```
 
+To make `gotk` available system-wide:
+
+```bash
+sudo ln -s $(pwd)/gotk /usr/local/bin/gotk
+```
+
+For LLM tool integrations (Claude Code, Aider, Cursor, Continue.dev), see [docs/integrations.md](docs/integrations.md).
+
 ## Usage
 
 GoTK operates in three modes:
@@ -68,6 +76,10 @@ cat build.log | gotk --max-lines 100
 | `--stats` | `-s` | Print reduction statistics to stderr |
 | `--max-lines N` | `-m N` | Maximum output lines (default: 50, keeps head + tail) |
 | `--no-truncate` | | Disable line limit entirely |
+| `--conservative` | | Minimal reduction, zero info loss |
+| `--balanced` | | Default mode — good reduction, preserves important lines |
+| `--aggressive` | | Maximum reduction, acceptable info loss |
+| `--stream` | | Stream output line-by-line with real-time filtering |
 | `--help` | `-h` | Show help |
 | `--version` | `-v` | Show version |
 
@@ -116,6 +128,29 @@ Key design decisions:
 - Generic filters always run; command-specific filters are added based on detection
 - Stderr passes through unmodified — only stdout is cleaned
 - Conservative by default: never discard semantically important content
+
+## Configuration
+
+GoTK reads configuration from three levels (in order of precedence):
+
+1. `~/.config/gotk/config.toml` — Global defaults
+2. `.gotk.toml` — Project config (found by walking up to repo root)
+3. `./gotk.toml` — Local override
+
+```toml
+[general]
+mode = "balanced"    # conservative | balanced | aggressive
+max_lines = 50
+
+[filters]
+strip_ansi = true
+dedup = true
+truncate = true
+
+[security]
+redact_secrets = true
+command_timeout = 30
+```
 
 ## Filter Catalog
 

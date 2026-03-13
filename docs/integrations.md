@@ -178,15 +178,17 @@ GoTK executes the command, identifies its type, filters the output, and prints t
 
 ## Configuration
 
-GoTK reads configuration from:
+GoTK reads configuration from three levels (in order of precedence):
 
-1. `./gotk.toml` (project-local, highest priority)
-2. `~/.config/gotk/config.toml` (global)
+1. `~/.config/gotk/config.toml` (global defaults)
+2. `.gotk.toml` (project config — found by walking up parent directories)
+3. `./gotk.toml` (local override, highest priority)
 
 Key settings for integrations:
 
 ```toml
 [general]
+mode = "balanced"    # conservative | balanced | aggressive
 stats = false        # keep false for hook/pipe use — stats go to stderr
 max_lines = 50       # truncation limit (0 = unlimited)
 shell_mode = false   # set true to default to shell mode
