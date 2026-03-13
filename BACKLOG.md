@@ -136,7 +136,7 @@
 - [x] Package-level regex compilation (performance)
 - [x] MCP denylist with word-boundary matching (no false positives)
 - [x] Proper error types instead of raw strings
-- [ ] Fuzz testing on all filters (go test -fuzz)
+- [x] Fuzz testing on all filters (go test -fuzz)
 
 ### Deliver
 
@@ -170,7 +170,7 @@
 
 - [ ] Tag v1.0.0
 - [ ] Full documentation update
-- [ ] End-to-end integration tests
+- [x] End-to-end integration tests (17 e2e tests on compiled binary)
 
 ---
 
