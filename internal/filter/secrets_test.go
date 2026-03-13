@@ -13,17 +13,17 @@ func TestRedactSecrets_APIKeys(t *testing.T) {
 	}{
 		{
 			name:  "OpenAI key",
-			input: "key: sk-abc123def456ghi789jkl012mno345pqr678",
+			input: "key: sk-test00fake00key00not00real00value00x",
 			want:  "key: [REDACTED]",
 		},
 		{
 			name:  "GitHub PAT",
-			input: "token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl",
+			input: "token=ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxxx",
 			want:  "token=[REDACTED]",
 		},
 		{
 			name:  "GitHub user token",
-			input: "auth: ghu_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl",
+			input: "auth: ghu_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxxx",
 			want:  "auth: [REDACTED]",
 		},
 		{
@@ -54,18 +54,18 @@ func TestRedactSecrets_APIKeys(t *testing.T) {
 }
 
 func TestRedactSecrets_AWSKeys(t *testing.T) {
-	input := "aws_access_key_id = AKIAIOSFODNN7EXAMPLE"
+	input := "aws_access_key_id = AKIAFAKETEST000000000"
 	got := RedactSecrets(input)
 	if !strings.Contains(got, "[REDACTED]") {
 		t.Errorf("expected AWS key to be redacted, got: %s", got)
 	}
-	if strings.Contains(got, "AKIAIOSFODNN7EXAMPLE") {
+	if strings.Contains(got, "AKIAFAKETEST000000000") {
 		t.Errorf("AWS key was not redacted: %s", got)
 	}
 }
 
 func TestRedactSecrets_JWT(t *testing.T) {
-	input := "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+	input := "Authorization: Bearer eyJGQUtFIjoiVEVTVCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwibmFtZSI6IkZha2UifQ.FAKE_TEST_SIGNATURE_NOT_REAL"
 	got := RedactSecrets(input)
 	if strings.Contains(got, "eyJ") {
 		t.Errorf("JWT token was not redacted: %s", got)
@@ -172,7 +172,7 @@ func TestRedactSecrets_NoFalsePositives(t *testing.T) {
 }
 
 func TestRedactSecrets_MultipleSecretsInOneLine(t *testing.T) {
-	input := "keys: sk-abcdefghijklmnopqrstuvwxyz and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl"
+	input := "keys: sk-fake00test00not00real00value and ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxxx"
 	got := RedactSecrets(input)
 	count := strings.Count(got, "[REDACTED]")
 	if count < 2 {

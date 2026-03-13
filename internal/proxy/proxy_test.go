@@ -67,7 +67,7 @@ func TestBuildChain_StripANSIToggle(t *testing.T) {
 }
 
 func TestBuildChain_SecretRedaction(t *testing.T) {
-	secretInput := "API_KEY=sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890ab\n"
+	secretInput := "API_KEY=sk-fake00test00not00real00value00fake00test00not0\n"
 
 	// With RedactSecrets enabled
 	cfg := config.Default()

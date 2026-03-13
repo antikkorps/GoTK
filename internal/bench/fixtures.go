@@ -463,11 +463,11 @@ func generateMixedErrorsFixture() string {
 	// Config with secrets
 	lines = append(lines,
 		"Environment variables:",
-		"  DATABASE_URL=postgres://admin:supersecretpassword@db.example.com:5432/mydb",
-		"  API_KEY=sk-1234567890abcdefghijklmnopqrstuvwxyz",
-		"  GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm",
-		"  AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE1",
-		"  SECRET_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+		"  DATABASE_URL=postgres://admin:faketestpassword@db.example.com:5432/mydb",
+		"  API_KEY=sk-fake00test00000000000000000000000000",
+		"  GITHUB_TOKEN=ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx",
+		"  AWS_ACCESS_KEY_ID=AKIAFAKETEST000000000",
+		"  SECRET_TOKEN=eyJGQUtFIjoiVEVTVCJ9.eyJzdWIiOiJ0ZXN0In0.FAKE_TEST_SIG",
 		"",
 	)
 
