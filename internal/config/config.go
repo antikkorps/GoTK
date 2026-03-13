@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// FilterMode controls how aggressively GoTK filters output.
+type FilterMode string
+
+const (
+	ModeConservative FilterMode = "conservative" // minimal reduction, zero info loss
+	ModeBalanced     FilterMode = "balanced"     // default — good reduction, preserves important lines
+	ModeAggressive   FilterMode = "aggressive"   // maximum reduction, acceptable info loss
+)
+
 // Config holds all gotk configuration options.
 type Config struct {
 	General  GeneralConfig
@@ -24,9 +33,10 @@ type SecurityConfig struct {
 
 // GeneralConfig holds general settings.
 type GeneralConfig struct {
-	MaxLines  int
-	Stats     bool
+	MaxLines int
+	Stats    bool
 	ShellMode bool
+	Mode     FilterMode
 }
 
 // FiltersConfig controls which filters are enabled.
@@ -64,13 +74,17 @@ func Default() *Config {
 	}
 }
 
-// Load reads config from disk. Local ./gotk.toml takes precedence over
-// ~/.config/gotk/config.toml. Missing files are not an error; defaults
-// are returned in that case.
+// Load reads config from disk with three levels of precedence:
+//  1. Global: ~/.config/gotk/config.toml
+//  2. Project: .gotk.toml found by traversing parent directories toward root
+//  3. Local: ./gotk.toml in the current working directory
+//
+// Missing files are not an error; defaults are returned in that case.
+// After loading, ApplyMode() is called to apply any mode-based overrides.
 func Load() *Config {
 	cfg := Default()
 
-	// Try global config first
+	// 1. Global config
 	if home, err := os.UserHomeDir(); err == nil {
 		globalPath := filepath.Join(home, ".config", "gotk", "config.toml")
 		if data, err := os.ReadFile(globalPath); err == nil {
@@ -78,12 +92,43 @@ func Load() *Config {
 		}
 	}
 
-	// Local config overrides global
+	// 2. Project config — walk up from cwd to find .gotk.toml
+	if projectPath := findProjectConfig(); projectPath != "" {
+		if data, err := os.ReadFile(projectPath); err == nil {
+			applyTOML(cfg, string(data))
+		}
+	}
+
+	// 3. Local config overrides everything
 	if data, err := os.ReadFile("gotk.toml"); err == nil {
 		applyTOML(cfg, string(data))
 	}
 
 	return cfg
+}
+
+// findProjectConfig walks up from the current directory looking for .gotk.toml.
+// Stops at the filesystem root or after 50 levels to prevent infinite loops.
+func findProjectConfig() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	for i := 0; i < 50; i++ {
+		candidate := filepath.Join(dir, ".gotk.toml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached root
+		}
+		dir = parent
+	}
+
+	return ""
 }
 
 // applyTOML parses a basic TOML file (key=value with [sections]) and applies
@@ -139,6 +184,8 @@ func applyTOML(cfg *Config, data string) {
 				cfg.General.Stats = parseBool(val)
 			case "shell_mode":
 				cfg.General.ShellMode = parseBool(val)
+			case "mode":
+				cfg.General.Mode = ParseMode(val)
 			}
 		case "filters":
 			b := parseBool(val)
@@ -177,4 +224,34 @@ func applyTOML(cfg *Config, data string) {
 
 func parseBool(s string) bool {
 	return s == "true" || s == "1" || s == "yes"
+}
+
+// ApplyMode adjusts filter and general settings based on the configured mode.
+// Call after loading config and parsing CLI flags to apply mode overrides.
+func (c *Config) ApplyMode() {
+	switch c.General.Mode {
+	case ModeConservative:
+		c.General.MaxLines = 200
+		c.Filters.Truncate = false
+		c.Filters.TrimDecorative = false
+	case ModeAggressive:
+		c.General.MaxLines = 30
+		// All filters stay enabled — they already compress aggressively
+	case ModeBalanced:
+		// Default values — no changes needed
+	}
+}
+
+// ParseMode converts a string to a FilterMode, returning ModeBalanced for unknown values.
+func ParseMode(s string) FilterMode {
+	switch strings.ToLower(s) {
+	case "conservative":
+		return ModeConservative
+	case "aggressive":
+		return ModeAggressive
+	case "balanced":
+		return ModeBalanced
+	default:
+		return ModeBalanced
+	}
 }
