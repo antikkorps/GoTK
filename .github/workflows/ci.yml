@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race ./...
+
+  bench:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build
+        run: go build -o gotk ./cmd/gotk/
+
+      - name: Benchmark
+        run: ./gotk bench --json
+
+      - name: Quality score
+        run: |
+          OUTPUT=$(./gotk bench --quality --json)
+          echo "$OUTPUT"
+          SCORE=$(echo "$OUTPUT" | grep -o '"overall_score": [0-9.]*' | grep -o '[0-9.]*')
+          echo "Quality score: ${SCORE}%"
+          # Fail if quality drops below 40% (intentional compression means 100% is not the target)
+          if [ "$(echo "$SCORE < 40" | bc)" -eq 1 ]; then
+            echo "::error::Quality score ${SCORE}% is below 40% threshold"
+            exit 1
+          fi
+
+      - name: Per-filter report
+        run: ./gotk bench --per-filter
