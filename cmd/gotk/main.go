@@ -366,6 +366,7 @@ func runWatch(args []string) {
 func runBench(args []string) {
 	jsonOutput := false
 	perFilter := false
+	quality := false
 
 	for _, a := range args {
 		switch a {
@@ -373,7 +374,19 @@ func runBench(args []string) {
 			jsonOutput = true
 		case "--per-filter":
 			perFilter = true
+		case "--quality":
+			quality = true
 		}
+	}
+
+	if quality {
+		report := bench.MeasureQuality(cfg)
+		if jsonOutput {
+			fmt.Print(bench.FormatQualityJSON(report))
+		} else {
+			fmt.Print(bench.FormatQuality(report))
+		}
+		return
 	}
 
 	if perFilter {
@@ -431,6 +444,7 @@ Examples:
   gotk watch -e .py -p src -- python -m pytest
   gotk bench                               Run all benchmarks
   gotk bench --per-filter                  Show per-filter breakdown
+  gotk bench --quality                     Measure quality score (important lines preserved)
   gotk bench --json                        Output as JSON
 
 Flags:

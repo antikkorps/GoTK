@@ -62,6 +62,51 @@ func FormatPerFilterJSON(fixtureName string, contributions []FilterContribution)
 	return sb.String()
 }
 
+// FormatQualityJSON formats a QualityReport as JSON.
+func FormatQualityJSON(report QualityReport) string {
+	var sb strings.Builder
+	sb.WriteString("{\n")
+	sb.WriteString(fmt.Sprintf("  \"total_important\": %d,\n", report.TotalImportant))
+	sb.WriteString(fmt.Sprintf("  \"total_preserved\": %d,\n", report.TotalPreserved))
+	sb.WriteString(fmt.Sprintf("  \"overall_score\": %.2f,\n", report.OverallScore))
+	sb.WriteString(fmt.Sprintf("  \"all_perfect\": %t,\n", report.AllFixturesPerfect))
+	sb.WriteString("  \"results\": [\n")
+
+	for i, r := range report.Results {
+		sb.WriteString("    {\n")
+		sb.WriteString(fmt.Sprintf("      \"name\": %s,\n", jsonString(r.Name)))
+		sb.WriteString(fmt.Sprintf("      \"total_lines\": %d,\n", r.TotalLines))
+		sb.WriteString(fmt.Sprintf("      \"important_lines\": %d,\n", r.ImportantLines))
+		sb.WriteString(fmt.Sprintf("      \"preserved_lines\": %d,\n", r.PreservedLines))
+		sb.WriteString(fmt.Sprintf("      \"score\": %.2f,\n", r.Score))
+
+		sb.WriteString("      \"missed_lines\": [")
+		if len(r.MissedLines) > 0 {
+			sb.WriteString("\n")
+			for j, line := range r.MissedLines {
+				sb.WriteString(fmt.Sprintf("        %s", jsonString(line)))
+				if j < len(r.MissedLines)-1 {
+					sb.WriteString(",")
+				}
+				sb.WriteString("\n")
+			}
+			sb.WriteString("      ]")
+		} else {
+			sb.WriteString("]")
+		}
+
+		sb.WriteString("\n    }")
+		if i < len(report.Results)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("  ]\n")
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
 // FormatLatencyJSON formats a LatencyReport as JSON.
 func FormatLatencyJSON(report LatencyReport) string {
 	var sb strings.Builder

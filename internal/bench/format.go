@@ -25,6 +25,46 @@ func FormatPerFilter(fixtureName string, contributions []FilterContribution) str
 	return sb.String()
 }
 
+// FormatQuality formats a QualityReport as a human-readable table.
+func FormatQuality(report QualityReport) string {
+	var sb strings.Builder
+	sb.WriteString("Quality Score Report\n")
+	sb.WriteString("====================\n\n")
+	sb.WriteString(fmt.Sprintf("%-24s %10s %10s %10s\n", "Fixture", "Important", "Preserved", "Score"))
+
+	for _, r := range report.Results {
+		marker := ""
+		if r.Score < 100 {
+			marker = " <!>"
+		}
+		sb.WriteString(fmt.Sprintf("%-24s %10d %10d %9.1f%%%s\n",
+			r.Name,
+			r.ImportantLines,
+			r.PreservedLines,
+			r.Score,
+			marker,
+		))
+	}
+
+	sb.WriteString(fmt.Sprintf("\n%-24s %10d %10d %9.1f%%\n",
+		"Total",
+		report.TotalImportant,
+		report.TotalPreserved,
+		report.OverallScore,
+	))
+
+	if !report.AllFixturesPerfect {
+		sb.WriteString("\nMissed lines:\n")
+		for _, r := range report.Results {
+			for _, line := range r.MissedLines {
+				sb.WriteString(fmt.Sprintf("  [%s] %s\n", r.Name, line))
+			}
+		}
+	}
+
+	return sb.String()
+}
+
 // FormatLatency formats a LatencyReport as a human-readable summary.
 func FormatLatency(report LatencyReport) string {
 	var sb strings.Builder
