@@ -12,45 +12,76 @@ GoTK works with any tool that executes shell commands, through three mechanisms:
 
 ## Claude Code
 
-### Method 1: Hook (recommended)
+### Method 1: PostToolUse hook (recommended)
 
-Claude Code supports output hooks that process command output before sending it to the model. GoTK's pipe mode is a perfect fit.
+Claude Code hooks let you process tool output after execution. Use a `PostToolUse` hook on `Bash` to filter command output through GoTK.
 
-Add to `~/.claude/settings.json`:
+**Global** — add to `~/.claude/settings.json` (applies to all projects):
 
 ```json
 {
   "hooks": {
-    "shell_command_output": [
+    "PostToolUse": [
       {
-        "matcher": "",
-        "command": "gotk"
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | gotk"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-This sends all command output through `gotk` in pipe mode. GoTK auto-detects the command type from the output format and applies appropriate filters.
+**Per-project** — add to `.claude/settings.local.json` in the project (not versioned):
 
-For a wrapper script with fallback handling, see `examples/claude-code-hook.sh`.
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | gotk"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+To **bypass** GoTK in a specific project (e.g., the GoTK repo itself), add an empty hook override in that project's `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": []
+  }
+}
+```
 
 ### Method 2: MCP Server
 
-If Claude Code supports MCP tool servers, you can register GoTK as a tool that wraps command execution:
+Register GoTK as an MCP tool server for command execution:
 
 ```json
 {
   "mcpServers": {
     "gotk": {
       "command": "gotk",
-      "args": ["--shell"]
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-This starts GoTK in proxy shell mode, where it reads commands from stdin, executes them, and returns filtered output.
+This exposes a `gotk_exec` tool that Claude can use to run commands with filtered output.
 
 ---
 
