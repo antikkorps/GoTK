@@ -10,6 +10,7 @@ GoTK is a CLI tool that sits between shell commands and LLMs, stripping noise fr
 | `git log` | **-90%** |
 | `find` | **-70%** |
 | `ls -la` | **-51%** |
+| `pnpm test` (real project, 5601 lines) | **-98%** |
 
 Results vary by output size and content. Use `--stats` to see exact savings per invocation.
 
@@ -26,6 +27,14 @@ git clone https://github.com/antikkorps/GoTK.git
 cd GoTK
 go build -o gotk ./cmd/gotk/
 ```
+
+To make `gotk` available system-wide:
+
+```bash
+sudo ln -s $(pwd)/gotk /usr/local/bin/gotk
+```
+
+For LLM tool integrations (Claude Code, Aider, Cursor, Continue.dev), see [docs/integrations.md](docs/integrations.md).
 
 ## Usage
 
@@ -68,6 +77,10 @@ cat build.log | gotk --max-lines 100
 | `--stats` | `-s` | Print reduction statistics to stderr |
 | `--max-lines N` | `-m N` | Maximum output lines (default: 50, keeps head + tail) |
 | `--no-truncate` | | Disable line limit entirely |
+| `--conservative` | | Minimal reduction, zero info loss |
+| `--balanced` | | Default mode — good reduction, preserves important lines |
+| `--aggressive` | | Maximum reduction, acceptable info loss |
+| `--stream` | | Stream output line-by-line with real-time filtering |
 | `--help` | `-h` | Show help |
 | `--version` | `-v` | Show version |
 
@@ -116,6 +129,38 @@ Key design decisions:
 - Generic filters always run; command-specific filters are added based on detection
 - Stderr passes through unmodified — only stdout is cleaned
 - Conservative by default: never discard semantically important content
+
+## Configuration
+
+GoTK reads configuration from three levels (in order of precedence):
+
+1. `~/.config/gotk/config.toml` — Global defaults
+2. `.gotk.toml` — Project config (found by walking up to repo root)
+3. `./gotk.toml` — Local override
+
+```toml
+[general]
+mode = "balanced"    # conservative | balanced | aggressive
+max_lines = 50
+
+[filters]
+strip_ansi = true
+dedup = true
+truncate = true
+
+[security]
+redact_secrets = true
+command_timeout = 30
+
+[rules]
+always_keep = ["^ERROR:", "^FATAL:"]     # regex: these lines are never removed
+always_remove = ["^DEBUG:", "^TRACE:"]   # regex: these lines are always removed
+
+[truncation]
+grep = 30       # per-command max_lines overrides
+test = 200
+git = 100
+```
 
 ## Filter Catalog
 

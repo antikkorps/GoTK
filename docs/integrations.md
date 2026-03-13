@@ -12,45 +12,86 @@ GoTK works with any tool that executes shell commands, through three mechanisms:
 
 ## Claude Code
 
-### Method 1: Hook (recommended)
+### Method 1: PostToolUse hook (recommended)
 
-Claude Code supports output hooks that process command output before sending it to the model. GoTK's pipe mode is a perfect fit.
+Claude Code hooks let you process tool output after execution. Use a `PostToolUse` hook on `Bash` to filter command output through GoTK.
 
-Add to `~/.claude/settings.json`:
+**Global** — add to `~/.claude/settings.json` (applies to all projects):
 
 ```json
 {
   "hooks": {
-    "shell_command_output": [
+    "PostToolUse": [
       {
-        "matcher": "",
-        "command": "gotk"
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | gotk"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-This sends all command output through `gotk` in pipe mode. GoTK auto-detects the command type from the output format and applies appropriate filters.
+**Per-project** — add to `.claude/settings.local.json` in the project (not versioned):
 
-For a wrapper script with fallback handling, see `examples/claude-code-hook.sh`.
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | gotk"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+To **bypass** GoTK in a specific project (e.g., the GoTK repo itself), add an empty hook override in that project's `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": []
+  }
+}
+```
 
 ### Method 2: MCP Server
 
-If Claude Code supports MCP tool servers, you can register GoTK as a tool that wraps command execution:
+Register GoTK as an MCP tool server. This exposes a `gotk_exec` tool that Claude can use to run commands with filtered output.
+
+**Via CLI (recommended):**
+
+```bash
+claude mcp add --transport stdio --scope project gotk -- /usr/local/bin/gotk --mcp
+```
+
+Use `--scope local` (default) to enable for all projects, or `--scope project` to enable only for the current project (creates `.mcp.json` at the project root).
+
+**Via `.mcp.json` at the project root:**
 
 ```json
 {
   "mcpServers": {
     "gotk": {
-      "command": "gotk",
-      "args": ["--shell"]
+      "command": "/usr/local/bin/gotk",
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-This starts GoTK in proxy shell mode, where it reads commands from stdin, executes them, and returns filtered output.
+> **Note:** The `.mcp.json` file must be at the **project root**, not inside `.claude/`.
 
 ---
 
@@ -178,15 +219,17 @@ GoTK executes the command, identifies its type, filters the output, and prints t
 
 ## Configuration
 
-GoTK reads configuration from:
+GoTK reads configuration from three levels (in order of precedence):
 
-1. `./gotk.toml` (project-local, highest priority)
-2. `~/.config/gotk/config.toml` (global)
+1. `~/.config/gotk/config.toml` (global defaults)
+2. `.gotk.toml` (project config — found by walking up parent directories)
+3. `./gotk.toml` (local override, highest priority)
 
 Key settings for integrations:
 
 ```toml
 [general]
+mode = "balanced"    # conservative | balanced | aggressive
 stats = false        # keep false for hook/pipe use — stats go to stderr
 max_lines = 50       # truncation limit (0 = unlimited)
 shell_mode = false   # set true to default to shell mode
@@ -197,6 +240,18 @@ normalize_whitespace = true
 dedup = true
 trim_decorative = true
 truncate = true
+
+[rules]
+always_keep = ["^ERROR:", "^FATAL:"]     # regex: never remove matching lines
+always_remove = ["^DEBUG:", "^TRACE:"]   # regex: always remove matching lines
+
+[truncation]
+grep = 30       # per-command max_lines overrides
+test = 200      # more lines for test output
+git = 100
+
+[security]
+command_timeout = 300   # 5 min — important for MCP with test suites
 ```
 
 ---

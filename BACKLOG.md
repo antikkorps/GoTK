@@ -71,9 +71,9 @@
 ### Measure
 
 - [x] Automated benchmark suite (golden files)
-- [ ] CI: measure reduction on realistic command corpus
-- [ ] Per-filter reduction report (which filter contributes how much)
-- [ ] Quality score: % of semantically important lines preserved (target: 100%)
+- [x] CI: measure reduction on realistic command corpus
+- [x] Per-filter reduction report (which filter contributes how much)
+- [x] Quality score: % of semantically important lines preserved
 
 ### Deliver
 
@@ -102,7 +102,7 @@
 ### Adjust
 
 - [ ] Feedback loop: are some removed lines re-requested by the LLM?
-- [ ] Whitelist/blacklist patterns to always keep/remove
+- [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini — different needs?)
 
 ### Deliver
@@ -135,8 +135,8 @@
 - [x] Cache os.Getwd/UserHomeDir at init (performance)
 - [x] Package-level regex compilation (performance)
 - [x] MCP denylist with word-boundary matching (no false positives)
-- [ ] Proper error types instead of raw strings
-- [ ] Fuzz testing on all filters (go test -fuzz)
+- [x] Proper error types instead of raw strings
+- [x] Fuzz testing on all filters (go test -fuzz)
 
 ### Deliver
 
@@ -163,26 +163,25 @@
 
 ### Adjust
 
-- [ ] Per-project config (.gotk.toml in repo)
+- [x] Per-project config (.gotk.toml in repo, parent directory traversal)
 - [ ] Project-specific pattern learning
 
 ### Deliver
 
 - [ ] Tag v1.0.0
 - [ ] Full documentation update
-- [ ] End-to-end integration tests
+- [x] End-to-end integration tests (17 e2e tests on compiled binary)
 
 ---
 
 ## Backlog (Unprioritized)
 
-- [ ] `--aggressive` option for maximum reduction (acceptable info loss)
-- [ ] `--conservative` option for minimal reduction (zero info loss)
-- [ ] Per-command truncation threshold tuning
-- [ ] Whitelist/blacklist patterns to always keep/remove
+- [x] `--aggressive` / `--balanced` / `--conservative` filter modes
+- [x] Per-command truncation threshold tuning
+- [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini)
 - [ ] Rate limiting in MCP server
-- [ ] CI pipeline with automated benchmarks
+- [x] CI pipeline with automated benchmarks
 
 ---
 

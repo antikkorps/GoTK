@@ -157,7 +157,7 @@ func TestBuildToolsList_ExecToolSchema(t *testing.T) {
 		}
 	}
 
-	expectedProps := []string{"command", "max_lines", "no_truncate", "aggressive"}
+	expectedProps := []string{"command", "max_lines", "no_truncate", "aggressive", "timeout"}
 	for _, prop := range expectedProps {
 		if _, ok := execTool.InputSchema.Properties[prop]; !ok {
 			t.Errorf("missing property: %s", prop)
@@ -196,24 +196,23 @@ func TestBuildToolsList_FilterToolSchema(t *testing.T) {
 
 func TestBuildStats(t *testing.T) {
 	tests := []struct {
-		name      string
-		rawBytes  int
-		cleanBytes int
-		wantPct   string
+		name    string
+		raw     string
+		cleaned string
+		wantPct string
 	}{
-		{"50% reduction", 1000, 500, "-50%"},
-		{"no reduction", 100, 100, "-0%"},
-		{"full reduction", 100, 0, "-100%"},
-		{"zero input", 0, 0, "-0%"},
-		{"small reduction", 1000, 900, "-10%"},
+		{"50% reduction", strings.Repeat("x", 1000), strings.Repeat("x", 500), "-50%"},
+		{"no reduction", strings.Repeat("x", 100), strings.Repeat("x", 100), "-0%"},
+		{"full reduction", strings.Repeat("x", 100), "", "-100%"},
+		{"zero input", "", "", "-0%"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildStats(tt.rawBytes, tt.cleanBytes)
+			got := buildStats(tt.raw, tt.cleaned)
 
 			if !strings.Contains(got, tt.wantPct) {
-				t.Errorf("buildStats(%d, %d) = %q, should contain %q", tt.rawBytes, tt.cleanBytes, got, tt.wantPct)
+				t.Errorf("buildStats = %q, should contain %q", got, tt.wantPct)
 			}
 
 			if !strings.Contains(got, "[gotk:") {
@@ -227,11 +226,36 @@ func TestBuildStats(t *testing.T) {
 	}
 }
 
-func TestBuildStats_Format(t *testing.T) {
-	got := buildStats(1000, 600)
-	want := "[gotk: 1000 -> 600 bytes, -40% reduction]"
-	if got != want {
-		t.Errorf("buildStats(1000, 600) = %q, want %q", got, want)
+func TestBuildStats_IncludesLines(t *testing.T) {
+	raw := "line1\nline2\nline3\nline4\nline5\n"
+	cleaned := "line1\nline5\n"
+	got := buildStats(raw, cleaned)
+
+	if !strings.Contains(got, "5 →") {
+		t.Errorf("should show raw line count, got: %q", got)
+	}
+	if !strings.Contains(got, "→ 2 lines") {
+		t.Errorf("should show clean line count, got: %q", got)
+	}
+}
+
+func TestBuildStats_ShowsImportantLines(t *testing.T) {
+	raw := "ok\nERROR: bad\nWARNING: watch out\n"
+	cleaned := "ok\nERROR: bad\nWARNING: watch out\n"
+	got := buildStats(raw, cleaned)
+
+	if !strings.Contains(got, "errors/warnings preserved") {
+		t.Errorf("should mention preserved errors/warnings, got: %q", got)
+	}
+}
+
+func TestBuildStats_NoImportantLines(t *testing.T) {
+	raw := "line1\nline2\n"
+	cleaned := "line1\n"
+	got := buildStats(raw, cleaned)
+
+	if strings.Contains(got, "errors/warnings") {
+		t.Errorf("should not mention errors/warnings when none present, got: %q", got)
 	}
 }
 
@@ -519,6 +543,30 @@ func TestServe_FullFlow(t *testing.T) {
 	// Verify tools/list response
 	if responses[2].Error != nil {
 		t.Errorf("tools/list response has error: %s", responses[2].Error.Message)
+	}
+}
+
+// --- execArgs timeout tests ---
+
+func TestExecArgs_TimeoutOverride(t *testing.T) {
+	raw := `{"command":"sleep 1","timeout":120}`
+	var args execArgs
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		t.Fatalf("failed to parse execArgs: %v", err)
+	}
+	if args.Timeout != 120 {
+		t.Errorf("Timeout = %d, want 120", args.Timeout)
+	}
+}
+
+func TestExecArgs_DefaultTimeout(t *testing.T) {
+	raw := `{"command":"echo hi"}`
+	var args execArgs
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		t.Fatalf("failed to parse execArgs: %v", err)
+	}
+	if args.Timeout != 0 {
+		t.Errorf("Timeout = %d, want 0 (use config default)", args.Timeout)
 	}
 }
 

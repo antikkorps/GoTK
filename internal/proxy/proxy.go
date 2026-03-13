@@ -20,6 +20,11 @@ import (
 func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filter.Chain {
 	chain := filter.NewChain()
 
+	// Blacklist: remove matching lines early, before any other processing
+	if len(cfg.Rules.AlwaysRemove) > 0 {
+		chain.Add(filter.RemoveByRules(cfg.Rules.AlwaysRemove))
+	}
+
 	if cfg.Filters.StripANSI {
 		chain.Add(filter.StripANSI)
 	}
@@ -56,6 +61,19 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filte
 
 	if cfg.Filters.Truncate {
 		chain.Add(filter.TruncateWithLimit(maxLines))
+	}
+
+	return chain
+}
+
+// BuildChainWithKeep creates a filter chain and wraps it to enforce always_keep rules.
+// Use this instead of BuildChain when the original input is available.
+func BuildChainWithKeep(cfg *config.Config, cmdType detect.CmdType, maxLines int, originalInput string) *filter.Chain {
+	chain := BuildChain(cfg, cmdType, maxLines)
+
+	// Whitelist: restore any matching lines that were removed by the chain
+	if len(cfg.Rules.AlwaysKeep) > 0 {
+		chain.Add(filter.KeepByRules(cfg.Rules.AlwaysKeep, originalInput))
 	}
 
 	return chain
@@ -114,7 +132,7 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 		}
 	}
 
-	chain := BuildChain(cfg, cmdType, maxLines)
+	chain := BuildChainWithKeep(cfg, cmdType, maxLines, raw)
 	cleaned := chain.Apply(raw)
 	fmt.Fprint(os.Stdout, cleaned)
 

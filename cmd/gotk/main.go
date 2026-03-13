@@ -22,12 +22,13 @@ import (
 )
 
 var (
-	showStats  bool
-	shellMode  bool
-	shellCmd   string // -c "command"
-	streamMode bool
-	maxLines   int
-	cfg        *config.Config
+	showStats       bool
+	shellMode       bool
+	shellCmd        string // -c "command"
+	streamMode      bool
+	maxLines        int
+	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
+	cfg             *config.Config
 )
 
 func main() {
@@ -44,6 +45,18 @@ func main() {
 
 	// Extract gotk flags before command
 	args = parseFlags(args)
+
+	// Apply mode overrides — affects maxLines and filter toggles.
+	// Must run after parseFlags so CLI --aggressive/--conservative takes priority.
+	// Explicit --max-lines / --no-truncate overrides the mode's default.
+	savedMaxLines := maxLines
+	cfg.ApplyMode()
+	if maxLinesExplicit {
+		maxLines = savedMaxLines
+		cfg.General.MaxLines = savedMaxLines
+	} else {
+		maxLines = cfg.General.MaxLines
+	}
 
 	// Shell mode: -c "command" (sh-compatible single command execution)
 	if shellCmd != "" {
@@ -166,15 +179,28 @@ func parseFlags(args []string) []string {
 			if i+1 < len(args) {
 				if n, err := strconv.Atoi(args[i+1]); err == nil {
 					maxLines = n
+					maxLinesExplicit = true
 				}
 				i++
 			}
 		case "--no-truncate":
 			maxLines = 0
+			maxLinesExplicit = true
 		case "--shell":
 			shellMode = true
 		case "--stream":
 			streamMode = true
+		case "--aggressive":
+			cfg.General.Mode = config.ModeAggressive
+		case "--balanced":
+			cfg.General.Mode = config.ModeBalanced
+		case "--conservative":
+			cfg.General.Mode = config.ModeConservative
+		case "--mode":
+			if i+1 < len(args) {
+				cfg.General.Mode = config.ParseMode(args[i+1])
+				i++
+			}
 		case "-c":
 			if i+1 < len(args) {
 				shellCmd = args[i+1]
@@ -366,6 +392,7 @@ func runWatch(args []string) {
 func runBench(args []string) {
 	jsonOutput := false
 	perFilter := false
+	quality := false
 
 	for _, a := range args {
 		switch a {
@@ -373,7 +400,19 @@ func runBench(args []string) {
 			jsonOutput = true
 		case "--per-filter":
 			perFilter = true
+		case "--quality":
+			quality = true
 		}
+	}
+
+	if quality {
+		report := bench.MeasureQuality(cfg)
+		if jsonOutput {
+			fmt.Print(bench.FormatQualityJSON(report))
+		} else {
+			fmt.Print(bench.FormatQuality(report))
+		}
+		return
 	}
 
 	if perFilter {
@@ -431,12 +470,17 @@ Examples:
   gotk watch -e .py -p src -- python -m pytest
   gotk bench                               Run all benchmarks
   gotk bench --per-filter                  Show per-filter breakdown
+  gotk bench --quality                     Measure quality score (important lines preserved)
   gotk bench --json                        Output as JSON
 
 Flags:
   -s, --stats        Show reduction statistics on stderr
   -m, --max-lines N  Max output lines (default: 50, keeps head+tail)
   --no-truncate      Disable line truncation
+  --conservative     Minimal reduction, zero info loss (max-lines: 200, no truncation)
+  --balanced         Default mode — good reduction, preserves important lines
+  --aggressive       Maximum reduction, acceptable info loss (max-lines: 30)
+  --mode MODE        Set filter mode (conservative, balanced, aggressive)
   --stream           Stream output line-by-line with real-time filtering
   --shell            Start proxy shell mode
   -c "command"       Execute single command through filter pipeline
@@ -449,9 +493,10 @@ Watch flags (before --):
   -e, --ext EXT      File extension to watch (repeatable, e.g., -e .go -e .mod)
   -p, --path PATH    Path to watch (repeatable, default: ".")
 
-Config:
+Config (in order of precedence):
   ~/.config/gotk/config.toml    Global config
-  ./gotk.toml                   Local config (takes precedence)
+  .gotk.toml                    Project config (found by walking up to repo root)
+  ./gotk.toml                   Local config (highest precedence)
 
 Environment:
   GOTK_PASSTHROUGH=1    Disable filtering (escape hatch)

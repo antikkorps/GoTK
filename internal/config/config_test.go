@@ -428,3 +428,252 @@ rg = "grep"
 		t.Errorf("Commands[rg] = %q, want %q", v, "grep")
 	}
 }
+
+func TestApplyMode_Conservative(t *testing.T) {
+	cfg := Default()
+	cfg.General.Mode = ModeConservative
+	cfg.ApplyMode()
+
+	if cfg.General.MaxLines != 200 {
+		t.Errorf("Conservative MaxLines = %d, want 200", cfg.General.MaxLines)
+	}
+	if cfg.Filters.Truncate {
+		t.Error("Conservative should disable Truncate")
+	}
+	if cfg.Filters.TrimDecorative {
+		t.Error("Conservative should disable TrimDecorative")
+	}
+	// These should remain enabled
+	if !cfg.Filters.StripANSI {
+		t.Error("Conservative should keep StripANSI enabled")
+	}
+	if !cfg.Filters.Dedup {
+		t.Error("Conservative should keep Dedup enabled")
+	}
+}
+
+func TestApplyMode_Balanced(t *testing.T) {
+	cfg := Default()
+	cfg.General.Mode = ModeBalanced
+	cfg.ApplyMode()
+
+	// Balanced should not change defaults
+	if cfg.General.MaxLines != 50 {
+		t.Errorf("Balanced MaxLines = %d, want 50", cfg.General.MaxLines)
+	}
+	if !cfg.Filters.Truncate {
+		t.Error("Balanced should keep Truncate enabled")
+	}
+}
+
+func TestApplyMode_Aggressive(t *testing.T) {
+	cfg := Default()
+	cfg.General.Mode = ModeAggressive
+	cfg.ApplyMode()
+
+	if cfg.General.MaxLines != 30 {
+		t.Errorf("Aggressive MaxLines = %d, want 30", cfg.General.MaxLines)
+	}
+	if !cfg.Filters.Truncate {
+		t.Error("Aggressive should keep Truncate enabled")
+	}
+	if !cfg.Filters.TrimDecorative {
+		t.Error("Aggressive should keep TrimDecorative enabled")
+	}
+}
+
+func TestApplyMode_EmptyModeIsNoop(t *testing.T) {
+	cfg := Default()
+	cfg.ApplyMode() // empty mode
+	if cfg.General.MaxLines != 50 {
+		t.Errorf("Empty mode should not change MaxLines, got %d", cfg.General.MaxLines)
+	}
+}
+
+func TestParseMode(t *testing.T) {
+	tests := []struct {
+		input string
+		want  FilterMode
+	}{
+		{"conservative", ModeConservative},
+		{"CONSERVATIVE", ModeConservative},
+		{"balanced", ModeBalanced},
+		{"aggressive", ModeAggressive},
+		{"Aggressive", ModeAggressive},
+		{"unknown", ModeBalanced},
+		{"", ModeBalanced},
+	}
+	for _, tt := range tests {
+		got := ParseMode(tt.input)
+		if got != tt.want {
+			t.Errorf("ParseMode(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestApplyTOML_ModeField(t *testing.T) {
+	toml := `[general]
+mode = "aggressive"
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if cfg.General.Mode != ModeAggressive {
+		t.Errorf("Mode = %q, want %q", cfg.General.Mode, ModeAggressive)
+	}
+}
+
+func TestFindProjectConfig(t *testing.T) {
+	// Create a nested dir structure with .gotk.toml at root
+	root := t.TempDir()
+	// Resolve symlinks (macOS /var → /private/var)
+	root, _ = filepath.EvalSymlinks(root)
+
+	nested := filepath.Join(root, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join(root, ".gotk.toml")
+	if err := os.WriteFile(configPath, []byte("[general]\nmax_lines = 777\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change to deeply nested dir
+	orig, _ := os.Getwd()
+	if err := os.Chdir(nested); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+
+	found := findProjectConfig()
+	if found != configPath {
+		t.Errorf("findProjectConfig() = %q, want %q", found, configPath)
+	}
+}
+
+func TestFindProjectConfig_NotFound(t *testing.T) {
+	tmp := t.TempDir()
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+
+	found := findProjectConfig()
+	if found != "" {
+		t.Errorf("findProjectConfig() = %q, want empty string", found)
+	}
+}
+
+func TestApplyTOML_RulesSection(t *testing.T) {
+	toml := `[rules]
+always_keep = ["^ERROR:", "^FATAL:"]
+always_remove = ["^DEBUG:", "^TRACE:"]
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if len(cfg.Rules.AlwaysKeep) != 2 {
+		t.Fatalf("AlwaysKeep = %v, want 2 entries", cfg.Rules.AlwaysKeep)
+	}
+	if cfg.Rules.AlwaysKeep[0] != "^ERROR:" {
+		t.Errorf("AlwaysKeep[0] = %q, want ^ERROR:", cfg.Rules.AlwaysKeep[0])
+	}
+	if len(cfg.Rules.AlwaysRemove) != 2 {
+		t.Fatalf("AlwaysRemove = %v, want 2 entries", cfg.Rules.AlwaysRemove)
+	}
+	if cfg.Rules.AlwaysRemove[0] != "^DEBUG:" {
+		t.Errorf("AlwaysRemove[0] = %q, want ^DEBUG:", cfg.Rules.AlwaysRemove[0])
+	}
+}
+
+func TestApplyTOML_TruncationSection(t *testing.T) {
+	toml := `[truncation]
+grep = 30
+test = 200
+git = 100
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if cfg.Truncation["grep"] != 30 {
+		t.Errorf("Truncation[grep] = %d, want 30", cfg.Truncation["grep"])
+	}
+	if cfg.Truncation["test"] != 200 {
+		t.Errorf("Truncation[test] = %d, want 200", cfg.Truncation["test"])
+	}
+	if cfg.Truncation["git"] != 100 {
+		t.Errorf("Truncation[git] = %d, want 100", cfg.Truncation["git"])
+	}
+}
+
+func TestMaxLinesForCommand(t *testing.T) {
+	cfg := Default()
+	cfg.Truncation["grep"] = 30
+	cfg.Truncation["test"] = 200
+
+	if got := cfg.MaxLinesForCommand("grep"); got != 30 {
+		t.Errorf("MaxLinesForCommand(grep) = %d, want 30", got)
+	}
+	if got := cfg.MaxLinesForCommand("test"); got != 200 {
+		t.Errorf("MaxLinesForCommand(test) = %d, want 200", got)
+	}
+	if got := cfg.MaxLinesForCommand("unknown"); got != 50 {
+		t.Errorf("MaxLinesForCommand(unknown) = %d, want 50 (default)", got)
+	}
+}
+
+func TestParseTOMLArray(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{"normal", `["a", "b", "c"]`, 3},
+		{"single", `["one"]`, 1},
+		{"empty array", `[]`, 0},
+		{"not array", `hello`, 0},
+		{"empty string", ``, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseTOMLArray(tt.input)
+			if len(got) != tt.want {
+				t.Errorf("parseTOMLArray(%q) returned %d items, want %d", tt.input, len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestLoad_ProjectConfigPrecedence(t *testing.T) {
+	// Setup: project root has .gotk.toml, subdir has gotk.toml
+	root := t.TempDir()
+	subdir := filepath.Join(root, "sub")
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Project config sets max_lines=150
+	projectCfg := "[general]\nmax_lines = 150\n"
+	if err := os.WriteFile(filepath.Join(root, ".gotk.toml"), []byte(projectCfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Local config sets max_lines=300 (should win)
+	localCfg := "[general]\nmax_lines = 300\n"
+	if err := os.WriteFile(filepath.Join(subdir, "gotk.toml"), []byte(localCfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+
+	cfg := Load()
+	if cfg.General.MaxLines != 300 {
+		t.Errorf("MaxLines = %d, want 300 (local should override project)", cfg.General.MaxLines)
+	}
+}
