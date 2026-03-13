@@ -71,9 +71,9 @@
 ### Measure
 
 - [x] Automated benchmark suite (golden files)
-- [ ] CI: measure reduction on realistic command corpus
-- [ ] Per-filter reduction report (which filter contributes how much)
-- [ ] Quality score: % of semantically important lines preserved (target: 100%)
+- [x] CI: measure reduction on realistic command corpus
+- [x] Per-filter reduction report (which filter contributes how much)
+- [x] Quality score: % of semantically important lines preserved
 
 ### Deliver
 
