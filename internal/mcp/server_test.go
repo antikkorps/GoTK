@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/config"
 )
 
@@ -274,7 +275,7 @@ func TestHandleRequest_Initialize(t *testing.T) {
 		ID:      json.RawMessage(`1`),
 		Method:  "initialize",
 	}
-	handleRequest(cfg, newRateLimiter(0, 0), req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -315,7 +316,7 @@ func TestHandleRequest_Ping(t *testing.T) {
 		ID:      json.RawMessage(`2`),
 		Method:  "ping",
 	}
-	handleRequest(cfg, newRateLimiter(0, 0), req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -344,7 +345,7 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 		ID:      json.RawMessage(`3`),
 		Method:  "tools/list",
 	}
-	handleRequest(cfg, newRateLimiter(0, 0), req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -381,7 +382,7 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 		ID:      json.RawMessage(`4`),
 		Method:  "nonexistent/method",
 	}
-	handleRequest(cfg, newRateLimiter(0, 0), req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -423,13 +424,13 @@ func TestHandleRequest_RateLimited(t *testing.T) {
 	}
 
 	// First two should succeed (burst=2)
-	handleRequest(cfg, limiter, toolCallReq(1))
-	handleRequest(cfg, limiter, toolCallReq(2))
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(1))
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(2))
 	// Third should be rate limited
-	handleRequest(cfg, limiter, toolCallReq(3))
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(3))
 
 	// Ping should still work (not rate limited)
-	handleRequest(cfg, limiter, jsonRPCRequest{
+	handleRequest(cfg, limiter, cache.New(0, ""), jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`4`),
 		Method:  "ping",

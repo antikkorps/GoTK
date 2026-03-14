@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/classify"
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
@@ -232,9 +233,20 @@ type contentBlock struct {
 	Text string `json:"text"`
 }
 
+// cacheMaxEntries is the default maximum number of cached filter results.
+const cacheMaxEntries = 128
+
+// buildConfigHash computes a fingerprint of config fields that affect filtering.
+func buildConfigHash(cfg *config.Config) string {
+	filtersStr := fmt.Sprintf("%v", cfg.Filters)
+	rulesStr := fmt.Sprintf("%v|%v", cfg.Rules.AlwaysKeep, cfg.Rules.AlwaysRemove)
+	return cache.ConfigHash(filtersStr, rulesStr, string(cfg.General.Mode), cfg.Security.RedactSecrets)
+}
+
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
 	limiter := newRateLimiter(cfg.Security.RateLimit, cfg.Security.RateBurst)
+	fc := cache.New(cacheMaxEntries, buildConfigHash(cfg))
 
 	scanner := bufio.NewScanner(os.Stdin)
 	// Allow large input lines (up to 10 MB)
@@ -259,7 +271,7 @@ func Serve(cfg *config.Config) {
 			continue
 		}
 
-		handleRequest(cfg, limiter, req)
+		handleRequest(cfg, limiter, fc, req)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -276,7 +288,7 @@ func handleNotification(method string) {
 	}
 }
 
-func handleRequest(cfg *config.Config, limiter *rateLimiter, req jsonRPCRequest) {
+func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, req jsonRPCRequest) {
 	switch req.Method {
 	case "initialize":
 		result := initializeResult{
@@ -298,7 +310,7 @@ func handleRequest(cfg *config.Config, limiter *rateLimiter, req jsonRPCRequest)
 			sendError(req.ID, -32000, "Rate limit exceeded: too many requests per minute")
 			return
 		}
-		handleToolCall(cfg, req)
+		handleToolCall(cfg, fc, req)
 
 	default:
 		sendError(req.ID, -32601, "Method not found: "+req.Method)
@@ -340,7 +352,7 @@ func buildToolsList() toolsListResult {
 	}
 }
 
-func handleToolCall(cfg *config.Config, req jsonRPCRequest) {
+func handleToolCall(cfg *config.Config, fc *cache.Cache, req jsonRPCRequest) {
 	var params toolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		sendError(req.ID, -32602, "Invalid params: "+err.Error())
@@ -349,15 +361,15 @@ func handleToolCall(cfg *config.Config, req jsonRPCRequest) {
 
 	switch params.Name {
 	case "gotk_exec":
-		handleExec(cfg, req.ID, params.Arguments)
+		handleExec(cfg, fc, req.ID, params.Arguments)
 	case "gotk_filter":
-		handleFilter(cfg, req.ID, params.Arguments)
+		handleFilter(cfg, fc, req.ID, params.Arguments)
 	default:
 		sendError(req.ID, -32602, "Unknown tool: "+params.Name)
 	}
 }
 
-func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
 	// Input size validation
 	if len(rawArgs) > maxInputSize {
 		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
@@ -432,11 +444,20 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		cmdType = detect.Identify(mapped)
 	}
 
-	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, raw)
-	cleaned := chain.Apply(raw)
+	// Check cache for previously filtered identical output
+	cacheKey := fc.Key(raw, int(cmdType), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
 
 	// Build stats text
 	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {
@@ -453,7 +474,7 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 	})
 }
 
-func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
 	// Input size validation
 	if len(rawArgs) > maxInputSize {
 		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
@@ -485,10 +506,19 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 		cmdType = detect.AutoDetect(args.Input)
 	}
 
-	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, args.Input)
-	cleaned := chain.Apply(args.Input)
+	// Check cache for previously filtered identical input
+	cacheKey := fc.Key(args.Input, int(cmdType), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, args.Input)
+		cleaned = chain.Apply(args.Input)
+		fc.Put(cacheKey, cleaned)
+	}
 
 	stats := buildStats(args.Input, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {

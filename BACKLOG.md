@@ -152,7 +152,7 @@
 
 - [x] Structured summary for large outputs (error/warning counts, file paths, key error lines)
 - [x] Watch mode: `gotk watch -- make test` (re-run + filter on file changes)
-- [ ] Cache: skip re-filtering identical output (content-hash based)
+- [x] Cache: skip re-filtering identical output (content-hash based)
 
 ### Measure
 
