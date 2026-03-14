@@ -122,8 +122,8 @@
 - [x] Output sanitization: redact secrets (API keys, tokens, passwords, JWTs)
 - [x] MCP server: validate all JSON-RPC inputs strictly
 - [x] MCP audit logging (all executed commands logged to stderr)
-- [ ] Sandbox mode: restrict executable commands to read-only operations
-- [ ] File-based audit log (opt-in)
+- [x] Sandbox mode: restrict executable commands to read-only operations
+- [x] File-based audit log (opt-in)
 
 ### Build — Best practices
 
@@ -152,7 +152,7 @@
 
 - [x] Structured summary for large outputs (error/warning counts, file paths, key error lines)
 - [x] Watch mode: `gotk watch -- make test` (re-run + filter on file changes)
-- [ ] Cache: skip re-filtering identical output (content-hash based)
+- [x] Cache: skip re-filtering identical output (content-hash based)
 
 ### Measure
 
@@ -180,7 +180,7 @@
 - [x] Per-command truncation threshold tuning
 - [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini)
-- [ ] Rate limiting in MCP server
+- [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
 
 ---

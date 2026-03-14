@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/config"
 )
 
@@ -101,13 +103,86 @@ func TestValidateCommand_WhitespaceHandling(t *testing.T) {
 	}
 }
 
+// --- validateSandbox tests ---
+
+func TestValidateSandbox_AllowedCommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{"grep", "grep -rn func ./src/"},
+		{"ls", "ls -la /tmp"},
+		{"cat", "cat /etc/hostname"},
+		{"find", "find . -name '*.go'"},
+		{"git status", "git status"},
+		{"git log", "git log --oneline"},
+		{"go test", "go test ./..."},
+		{"head", "head -20 file.txt"},
+		{"wc", "wc -l file.txt"},
+		{"echo", "echo hello"},
+		{"pipeline", "grep -rn func . | head -10"},
+		{"pipeline with sort", "ls -la | sort | head"},
+		{"jq", "cat file.json | jq '.key'"},
+		{"curl", "curl https://example.com"},
+		{"diff", "diff file1 file2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSandbox(tt.command)
+			if result != "" {
+				t.Errorf("validateSandbox(%q) = %q, should allow", tt.command, result)
+			}
+		})
+	}
+}
+
+func TestValidateSandbox_BlockedCommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{"rm", "rm file.txt"},
+		{"cp", "cp file1 file2"},
+		{"mv", "mv file1 file2"},
+		{"chmod", "chmod 755 file"},
+		{"chown", "chown user file"},
+		{"mkdir", "mkdir newdir"},
+		{"touch", "touch newfile"},
+		{"tee", "echo hello | tee file.txt"},
+		{"sed -i", "sed -i 's/a/b/' file"},
+		{"redirect write", "echo hello > file.txt"},
+		{"redirect append", "echo hello >> file.txt"},
+		{"unknown command", "mycustomtool --flag"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSandbox(tt.command)
+			if result == "" {
+				t.Errorf("validateSandbox(%q) should block the command", tt.command)
+			}
+			if !strings.Contains(result, "sandbox") {
+				t.Errorf("validateSandbox(%q) = %q, should contain 'sandbox'", tt.command, result)
+			}
+		})
+	}
+}
+
+func TestValidateSandbox_PipelineWithBlockedCommand(t *testing.T) {
+	result := validateSandbox("ls -la | rm file.txt")
+	if result == "" {
+		t.Error("should block pipeline containing non-allowed command")
+	}
+}
+
 // --- buildToolsList tests ---
 
 func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 	result := buildToolsList()
 
-	if len(result.Tools) != 2 {
-		t.Fatalf("expected 2 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 4 {
+		t.Fatalf("expected 4 tools, got %d", len(result.Tools))
 	}
 
 	// Verify tool names
@@ -116,11 +191,10 @@ func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 		toolNames[tool.Name] = true
 	}
 
-	if !toolNames["gotk_exec"] {
-		t.Error("missing tool: gotk_exec")
-	}
-	if !toolNames["gotk_filter"] {
-		t.Error("missing tool: gotk_filter")
+	for _, name := range []string{"gotk_exec", "gotk_filter", "gotk_read", "gotk_grep"} {
+		if !toolNames[name] {
+			t.Errorf("missing tool: %s", name)
+		}
 	}
 }
 
@@ -273,7 +347,7 @@ func TestHandleRequest_Initialize(t *testing.T) {
 		ID:      json.RawMessage(`1`),
 		Method:  "initialize",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -314,7 +388,7 @@ func TestHandleRequest_Ping(t *testing.T) {
 		ID:      json.RawMessage(`2`),
 		Method:  "ping",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -343,7 +417,7 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 		ID:      json.RawMessage(`3`),
 		Method:  "tools/list",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -380,7 +454,7 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 		ID:      json.RawMessage(`4`),
 		Method:  "nonexistent/method",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -402,6 +476,361 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 	if !strings.Contains(resp.Error.Message, "Method not found") {
 		t.Errorf("error message = %q, should contain 'Method not found'", resp.Error.Message)
 	}
+}
+
+func TestHandleRequest_RateLimited(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	limiter := newRateLimiter(60, 2) // burst of 2
+
+	toolCallReq := func(id int) jsonRPCRequest {
+		return jsonRPCRequest{
+			JSONRPC: "2.0",
+			ID:      json.RawMessage(fmt.Sprintf(`%d`, id)),
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"gotk_filter","arguments":{"input":"hello"}}`),
+		}
+	}
+
+	// First two should succeed (burst=2)
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(1))
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(2))
+	// Third should be rate limited
+	handleRequest(cfg, limiter, cache.New(0, ""), toolCallReq(3))
+
+	// Ping should still work (not rate limited)
+	handleRequest(cfg, limiter, cache.New(0, ""), jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`4`),
+		Method:  "ping",
+	})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 responses, got %d: %v", len(lines), lines)
+	}
+
+	// Check third response is rate limited
+	var resp3 jsonRPCResponse
+	if err := json.Unmarshal([]byte(lines[2]), &resp3); err != nil {
+		t.Fatalf("failed to parse response 3: %v", err)
+	}
+	if resp3.Error == nil {
+		t.Fatal("third request should be rate limited")
+	}
+	if resp3.Error.Code != -32000 {
+		t.Errorf("error code = %d, want -32000", resp3.Error.Code)
+	}
+	if !strings.Contains(resp3.Error.Message, "Rate limit exceeded") {
+		t.Errorf("error message = %q, should contain 'Rate limit exceeded'", resp3.Error.Message)
+	}
+
+	// Check fourth (ping) response succeeds
+	var resp4 jsonRPCResponse
+	if err := json.Unmarshal([]byte(lines[3]), &resp4); err != nil {
+		t.Fatalf("failed to parse response 4: %v", err)
+	}
+	if resp4.Error != nil {
+		t.Error("ping should not be rate limited")
+	}
+}
+
+// --- gotk_read tests ---
+
+func TestHandleRead_Success(t *testing.T) {
+	// Create a temp file to read
+	tmpFile, err := os.CreateTemp("", "gotk_read_test_*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	content := "line1\nline2\nline3\nline4\nline5\n"
+	tmpFile.WriteString(content)
+	tmpFile.Close()
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), MaxLines: 100})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	// Verify response contains file content
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	if !strings.Contains(resultStr, "line1") {
+		t.Error("response should contain file content")
+	}
+	if !strings.Contains(resultStr, "gotk:") {
+		t.Error("response should contain stats")
+	}
+}
+
+func TestHandleRead_FileNotFound(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: "/nonexistent/file.txt"})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for nonexistent file")
+	}
+	if resp.Error.Code != -32603 {
+		t.Errorf("error code = %d, want -32603", resp.Error.Code)
+	}
+}
+
+func TestHandleRead_OffsetAndLimit(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "gotk_read_offset_*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("line1\nline2\nline3\nline4\nline5\n")
+	tmpFile.Close()
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), Offset: 2, Limit: 2})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	// Should contain lines 2-3, not line1
+	if strings.Contains(resultStr, "line1") {
+		t.Error("should not contain line1 with offset=2")
+	}
+	if !strings.Contains(resultStr, "line2") {
+		t.Error("should contain line2")
+	}
+}
+
+func TestHandleRead_EmptyPath(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: ""})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for empty path")
+	}
+}
+
+// --- gotk_grep tests ---
+
+func TestHandleGrep_Success(t *testing.T) {
+	// Create temp dir with a file to grep
+	tmpDir, err := os.MkdirTemp("", "gotk_grep_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\nfoo bar\nhello again\n"), 0644)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "hello", Path: tmpDir})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	if !strings.Contains(resultStr, "hello") {
+		t.Error("grep result should contain matching lines")
+	}
+}
+
+func TestHandleGrep_NoMatches(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gotk_grep_nomatch_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\n"), 0644)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "zzzznotfound", Path: tmpDir})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error != nil {
+		t.Fatalf("no matches should not be an error, got: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	if !strings.Contains(string(resultJSON), "no matches") {
+		t.Error("should indicate no matches found")
+	}
+}
+
+func TestHandleGrep_EmptyPattern(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: ""})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for empty pattern")
+	}
+}
+
+// --- audit log tests ---
+
+func TestAuditLogFile(t *testing.T) {
+	// Create temp file for audit log
+	tmpFile, err := os.CreateTemp("", "gotk_audit_*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	// Set audit file
+	f, err := os.OpenFile(tmpFile.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldAuditFile := auditFile
+	auditFile = f
+	defer func() {
+		f.Close()
+		auditFile = oldAuditFile
+	}()
+
+	// Log something
+	logErr("EXEC: %s", "test command")
+
+	f.Sync()
+
+	// Read the audit log
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "EXEC: test command") {
+		t.Errorf("audit log should contain the logged command, got: %q", content)
+	}
+	// Check timestamp format (ISO 8601)
+	if !strings.Contains(content, "T") || !strings.Contains(content, "[gotk-mcp]") {
+		t.Errorf("audit log should contain timestamp and prefix, got: %q", content)
+	}
+}
+
+func TestAuditLogDisabled(t *testing.T) {
+	oldAuditFile := auditFile
+	auditFile = nil
+	defer func() { auditFile = oldAuditFile }()
+
+	// Should not panic when audit file is nil
+	logErr("EXEC: %s", "test command")
 }
 
 // --- JSON-RPC parsing tests ---

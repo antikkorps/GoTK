@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/classify"
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
@@ -47,6 +48,73 @@ var dangerousPatterns = []dangerousArgPattern{
 	{cmd: "mv", exactArg: "/*"},
 	{cmd: "init", exactArg: "0"},
 	{cmd: "init", exactArg: "6"},
+}
+
+// readOnlyCommands is the allowlist of commands permitted in sandbox mode.
+// Only commands that cannot modify files or system state are allowed.
+var readOnlyCommands = map[string]bool{
+	// File viewing
+	"cat": true, "head": true, "tail": true, "less": true, "more": true, "bat": true,
+	// Search
+	"grep": true, "rg": true, "ag": true, "find": true, "fd": true, "locate": true,
+	// Listing
+	"ls": true, "tree": true, "exa": true, "eza": true, "dir": true,
+	// File info
+	"file": true, "stat": true, "wc": true, "du": true, "df": true,
+	"which": true, "whereis": true, "type": true, "realpath": true, "basename": true, "dirname": true,
+	// Text processing (read-only)
+	"sort": true, "uniq": true, "cut": true, "tr": true, "column": true,
+	"jq": true, "yq": true, "xargs": true, "diff": true, "comm": true,
+	// Version control (read)
+	"git": true, "hg": true, "svn": true,
+	// Build tools (read/compile)
+	"go": true, "make": true, "cargo": true, "npm": true, "yarn": true, "pnpm": true,
+	"python": true, "python3": true, "node": true, "ruby": true, "perl": true,
+	// System info
+	"uname": true, "hostname": true, "whoami": true, "id": true,
+	"date": true, "uptime": true, "env": true, "printenv": true,
+	"echo": true, "printf": true, "test": true,
+	// Network (read)
+	"curl": true, "wget": true, "ping": true, "dig": true, "nslookup": true, "host": true,
+	// Process info
+	"ps": true, "pgrep": true, "lsof": true,
+}
+
+// sandboxWritePatterns detects output redirections and other write operations in commands.
+var sandboxWritePatterns = []string{
+	">>", // append redirect
+	">",  // write redirect (checked after >> to avoid false match)
+}
+
+// validateSandbox checks whether a command is allowed in sandbox mode.
+// Returns an error message if blocked, empty string if allowed.
+func validateSandbox(command string) string {
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Check for output redirections
+	for _, p := range sandboxWritePatterns {
+		if strings.Contains(command, p) {
+			return "sandbox: output redirection is not allowed"
+		}
+	}
+
+	// Check each command in a pipeline
+	parts := strings.Split(command, "|")
+	for _, part := range parts {
+		partFields := strings.Fields(strings.TrimSpace(part))
+		if len(partFields) == 0 {
+			continue
+		}
+		cmdName := extractCommand(partFields)
+		if !readOnlyCommands[cmdName] {
+			return fmt.Sprintf("sandbox: command %q is not in the read-only allowlist", cmdName)
+		}
+	}
+
+	return ""
 }
 
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
@@ -223,6 +291,22 @@ type filterArgs struct {
 	MaxLines    int    `json:"max_lines"`
 }
 
+type readArgs struct {
+	Path     string `json:"path"`
+	MaxLines int    `json:"max_lines"`
+	Offset   int    `json:"offset"`
+	Limit    int    `json:"limit"`
+}
+
+type grepArgs struct {
+	Pattern   string `json:"pattern"`
+	Path      string `json:"path"`
+	MaxLines  int    `json:"max_lines"`
+	Recursive bool   `json:"recursive"`
+	IgnoreCase bool  `json:"ignore_case"`
+	LineNumber bool  `json:"line_number"`
+}
+
 type toolCallResult struct {
 	Content []contentBlock `json:"content"`
 }
@@ -232,8 +316,32 @@ type contentBlock struct {
 	Text string `json:"text"`
 }
 
+// cacheMaxEntries is the default maximum number of cached filter results.
+const cacheMaxEntries = 128
+
+// buildConfigHash computes a fingerprint of config fields that affect filtering.
+func buildConfigHash(cfg *config.Config) string {
+	filtersStr := fmt.Sprintf("%v", cfg.Filters)
+	rulesStr := fmt.Sprintf("%v|%v", cfg.Rules.AlwaysKeep, cfg.Rules.AlwaysRemove)
+	return cache.ConfigHash(filtersStr, rulesStr, string(cfg.General.Mode), cfg.Security.RedactSecrets)
+}
+
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
+	// Initialize file-based audit log if configured
+	if cfg.Security.AuditLog != "" {
+		f, err := os.OpenFile(cfg.Security.AuditLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", cfg.Security.AuditLog, err)
+		} else {
+			auditFile = f
+			defer f.Close()
+		}
+	}
+
+	limiter := newRateLimiter(cfg.Security.RateLimit, cfg.Security.RateBurst)
+	fc := cache.New(cacheMaxEntries, buildConfigHash(cfg))
+
 	scanner := bufio.NewScanner(os.Stdin)
 	// Allow large input lines (up to 10 MB)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
@@ -257,7 +365,7 @@ func Serve(cfg *config.Config) {
 			continue
 		}
 
-		handleRequest(cfg, req)
+		handleRequest(cfg, limiter, fc, req)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -274,7 +382,7 @@ func handleNotification(method string) {
 	}
 }
 
-func handleRequest(cfg *config.Config, req jsonRPCRequest) {
+func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, req jsonRPCRequest) {
 	switch req.Method {
 	case "initialize":
 		result := initializeResult{
@@ -291,7 +399,12 @@ func handleRequest(cfg *config.Config, req jsonRPCRequest) {
 		sendResult(req.ID, buildToolsList())
 
 	case "tools/call":
-		handleToolCall(cfg, req)
+		if !limiter.Allow() {
+			logErr("RATE LIMITED: tools/call rejected")
+			sendError(req.ID, -32000, "Rate limit exceeded: too many requests per minute")
+			return
+		}
+		handleToolCall(cfg, fc, req)
 
 	default:
 		sendError(req.ID, -32601, "Method not found: "+req.Method)
@@ -329,11 +442,41 @@ func buildToolsList() toolsListResult {
 					Required: []string{"input"},
 				},
 			},
+			{
+				Name:        "gotk_read",
+				Description: "Read a file with noise removal and smart truncation. More token-efficient than cat. Strips ANSI codes, redacts secrets, and applies head+tail truncation for large files.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"path":      {Type: "string", Description: "Absolute or relative path to the file to read"},
+						"max_lines": {Type: "integer", Description: "Maximum output lines (default: 200). Uses head+tail truncation to preserve both beginning and end of file."},
+						"offset":    {Type: "integer", Description: "Start reading from this line number (1-based). Useful for reading a specific section of a large file."},
+						"limit":     {Type: "integer", Description: "Maximum number of lines to read from the file before filtering. 0 means read entire file."},
+					},
+					Required: []string{"path"},
+				},
+			},
+			{
+				Name:        "gotk_grep",
+				Description: "Search file contents with noise removal. Results are grouped by file with compressed paths. More token-efficient than grep. Automatically applies recursive search and line numbers.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"pattern":     {Type: "string", Description: "Search pattern (regular expression)"},
+						"path":        {Type: "string", Description: "File or directory to search in (default: current directory)"},
+						"max_lines":   {Type: "integer", Description: "Maximum output lines (default: 100)"},
+						"recursive":   {Type: "boolean", Description: "Search recursively in subdirectories (default: true)"},
+						"ignore_case": {Type: "boolean", Description: "Case-insensitive search (default: false)"},
+						"line_number": {Type: "boolean", Description: "Show line numbers (default: true)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
 		},
 	}
 }
 
-func handleToolCall(cfg *config.Config, req jsonRPCRequest) {
+func handleToolCall(cfg *config.Config, fc *cache.Cache, req jsonRPCRequest) {
 	var params toolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		sendError(req.ID, -32602, "Invalid params: "+err.Error())
@@ -342,15 +485,19 @@ func handleToolCall(cfg *config.Config, req jsonRPCRequest) {
 
 	switch params.Name {
 	case "gotk_exec":
-		handleExec(cfg, req.ID, params.Arguments)
+		handleExec(cfg, fc, req.ID, params.Arguments)
 	case "gotk_filter":
-		handleFilter(cfg, req.ID, params.Arguments)
+		handleFilter(cfg, fc, req.ID, params.Arguments)
+	case "gotk_read":
+		handleRead(cfg, fc, req.ID, params.Arguments)
+	case "gotk_grep":
+		handleGrep(cfg, fc, req.ID, params.Arguments)
 	default:
 		sendError(req.ID, -32602, "Unknown tool: "+params.Name)
 	}
 }
 
-func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
 	// Input size validation
 	if len(rawArgs) > maxInputSize {
 		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
@@ -373,6 +520,15 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		logErr("BLOCKED command: %q - %s", args.Command, reason)
 		sendError(id, -32602, reason)
 		return
+	}
+
+	// Sandbox mode: only allow read-only commands
+	if cfg.Security.SandboxMode {
+		if reason := validateSandbox(args.Command); reason != "" {
+			logErr("SANDBOX BLOCKED: %q - %s", args.Command, reason)
+			sendError(id, -32602, reason)
+			return
+		}
 	}
 
 	// Audit log: record all executed commands
@@ -425,11 +581,20 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 		cmdType = detect.Identify(mapped)
 	}
 
-	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, raw)
-	cleaned := chain.Apply(raw)
+	// Check cache for previously filtered identical output
+	cacheKey := fc.Key(raw, int(cmdType), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
 
 	// Build stats text
 	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {
@@ -446,7 +611,7 @@ func handleExec(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage)
 	})
 }
 
-func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
 	// Input size validation
 	if len(rawArgs) > maxInputSize {
 		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
@@ -478,16 +643,217 @@ func handleFilter(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessag
 		cmdType = detect.AutoDetect(args.Input)
 	}
 
-	chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, args.Input)
-	cleaned := chain.Apply(args.Input)
+	// Check cache for previously filtered identical input
+	cacheKey := fc.Key(args.Input, int(cmdType), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, cmdType, maxLines, args.Input)
+		cleaned = chain.Apply(args.Input)
+		fc.Put(cacheKey, cleaned)
+	}
 
 	stats := buildStats(args.Input, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
 
 	text := cleaned
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
 	text += stats
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+// defaultReadMaxLines is the default max lines for gotk_read (higher than exec since files are read intentionally).
+const defaultReadMaxLines = 200
+
+// defaultGrepMaxLines is the default max lines for gotk_grep.
+const defaultGrepMaxLines = 100
+
+func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args readArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Path == "" {
+		sendError(id, -32602, "path is required")
+		return
+	}
+
+	logErr("READ: %s", args.Path)
+
+	// Read the file
+	data, err := os.ReadFile(args.Path)
+	if err != nil {
+		sendError(id, -32603, "read failed: "+err.Error())
+		return
+	}
+
+	raw := string(data)
+
+	// Apply offset and limit if specified (line-based)
+	if args.Offset > 0 || args.Limit > 0 {
+		lines := strings.Split(raw, "\n")
+		start := 0
+		if args.Offset > 0 {
+			start = args.Offset - 1 // 1-based to 0-based
+			if start > len(lines) {
+				start = len(lines)
+			}
+		}
+		end := len(lines)
+		if args.Limit > 0 && start+args.Limit < end {
+			end = start + args.Limit
+		}
+		raw = strings.Join(lines[start:end], "\n")
+	}
+
+	// Determine max lines
+	maxLines := defaultReadMaxLines
+	if args.MaxLines > 0 {
+		maxLines = args.MaxLines
+	}
+
+	// Filter with CmdGeneric (file content, no command-specific filters)
+	cacheKey := fc.Key(raw, int(detect.CmdGeneric), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, detect.CmdGeneric, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
+
+	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
+
+	text := cleaned
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += stats
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args grepArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Pattern == "" {
+		sendError(id, -32602, "pattern is required")
+		return
+	}
+
+	// Build grep command
+	grepArgs := []string{"grep"}
+	if args.Recursive {
+		grepArgs = append(grepArgs, "-r")
+	}
+	if args.IgnoreCase {
+		grepArgs = append(grepArgs, "-i")
+	}
+	if args.LineNumber {
+		grepArgs = append(grepArgs, "-n")
+	}
+
+	// Default: recursive with line numbers
+	if !args.Recursive && !args.IgnoreCase && !args.LineNumber {
+		grepArgs = []string{"grep", "-rn"}
+	}
+
+	grepArgs = append(grepArgs, "--", args.Pattern)
+
+	path := args.Path
+	if path == "" {
+		path = "."
+	}
+	grepArgs = append(grepArgs, path)
+
+	command := strings.Join(grepArgs, " ")
+
+	// Sandbox check if enabled
+	if cfg.Security.SandboxMode {
+		if reason := validateSandbox(command); reason != "" {
+			logErr("SANDBOX BLOCKED: %q - %s", command, reason)
+			sendError(id, -32602, reason)
+			return
+		}
+	}
+
+	logErr("GREP: %s", command)
+
+	// Execute grep
+	shell := findShell()
+	timeout := defaultMCPTimeout
+	if cfg.Security.CommandTimeout > 0 {
+		timeout = time.Duration(cfg.Security.CommandTimeout) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := exec.RunWithTimeout(ctx, shell, "-c", command)
+	if err != nil {
+		sendError(id, -32603, "grep failed: "+err.Error())
+		return
+	}
+
+	raw := result.Stdout
+
+	// Determine max lines
+	maxLines := defaultGrepMaxLines
+	if args.MaxLines > 0 {
+		maxLines = args.MaxLines
+	}
+
+	// Filter with CmdGrep for grep-specific compression
+	cacheKey := fc.Key(raw, int(detect.CmdGrep), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, detect.CmdGrep, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
+
+	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
+
+	text := cleaned
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += stats
+
+	if result.ExitCode > 1 {
+		// grep exit code 1 = no matches (not an error), >1 = actual error
+		text += fmt.Sprintf("\n[exit code: %d]", result.ExitCode)
+	}
+	if result.ExitCode == 1 {
+		text = "[no matches found]\n" + stats
+	}
 
 	sendResult(id, toolCallResult{
 		Content: []contentBlock{{Type: "text", Text: text}},
@@ -565,8 +931,17 @@ func writeResponse(resp jsonRPCResponse) {
 	fmt.Fprintf(os.Stdout, "%s\n", data)
 }
 
+// auditFile is the optional file-based audit log. Set by Serve() if configured.
+var auditFile *os.File
+
 func logErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "[gotk-mcp] "+format+"\n", args...)
+	msg := fmt.Sprintf("[gotk-mcp] "+format, args...)
+	fmt.Fprintln(os.Stderr, msg)
+
+	if auditFile != nil {
+		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
+		fmt.Fprintf(auditFile, "%s %s\n", ts, msg)
+	}
 }
 
 // findShell returns a shell suitable for command execution.

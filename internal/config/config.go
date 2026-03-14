@@ -31,6 +31,10 @@ type SecurityConfig struct {
 	CommandTimeout int  // seconds, 0 means no timeout
 	MaxOutputBytes int  // max bytes captured per stream (stdout/stderr)
 	RedactSecrets  bool // whether to redact secrets from output
+	RateLimit      int    // max requests per minute for MCP tools/call, 0 = disabled
+	RateBurst      int    // max burst size for rate limiter
+	SandboxMode    bool   // restrict MCP exec to read-only commands
+	AuditLog       string // file path for audit log, empty = disabled
 }
 
 // GeneralConfig holds general settings.
@@ -80,6 +84,8 @@ func Default() *Config {
 			CommandTimeout: 30,
 			MaxOutputBytes: 10 * 1024 * 1024, // 10MB
 			RedactSecrets:  true,
+			RateLimit:      0, // disabled by default
+			RateBurst:      10,
 		},
 		Commands:   map[string]string{},
 		Rules:      RulesConfig{},
@@ -228,6 +234,18 @@ func applyTOML(cfg *Config, data string) {
 				}
 			case "redact_secrets":
 				cfg.Security.RedactSecrets = parseBool(val)
+			case "rate_limit":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Security.RateLimit = n
+				}
+			case "rate_burst":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Security.RateBurst = n
+				}
+			case "sandbox_mode":
+				cfg.Security.SandboxMode = parseBool(val)
+			case "audit_log":
+				cfg.Security.AuditLog = val
 			}
 		case "commands":
 			cfg.Commands[key] = val

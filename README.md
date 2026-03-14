@@ -122,6 +122,8 @@ cmd/gotk/          CLI entrypoint, flag parsing, pipe detection
 internal/exec/     Command execution and output capture
 internal/filter/   Filter chain + individual filter functions
 internal/detect/   Command identification + command-specific filter selection
+internal/mcp/      MCP server (gotk_exec, gotk_filter, gotk_read, gotk_grep)
+internal/cache/    LRU content-hash cache for filter results
 ```
 
 Key design decisions:
@@ -151,6 +153,8 @@ truncate = true
 [security]
 redact_secrets = true
 command_timeout = 30
+rate_limit = 0          # MCP rate limit (requests/min, 0 = disabled)
+sandbox_mode = false    # MCP sandbox: restrict to read-only commands
 
 [rules]
 always_keep = ["^ERROR:", "^FATAL:"]     # regex: these lines are never removed
