@@ -50,6 +50,73 @@ var dangerousPatterns = []dangerousArgPattern{
 	{cmd: "init", exactArg: "6"},
 }
 
+// readOnlyCommands is the allowlist of commands permitted in sandbox mode.
+// Only commands that cannot modify files or system state are allowed.
+var readOnlyCommands = map[string]bool{
+	// File viewing
+	"cat": true, "head": true, "tail": true, "less": true, "more": true, "bat": true,
+	// Search
+	"grep": true, "rg": true, "ag": true, "find": true, "fd": true, "locate": true,
+	// Listing
+	"ls": true, "tree": true, "exa": true, "eza": true, "dir": true,
+	// File info
+	"file": true, "stat": true, "wc": true, "du": true, "df": true,
+	"which": true, "whereis": true, "type": true, "realpath": true, "basename": true, "dirname": true,
+	// Text processing (read-only)
+	"sort": true, "uniq": true, "cut": true, "tr": true, "column": true,
+	"jq": true, "yq": true, "xargs": true, "diff": true, "comm": true,
+	// Version control (read)
+	"git": true, "hg": true, "svn": true,
+	// Build tools (read/compile)
+	"go": true, "make": true, "cargo": true, "npm": true, "yarn": true, "pnpm": true,
+	"python": true, "python3": true, "node": true, "ruby": true, "perl": true,
+	// System info
+	"uname": true, "hostname": true, "whoami": true, "id": true,
+	"date": true, "uptime": true, "env": true, "printenv": true,
+	"echo": true, "printf": true, "test": true,
+	// Network (read)
+	"curl": true, "wget": true, "ping": true, "dig": true, "nslookup": true, "host": true,
+	// Process info
+	"ps": true, "pgrep": true, "lsof": true,
+}
+
+// sandboxWritePatterns detects output redirections and other write operations in commands.
+var sandboxWritePatterns = []string{
+	">>", // append redirect
+	">",  // write redirect (checked after >> to avoid false match)
+}
+
+// validateSandbox checks whether a command is allowed in sandbox mode.
+// Returns an error message if blocked, empty string if allowed.
+func validateSandbox(command string) string {
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Check for output redirections
+	for _, p := range sandboxWritePatterns {
+		if strings.Contains(command, p) {
+			return "sandbox: output redirection is not allowed"
+		}
+	}
+
+	// Check each command in a pipeline
+	parts := strings.Split(command, "|")
+	for _, part := range parts {
+		partFields := strings.Fields(strings.TrimSpace(part))
+		if len(partFields) == 0 {
+			continue
+		}
+		cmdName := extractCommand(partFields)
+		if !readOnlyCommands[cmdName] {
+			return fmt.Sprintf("sandbox: command %q is not in the read-only allowlist", cmdName)
+		}
+	}
+
+	return ""
+}
+
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
 const maxInputSize = 10 * 1024 * 1024
 
@@ -392,6 +459,15 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		logErr("BLOCKED command: %q - %s", args.Command, reason)
 		sendError(id, -32602, reason)
 		return
+	}
+
+	// Sandbox mode: only allow read-only commands
+	if cfg.Security.SandboxMode {
+		if reason := validateSandbox(args.Command); reason != "" {
+			logErr("SANDBOX BLOCKED: %q - %s", args.Command, reason)
+			sendError(id, -32602, reason)
+			return
+		}
 	}
 
 	// Audit log: record all executed commands

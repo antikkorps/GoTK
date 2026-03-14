@@ -103,6 +103,79 @@ func TestValidateCommand_WhitespaceHandling(t *testing.T) {
 	}
 }
 
+// --- validateSandbox tests ---
+
+func TestValidateSandbox_AllowedCommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{"grep", "grep -rn func ./src/"},
+		{"ls", "ls -la /tmp"},
+		{"cat", "cat /etc/hostname"},
+		{"find", "find . -name '*.go'"},
+		{"git status", "git status"},
+		{"git log", "git log --oneline"},
+		{"go test", "go test ./..."},
+		{"head", "head -20 file.txt"},
+		{"wc", "wc -l file.txt"},
+		{"echo", "echo hello"},
+		{"pipeline", "grep -rn func . | head -10"},
+		{"pipeline with sort", "ls -la | sort | head"},
+		{"jq", "cat file.json | jq '.key'"},
+		{"curl", "curl https://example.com"},
+		{"diff", "diff file1 file2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSandbox(tt.command)
+			if result != "" {
+				t.Errorf("validateSandbox(%q) = %q, should allow", tt.command, result)
+			}
+		})
+	}
+}
+
+func TestValidateSandbox_BlockedCommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{"rm", "rm file.txt"},
+		{"cp", "cp file1 file2"},
+		{"mv", "mv file1 file2"},
+		{"chmod", "chmod 755 file"},
+		{"chown", "chown user file"},
+		{"mkdir", "mkdir newdir"},
+		{"touch", "touch newfile"},
+		{"tee", "echo hello | tee file.txt"},
+		{"sed -i", "sed -i 's/a/b/' file"},
+		{"redirect write", "echo hello > file.txt"},
+		{"redirect append", "echo hello >> file.txt"},
+		{"unknown command", "mycustomtool --flag"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSandbox(tt.command)
+			if result == "" {
+				t.Errorf("validateSandbox(%q) should block the command", tt.command)
+			}
+			if !strings.Contains(result, "sandbox") {
+				t.Errorf("validateSandbox(%q) = %q, should contain 'sandbox'", tt.command, result)
+			}
+		})
+	}
+}
+
+func TestValidateSandbox_PipelineWithBlockedCommand(t *testing.T) {
+	result := validateSandbox("ls -la | rm file.txt")
+	if result == "" {
+		t.Error("should block pipeline containing non-allowed command")
+	}
+}
+
 // --- buildToolsList tests ---
 
 func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {

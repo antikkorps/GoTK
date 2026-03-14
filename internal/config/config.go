@@ -33,6 +33,7 @@ type SecurityConfig struct {
 	RedactSecrets  bool // whether to redact secrets from output
 	RateLimit      int  // max requests per minute for MCP tools/call, 0 = disabled
 	RateBurst      int  // max burst size for rate limiter
+	SandboxMode    bool // restrict MCP exec to read-only commands
 }
 
 // GeneralConfig holds general settings.
@@ -240,6 +241,8 @@ func applyTOML(cfg *Config, data string) {
 				if n, err := strconv.Atoi(val); err == nil {
 					cfg.Security.RateBurst = n
 				}
+			case "sandbox_mode":
+				cfg.Security.SandboxMode = parseBool(val)
 			}
 		case "commands":
 			cfg.Commands[key] = val

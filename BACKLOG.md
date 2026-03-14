@@ -122,7 +122,7 @@
 - [x] Output sanitization: redact secrets (API keys, tokens, passwords, JWTs)
 - [x] MCP server: validate all JSON-RPC inputs strictly
 - [x] MCP audit logging (all executed commands logged to stderr)
-- [ ] Sandbox mode: restrict executable commands to read-only operations
+- [x] Sandbox mode: restrict executable commands to read-only operations
 - [ ] File-based audit log (opt-in)
 
 ### Build — Best practices
