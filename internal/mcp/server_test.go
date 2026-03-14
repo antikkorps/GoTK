@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -273,7 +274,7 @@ func TestHandleRequest_Initialize(t *testing.T) {
 		ID:      json.RawMessage(`1`),
 		Method:  "initialize",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -314,7 +315,7 @@ func TestHandleRequest_Ping(t *testing.T) {
 		ID:      json.RawMessage(`2`),
 		Method:  "ping",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -343,7 +344,7 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 		ID:      json.RawMessage(`3`),
 		Method:  "tools/list",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -380,7 +381,7 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 		ID:      json.RawMessage(`4`),
 		Method:  "nonexistent/method",
 	}
-	handleRequest(cfg, req)
+	handleRequest(cfg, newRateLimiter(0, 0), req)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -401,6 +402,72 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 	}
 	if !strings.Contains(resp.Error.Message, "Method not found") {
 		t.Errorf("error message = %q, should contain 'Method not found'", resp.Error.Message)
+	}
+}
+
+func TestHandleRequest_RateLimited(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	limiter := newRateLimiter(60, 2) // burst of 2
+
+	toolCallReq := func(id int) jsonRPCRequest {
+		return jsonRPCRequest{
+			JSONRPC: "2.0",
+			ID:      json.RawMessage(fmt.Sprintf(`%d`, id)),
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"gotk_filter","arguments":{"input":"hello"}}`),
+		}
+	}
+
+	// First two should succeed (burst=2)
+	handleRequest(cfg, limiter, toolCallReq(1))
+	handleRequest(cfg, limiter, toolCallReq(2))
+	// Third should be rate limited
+	handleRequest(cfg, limiter, toolCallReq(3))
+
+	// Ping should still work (not rate limited)
+	handleRequest(cfg, limiter, jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`4`),
+		Method:  "ping",
+	})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 responses, got %d: %v", len(lines), lines)
+	}
+
+	// Check third response is rate limited
+	var resp3 jsonRPCResponse
+	if err := json.Unmarshal([]byte(lines[2]), &resp3); err != nil {
+		t.Fatalf("failed to parse response 3: %v", err)
+	}
+	if resp3.Error == nil {
+		t.Fatal("third request should be rate limited")
+	}
+	if resp3.Error.Code != -32000 {
+		t.Errorf("error code = %d, want -32000", resp3.Error.Code)
+	}
+	if !strings.Contains(resp3.Error.Message, "Rate limit exceeded") {
+		t.Errorf("error message = %q, should contain 'Rate limit exceeded'", resp3.Error.Message)
+	}
+
+	// Check fourth (ping) response succeeds
+	var resp4 jsonRPCResponse
+	if err := json.Unmarshal([]byte(lines[3]), &resp4); err != nil {
+		t.Fatalf("failed to parse response 4: %v", err)
+	}
+	if resp4.Error != nil {
+		t.Error("ping should not be rate limited")
 	}
 }
 

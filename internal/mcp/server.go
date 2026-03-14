@@ -234,6 +234,8 @@ type contentBlock struct {
 
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
+	limiter := newRateLimiter(cfg.Security.RateLimit, cfg.Security.RateBurst)
+
 	scanner := bufio.NewScanner(os.Stdin)
 	// Allow large input lines (up to 10 MB)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
@@ -257,7 +259,7 @@ func Serve(cfg *config.Config) {
 			continue
 		}
 
-		handleRequest(cfg, req)
+		handleRequest(cfg, limiter, req)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -274,7 +276,7 @@ func handleNotification(method string) {
 	}
 }
 
-func handleRequest(cfg *config.Config, req jsonRPCRequest) {
+func handleRequest(cfg *config.Config, limiter *rateLimiter, req jsonRPCRequest) {
 	switch req.Method {
 	case "initialize":
 		result := initializeResult{
@@ -291,6 +293,11 @@ func handleRequest(cfg *config.Config, req jsonRPCRequest) {
 		sendResult(req.ID, buildToolsList())
 
 	case "tools/call":
+		if !limiter.Allow() {
+			logErr("RATE LIMITED: tools/call rejected")
+			sendError(req.ID, -32000, "Rate limit exceeded: too many requests per minute")
+			return
+		}
 		handleToolCall(cfg, req)
 
 	default:

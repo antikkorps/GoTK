@@ -180,7 +180,7 @@
 - [x] Per-command truncation threshold tuning
 - [x] Whitelist/blacklist patterns to always keep/remove
 - [ ] Per-LLM profiles (Claude, GPT, Gemini)
-- [ ] Rate limiting in MCP server
+- [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
 
 ---
