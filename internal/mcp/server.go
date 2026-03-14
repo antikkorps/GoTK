@@ -291,6 +291,22 @@ type filterArgs struct {
 	MaxLines    int    `json:"max_lines"`
 }
 
+type readArgs struct {
+	Path     string `json:"path"`
+	MaxLines int    `json:"max_lines"`
+	Offset   int    `json:"offset"`
+	Limit    int    `json:"limit"`
+}
+
+type grepArgs struct {
+	Pattern   string `json:"pattern"`
+	Path      string `json:"path"`
+	MaxLines  int    `json:"max_lines"`
+	Recursive bool   `json:"recursive"`
+	IgnoreCase bool  `json:"ignore_case"`
+	LineNumber bool  `json:"line_number"`
+}
+
 type toolCallResult struct {
 	Content []contentBlock `json:"content"`
 }
@@ -415,6 +431,36 @@ func buildToolsList() toolsListResult {
 					Required: []string{"input"},
 				},
 			},
+			{
+				Name:        "gotk_read",
+				Description: "Read a file with noise removal and smart truncation. More token-efficient than cat. Strips ANSI codes, redacts secrets, and applies head+tail truncation for large files.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"path":      {Type: "string", Description: "Absolute or relative path to the file to read"},
+						"max_lines": {Type: "integer", Description: "Maximum output lines (default: 200). Uses head+tail truncation to preserve both beginning and end of file."},
+						"offset":    {Type: "integer", Description: "Start reading from this line number (1-based). Useful for reading a specific section of a large file."},
+						"limit":     {Type: "integer", Description: "Maximum number of lines to read from the file before filtering. 0 means read entire file."},
+					},
+					Required: []string{"path"},
+				},
+			},
+			{
+				Name:        "gotk_grep",
+				Description: "Search file contents with noise removal. Results are grouped by file with compressed paths. More token-efficient than grep. Automatically applies recursive search and line numbers.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"pattern":     {Type: "string", Description: "Search pattern (regular expression)"},
+						"path":        {Type: "string", Description: "File or directory to search in (default: current directory)"},
+						"max_lines":   {Type: "integer", Description: "Maximum output lines (default: 100)"},
+						"recursive":   {Type: "boolean", Description: "Search recursively in subdirectories (default: true)"},
+						"ignore_case": {Type: "boolean", Description: "Case-insensitive search (default: false)"},
+						"line_number": {Type: "boolean", Description: "Show line numbers (default: true)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
 		},
 	}
 }
@@ -431,6 +477,10 @@ func handleToolCall(cfg *config.Config, fc *cache.Cache, req jsonRPCRequest) {
 		handleExec(cfg, fc, req.ID, params.Arguments)
 	case "gotk_filter":
 		handleFilter(cfg, fc, req.ID, params.Arguments)
+	case "gotk_read":
+		handleRead(cfg, fc, req.ID, params.Arguments)
+	case "gotk_grep":
+		handleGrep(cfg, fc, req.ID, params.Arguments)
 	default:
 		sendError(req.ID, -32602, "Unknown tool: "+params.Name)
 	}
@@ -601,6 +651,198 @@ func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawAr
 		text += "\n"
 	}
 	text += stats
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+// defaultReadMaxLines is the default max lines for gotk_read (higher than exec since files are read intentionally).
+const defaultReadMaxLines = 200
+
+// defaultGrepMaxLines is the default max lines for gotk_grep.
+const defaultGrepMaxLines = 100
+
+func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args readArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Path == "" {
+		sendError(id, -32602, "path is required")
+		return
+	}
+
+	logErr("READ: %s", args.Path)
+
+	// Read the file
+	data, err := os.ReadFile(args.Path)
+	if err != nil {
+		sendError(id, -32603, "read failed: "+err.Error())
+		return
+	}
+
+	raw := string(data)
+
+	// Apply offset and limit if specified (line-based)
+	if args.Offset > 0 || args.Limit > 0 {
+		lines := strings.Split(raw, "\n")
+		start := 0
+		if args.Offset > 0 {
+			start = args.Offset - 1 // 1-based to 0-based
+			if start > len(lines) {
+				start = len(lines)
+			}
+		}
+		end := len(lines)
+		if args.Limit > 0 && start+args.Limit < end {
+			end = start + args.Limit
+		}
+		raw = strings.Join(lines[start:end], "\n")
+	}
+
+	// Determine max lines
+	maxLines := defaultReadMaxLines
+	if args.MaxLines > 0 {
+		maxLines = args.MaxLines
+	}
+
+	// Filter with CmdGeneric (file content, no command-specific filters)
+	cacheKey := fc.Key(raw, int(detect.CmdGeneric), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, detect.CmdGeneric, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
+
+	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
+
+	text := cleaned
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += stats
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args grepArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Pattern == "" {
+		sendError(id, -32602, "pattern is required")
+		return
+	}
+
+	// Build grep command
+	grepArgs := []string{"grep"}
+	if args.Recursive {
+		grepArgs = append(grepArgs, "-r")
+	}
+	if args.IgnoreCase {
+		grepArgs = append(grepArgs, "-i")
+	}
+	if args.LineNumber {
+		grepArgs = append(grepArgs, "-n")
+	}
+
+	// Default: recursive with line numbers
+	if !args.Recursive && !args.IgnoreCase && !args.LineNumber {
+		grepArgs = []string{"grep", "-rn"}
+	}
+
+	grepArgs = append(grepArgs, "--", args.Pattern)
+
+	path := args.Path
+	if path == "" {
+		path = "."
+	}
+	grepArgs = append(grepArgs, path)
+
+	command := strings.Join(grepArgs, " ")
+
+	// Sandbox check if enabled
+	if cfg.Security.SandboxMode {
+		if reason := validateSandbox(command); reason != "" {
+			logErr("SANDBOX BLOCKED: %q - %s", command, reason)
+			sendError(id, -32602, reason)
+			return
+		}
+	}
+
+	logErr("GREP: %s", command)
+
+	// Execute grep
+	shell := findShell()
+	timeout := defaultMCPTimeout
+	if cfg.Security.CommandTimeout > 0 {
+		timeout = time.Duration(cfg.Security.CommandTimeout) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := exec.RunWithTimeout(ctx, shell, "-c", command)
+	if err != nil {
+		sendError(id, -32603, "grep failed: "+err.Error())
+		return
+	}
+
+	raw := result.Stdout
+
+	// Determine max lines
+	maxLines := defaultGrepMaxLines
+	if args.MaxLines > 0 {
+		maxLines = args.MaxLines
+	}
+
+	// Filter with CmdGrep for grep-specific compression
+	cacheKey := fc.Key(raw, int(detect.CmdGrep), maxLines)
+	cleaned, cached := fc.Get(cacheKey)
+	if !cached {
+		chain := proxy.BuildChainWithKeep(cfg, detect.CmdGrep, maxLines, raw)
+		cleaned = chain.Apply(raw)
+		fc.Put(cacheKey, cleaned)
+	}
+
+	stats := buildStats(raw, cleaned)
+	if cached {
+		stats += " [cached]"
+	}
+
+	text := cleaned
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += stats
+
+	if result.ExitCode > 1 {
+		// grep exit code 1 = no matches (not an error), >1 = actual error
+		text += fmt.Sprintf("\n[exit code: %d]", result.ExitCode)
+	}
+	if result.ExitCode == 1 {
+		text = "[no matches found]\n" + stats
+	}
 
 	sendResult(id, toolCallResult{
 		Content: []contentBlock{{Type: "text", Text: text}},

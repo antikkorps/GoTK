@@ -181,8 +181,8 @@ func TestValidateSandbox_PipelineWithBlockedCommand(t *testing.T) {
 func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 	result := buildToolsList()
 
-	if len(result.Tools) != 2 {
-		t.Fatalf("expected 2 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 4 {
+		t.Fatalf("expected 4 tools, got %d", len(result.Tools))
 	}
 
 	// Verify tool names
@@ -191,11 +191,10 @@ func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 		toolNames[tool.Name] = true
 	}
 
-	if !toolNames["gotk_exec"] {
-		t.Error("missing tool: gotk_exec")
-	}
-	if !toolNames["gotk_filter"] {
-		t.Error("missing tool: gotk_filter")
+	for _, name := range []string{"gotk_exec", "gotk_filter", "gotk_read", "gotk_grep"} {
+		if !toolNames[name] {
+			t.Errorf("missing tool: %s", name)
+		}
 	}
 }
 
@@ -542,6 +541,242 @@ func TestHandleRequest_RateLimited(t *testing.T) {
 	}
 	if resp4.Error != nil {
 		t.Error("ping should not be rate limited")
+	}
+}
+
+// --- gotk_read tests ---
+
+func TestHandleRead_Success(t *testing.T) {
+	// Create a temp file to read
+	tmpFile, err := os.CreateTemp("", "gotk_read_test_*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	content := "line1\nline2\nline3\nline4\nline5\n"
+	tmpFile.WriteString(content)
+	tmpFile.Close()
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), MaxLines: 100})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	// Verify response contains file content
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	if !strings.Contains(resultStr, "line1") {
+		t.Error("response should contain file content")
+	}
+	if !strings.Contains(resultStr, "gotk:") {
+		t.Error("response should contain stats")
+	}
+}
+
+func TestHandleRead_FileNotFound(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: "/nonexistent/file.txt"})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for nonexistent file")
+	}
+	if resp.Error.Code != -32603 {
+		t.Errorf("error code = %d, want -32603", resp.Error.Code)
+	}
+}
+
+func TestHandleRead_OffsetAndLimit(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "gotk_read_offset_*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("line1\nline2\nline3\nline4\nline5\n")
+	tmpFile.Close()
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), Offset: 2, Limit: 2})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	// Should contain lines 2-3, not line1
+	if strings.Contains(resultStr, "line1") {
+		t.Error("should not contain line1 with offset=2")
+	}
+	if !strings.Contains(resultStr, "line2") {
+		t.Error("should contain line2")
+	}
+}
+
+func TestHandleRead_EmptyPath(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: ""})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for empty path")
+	}
+}
+
+// --- gotk_grep tests ---
+
+func TestHandleGrep_Success(t *testing.T) {
+	// Create temp dir with a file to grep
+	tmpDir, err := os.MkdirTemp("", "gotk_grep_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\nfoo bar\nhello again\n"), 0644)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "hello", Path: tmpDir})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	if !strings.Contains(resultStr, "hello") {
+		t.Error("grep result should contain matching lines")
+	}
+}
+
+func TestHandleGrep_NoMatches(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gotk_grep_nomatch_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\n"), 0644)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "zzzznotfound", Path: tmpDir})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error != nil {
+		t.Fatalf("no matches should not be an error, got: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	if !strings.Contains(string(resultJSON), "no matches") {
+		t.Error("should indicate no matches found")
+	}
+}
+
+func TestHandleGrep_EmptyPattern(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: ""})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should return error for empty pattern")
 	}
 }
 
