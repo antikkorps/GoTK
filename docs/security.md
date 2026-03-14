@@ -87,14 +87,77 @@ If a command matches the denylist, it is rejected with an error message and logg
 
 MCP requests with input exceeding 10MB are rejected before processing. This prevents denial-of-service via extremely large payloads.
 
+## Rate Limiting
+
+The MCP server supports token bucket rate limiting on `tools/call` requests. This prevents excessive command execution from runaway LLM loops.
+
+- **Disabled by default** (`rate_limit = 0`)
+- Only applies to tool calls (`gotk_exec`, `gotk_filter`, `gotk_read`, `gotk_grep`), not to `initialize`, `ping`, or `tools/list`
+- Returns JSON-RPC error `-32000` when the limit is exceeded
+
+```toml
+[security]
+rate_limit = 60   # max requests per minute (0 = disabled)
+rate_burst = 10   # burst size — allows short bursts above the rate
+```
+
+## Sandbox Mode
+
+Sandbox mode restricts MCP command execution to read-only operations. When enabled, only commands from a curated allowlist are permitted, and output redirections (`>`, `>>`) are blocked.
+
+**Allowed command categories:**
+
+- **File viewing**: cat, head, tail, less, more, bat
+- **Search**: grep, rg, ag, find, fd, locate
+- **Listing**: ls, tree, exa, eza
+- **File info**: file, stat, wc, du, df, which, realpath
+- **Text processing**: sort, uniq, cut, tr, jq, yq, diff
+- **Version control**: git, hg, svn
+- **Build tools**: go, make, cargo, npm, yarn, python, node
+- **System info**: uname, hostname, whoami, date, uptime, env, echo
+- **Network**: curl, wget, ping, dig
+- **Process info**: ps, pgrep, lsof
+
+Commands not in the allowlist are rejected with a `sandbox:` error message.
+
+```toml
+[security]
+sandbox_mode = true   # restrict to read-only commands (default: false)
+```
+
+**Note:** Sandbox mode uses an allowlist (opposite of the command denylist). Both mechanisms can be active simultaneously — the denylist runs first, then the sandbox check.
+
 ## Audit Logging
 
-All commands executed through the MCP server are logged to stderr with the prefix `[gotk-mcp] EXEC:`. This provides an audit trail of what commands were run:
+All commands executed through the MCP server are logged to stderr with the prefix `[gotk-mcp]`. This provides an audit trail of what commands were run:
 
 ```
 [gotk-mcp] EXEC: grep -rn "func main" ./src/
-[gotk-mcp] BLOCKED command: "rm -rf /" - command blocked: contains dangerous pattern "rm -rf /"
+[gotk-mcp] READ: ./internal/config/config.go
+[gotk-mcp] GREP: grep -rn -- TODO .
+[gotk-mcp] BLOCKED command: "rm -rf /" - command blocked: dangerous pattern "rm"
+[gotk-mcp] SANDBOX BLOCKED: "touch newfile" - sandbox: command "touch" is not in the read-only allowlist
+[gotk-mcp] RATE LIMITED: tools/call rejected
 ```
+
+### File-Based Audit Log
+
+For persistent logging, enable the file-based audit log. All MCP events are appended to the specified file with ISO 8601 timestamps:
+
+```toml
+[security]
+audit_log = "/var/log/gotk-audit.log"   # file path, empty = disabled (default)
+```
+
+Log entries include timestamps:
+
+```
+2026-03-14T22:15:03.142+01:00 [gotk-mcp] EXEC: grep -rn "func main" ./src/
+2026-03-14T22:15:04.891+01:00 [gotk-mcp] READ: ./internal/config/config.go
+2026-03-14T22:15:05.234+01:00 [gotk-mcp] SANDBOX BLOCKED: "rm file" - sandbox: command "rm" is not in the read-only allowlist
+```
+
+The file is created with `0600` permissions (owner read/write only). Stderr logging continues to work regardless of this setting.
 
 ## Graceful Shutdown
 
@@ -110,9 +173,13 @@ All security settings live under the `[security]` section in your config file:
 
 ```toml
 [security]
-command_timeout = 30       # Command timeout in seconds (default: 30)
+command_timeout = 30         # Command timeout in seconds (default: 30)
 max_output_bytes = 10485760  # Max bytes per output stream (default: 10MB)
-redact_secrets = true      # Redact secrets from output (default: true)
+redact_secrets = true        # Redact secrets from output (default: true)
+rate_limit = 0               # Max MCP tool calls per minute (0 = disabled)
+rate_burst = 10              # Burst size for rate limiter (default: 10)
+sandbox_mode = false         # Restrict MCP exec to read-only commands (default: false)
+audit_log = ""               # File path for persistent audit log (default: disabled)
 ```
 
 Config file locations:

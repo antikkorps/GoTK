@@ -123,7 +123,7 @@
 - [x] MCP server: validate all JSON-RPC inputs strictly
 - [x] MCP audit logging (all executed commands logged to stderr)
 - [x] Sandbox mode: restrict executable commands to read-only operations
-- [ ] File-based audit log (opt-in)
+- [x] File-based audit log (opt-in)
 
 ### Build — Best practices
 

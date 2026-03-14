@@ -780,6 +780,59 @@ func TestHandleGrep_EmptyPattern(t *testing.T) {
 	}
 }
 
+// --- audit log tests ---
+
+func TestAuditLogFile(t *testing.T) {
+	// Create temp file for audit log
+	tmpFile, err := os.CreateTemp("", "gotk_audit_*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	// Set audit file
+	f, err := os.OpenFile(tmpFile.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldAuditFile := auditFile
+	auditFile = f
+	defer func() {
+		f.Close()
+		auditFile = oldAuditFile
+	}()
+
+	// Log something
+	logErr("EXEC: %s", "test command")
+
+	f.Sync()
+
+	// Read the audit log
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "EXEC: test command") {
+		t.Errorf("audit log should contain the logged command, got: %q", content)
+	}
+	// Check timestamp format (ISO 8601)
+	if !strings.Contains(content, "T") || !strings.Contains(content, "[gotk-mcp]") {
+		t.Errorf("audit log should contain timestamp and prefix, got: %q", content)
+	}
+}
+
+func TestAuditLogDisabled(t *testing.T) {
+	oldAuditFile := auditFile
+	auditFile = nil
+	defer func() { auditFile = oldAuditFile }()
+
+	// Should not panic when audit file is nil
+	logErr("EXEC: %s", "test command")
+}
+
 // --- JSON-RPC parsing tests ---
 
 func TestJSONRPC_ValidRequest(t *testing.T) {

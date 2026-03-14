@@ -328,6 +328,17 @@ func buildConfigHash(cfg *config.Config) string {
 
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
+	// Initialize file-based audit log if configured
+	if cfg.Security.AuditLog != "" {
+		f, err := os.OpenFile(cfg.Security.AuditLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", cfg.Security.AuditLog, err)
+		} else {
+			auditFile = f
+			defer f.Close()
+		}
+	}
+
 	limiter := newRateLimiter(cfg.Security.RateLimit, cfg.Security.RateBurst)
 	fc := cache.New(cacheMaxEntries, buildConfigHash(cfg))
 
@@ -920,8 +931,17 @@ func writeResponse(resp jsonRPCResponse) {
 	fmt.Fprintf(os.Stdout, "%s\n", data)
 }
 
+// auditFile is the optional file-based audit log. Set by Serve() if configured.
+var auditFile *os.File
+
 func logErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "[gotk-mcp] "+format+"\n", args...)
+	msg := fmt.Sprintf("[gotk-mcp] "+format, args...)
+	fmt.Fprintln(os.Stderr, msg)
+
+	if auditFile != nil {
+		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
+		fmt.Fprintf(auditFile, "%s %s\n", ts, msg)
+	}
 }
 
 // findShell returns a shell suitable for command execution.

@@ -68,7 +68,16 @@ To **bypass** GoTK in a specific project (e.g., the GoTK repo itself), add an em
 
 ### Method 2: MCP Server
 
-Register GoTK as an MCP tool server. This exposes a `gotk_exec` tool that Claude can use to run commands with filtered output.
+Register GoTK as an MCP tool server. This exposes four tools that Claude can use with filtered output:
+
+| Tool | Description |
+|------|-------------|
+| `gotk_exec` | Execute any command and return cleaned output |
+| `gotk_filter` | Filter pre-existing text through the cleaning pipeline |
+| `gotk_read` | Read a file with smart truncation and noise removal |
+| `gotk_grep` | Search file contents with grouped, compressed results |
+
+`gotk_read` and `gotk_grep` are more token-efficient than using `gotk_exec` with `cat`/`grep` because they apply specialized defaults (higher truncation limits for reads, grep-specific output grouping).
 
 **Via CLI (recommended):**
 
@@ -252,6 +261,9 @@ git = 100
 
 [security]
 command_timeout = 300   # 5 min — important for MCP with test suites
+rate_limit = 0          # max MCP tool calls/min (0 = disabled)
+rate_burst = 10         # burst size for rate limiter
+sandbox_mode = false    # restrict MCP to read-only commands
 ```
 
 ---
