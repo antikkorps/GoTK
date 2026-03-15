@@ -95,7 +95,7 @@
 
 ### Measure
 
-- [ ] Measure real token consumption impact (before/after on full sessions)
+- [x] Measure real token consumption impact (before/after on full sessions)
 - [ ] A/B test: LLM response quality with/without GoTK
 - [ ] Track cases where LLM re-requests info that was filtered out (quality regression signal)
 

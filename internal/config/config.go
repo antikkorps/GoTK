@@ -16,11 +16,19 @@ const (
 	ModeAggressive   FilterMode = "aggressive"   // maximum reduction, acceptable info loss
 )
 
+// MeasureConfig controls the measurement subsystem.
+type MeasureConfig struct {
+	Enabled    bool
+	LogPath    string
+	MaxLogSize int // max log file size in bytes, 0 = unlimited
+}
+
 // Config holds all gotk configuration options.
 type Config struct {
 	General    GeneralConfig
 	Filters    FiltersConfig
 	Security   SecurityConfig
+	Measure    MeasureConfig
 	Commands   map[string]string // custom command-type mappings
 	Rules      RulesConfig       // whitelist/blacklist patterns
 	Truncation map[string]int    // per-command max_lines overrides
@@ -86,6 +94,11 @@ func Default() *Config {
 			RedactSecrets:  true,
 			RateLimit:      0, // disabled by default
 			RateBurst:      10,
+		},
+		Measure: MeasureConfig{
+			Enabled:    false,
+			LogPath:    defaultMeasureLogPath(),
+			MaxLogSize: 5 * 1024 * 1024, // 5 MB
 		},
 		Commands:   map[string]string{},
 		Rules:      RulesConfig{},
@@ -256,6 +269,17 @@ func applyTOML(cfg *Config, data string) {
 			case "always_remove":
 				cfg.Rules.AlwaysRemove = parseTOMLArray(val)
 			}
+		case "measure":
+			switch key {
+			case "enabled":
+				cfg.Measure.Enabled = parseBool(val)
+			case "log_path":
+				cfg.Measure.LogPath = expandHome(val)
+			case "max_log_size":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Measure.MaxLogSize = n
+				}
+			}
 		case "truncation":
 			if n, err := strconv.Atoi(val); err == nil {
 				cfg.Truncation[key] = n
@@ -312,6 +336,24 @@ func (c *Config) MaxLinesForCommand(cmdName string) int {
 		return n
 	}
 	return c.General.MaxLines
+}
+
+// expandHome replaces a leading ~ with the user's home directory.
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
+}
+
+// defaultMeasureLogPath returns the default path for measurement logs.
+func defaultMeasureLogPath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
+	}
+	return "measure.jsonl"
 }
 
 // ParseMode converts a string to a FilterMode, returning ModeBalanced for unknown values.

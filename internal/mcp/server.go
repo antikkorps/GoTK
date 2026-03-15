@@ -15,6 +15,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
+	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
@@ -326,6 +327,9 @@ func buildConfigHash(cfg *config.Config) string {
 	return cache.ConfigHash(filtersStr, rulesStr, string(cfg.General.Mode), cfg.Security.RedactSecrets)
 }
 
+// mcpMeasureLogger is the measurement logger for MCP mode. Set by Serve() if enabled.
+var mcpMeasureLogger *measure.Logger
+
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
 	// Initialize file-based audit log if configured
@@ -336,6 +340,17 @@ func Serve(cfg *config.Config) {
 		} else {
 			auditFile = f
 			defer f.Close()
+		}
+	}
+
+	// Initialize measurement logger if enabled
+	if cfg.Measure.Enabled {
+		ml, err := measure.NewLogger(cfg.Measure.LogPath, measure.SessionID(), cfg.Measure.MaxLogSize)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot init measure log: %v\n", err)
+		} else {
+			mcpMeasureLogger = ml
+			defer ml.Close()
 		}
 	}
 
@@ -582,6 +597,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 
 	// Check cache for previously filtered identical output
+	filterStart := time.Now()
 	cacheKey := fc.Key(raw, int(cmdType), maxLines)
 	cleaned, cached := fc.Get(cacheKey)
 	if !cached {
@@ -589,6 +605,9 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		cleaned = chain.Apply(raw)
 		fc.Put(cacheKey, cleaned)
 	}
+	filterDur := time.Since(filterStart)
+
+	logMCPMeasurement(args.Command, cmdType.String(), string(cfg.General.Mode), raw, cleaned, filterDur, cached)
 
 	// Build stats text
 	stats := buildStats(raw, cleaned)
@@ -644,6 +663,7 @@ func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawAr
 	}
 
 	// Check cache for previously filtered identical input
+	filterStart := time.Now()
 	cacheKey := fc.Key(args.Input, int(cmdType), maxLines)
 	cleaned, cached := fc.Get(cacheKey)
 	if !cached {
@@ -651,6 +671,13 @@ func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawAr
 		cleaned = chain.Apply(args.Input)
 		fc.Put(cacheKey, cleaned)
 	}
+	filterDur := time.Since(filterStart)
+
+	hint := args.CommandHint
+	if hint == "" {
+		hint = "filter"
+	}
+	logMCPMeasurement(hint, cmdType.String(), string(cfg.General.Mode), args.Input, cleaned, filterDur, cached)
 
 	stats := buildStats(args.Input, cleaned)
 	if cached {
@@ -726,6 +753,7 @@ func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 
 	// Filter with CmdGeneric (file content, no command-specific filters)
+	filterStart := time.Now()
 	cacheKey := fc.Key(raw, int(detect.CmdGeneric), maxLines)
 	cleaned, cached := fc.Get(cacheKey)
 	if !cached {
@@ -733,6 +761,9 @@ func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		cleaned = chain.Apply(raw)
 		fc.Put(cacheKey, cleaned)
 	}
+	filterDur := time.Since(filterStart)
+
+	logMCPMeasurement("read:"+args.Path, "generic", string(cfg.General.Mode), raw, cleaned, filterDur, cached)
 
 	stats := buildStats(raw, cleaned)
 	if cached {
@@ -828,6 +859,7 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 
 	// Filter with CmdGrep for grep-specific compression
+	filterStart := time.Now()
 	cacheKey := fc.Key(raw, int(detect.CmdGrep), maxLines)
 	cleaned, cached := fc.Get(cacheKey)
 	if !cached {
@@ -835,6 +867,9 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		cleaned = chain.Apply(raw)
 		fc.Put(cacheKey, cleaned)
 	}
+	filterDur := time.Since(filterStart)
+
+	logMCPMeasurement(command, "grep", string(cfg.General.Mode), raw, cleaned, filterDur, cached)
 
 	stats := buildStats(raw, cleaned)
 	if cached {
@@ -857,6 +892,40 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 
 	sendResult(id, toolCallResult{
 		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+// logMCPMeasurement logs a measurement entry for an MCP tool invocation.
+func logMCPMeasurement(command, cmdType, mode, raw, cleaned string, dur time.Duration, cached bool) {
+	if mcpMeasureLogger == nil {
+		return
+	}
+	rawTokens := measure.EstimateTokens(raw)
+	cleanTokens := measure.EstimateTokens(cleaned)
+	saved := rawTokens - cleanTokens
+	var pct float64
+	if rawTokens > 0 {
+		pct = float64(saved) / float64(rawTokens) * 100
+	}
+	quality, important := measure.ComputeQualityScore(raw, cleaned)
+
+	_ = mcpMeasureLogger.Log(measure.Entry{
+		Command:        command,
+		CommandType:    cmdType,
+		RawBytes:       len(raw),
+		CleanBytes:     len(cleaned),
+		RawTokens:      rawTokens,
+		CleanTokens:    cleanTokens,
+		TokensSaved:    saved,
+		ReductionPct:   pct,
+		LinesRaw:       measure.CountLines(raw),
+		LinesClean:     measure.CountLines(cleaned),
+		ImportantLines: important,
+		QualityScore:   quality,
+		Mode:           mode,
+		Source:         "mcp",
+		Cached:         cached,
+		DurationUs:     dur.Microseconds(),
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
 	"github.com/antikkorps/GoTK/internal/mcp"
+	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
 	"github.com/antikkorps/GoTK/internal/watch"
 )
@@ -26,9 +27,11 @@ var (
 	shellMode       bool
 	shellCmd        string // -c "command"
 	streamMode      bool
+	measureFlag     bool   // --measure flag
 	maxLines        int
 	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
 	cfg             *config.Config
+	mlog            *measure.Logger // nil if measurement disabled
 )
 
 func main() {
@@ -56,6 +59,20 @@ func main() {
 		cfg.General.MaxLines = savedMaxLines
 	} else {
 		maxLines = cfg.General.MaxLines
+	}
+
+	// Initialize measurement logger if enabled
+	if measureFlag {
+		cfg.Measure.Enabled = true
+	}
+	if cfg.Measure.Enabled {
+		l, err := measure.NewLogger(cfg.Measure.LogPath, measure.SessionID(), cfg.Measure.MaxLogSize)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[gotk] warning: cannot init measure log: %v\n", err)
+		} else {
+			mlog = l
+			defer mlog.Close()
+		}
 	}
 
 	// Shell mode: -c "command" (sh-compatible single command execution)
@@ -89,8 +106,10 @@ func main() {
 
 		// Auto-detect command type from output format
 		cmdType := detect.AutoDetect(raw)
+		start := time.Now()
 		chain := proxy.BuildChain(cfg, cmdType, maxLines)
 		cleaned := chain.Apply(raw)
+		logMeasurement("pipe", cmdType.String(), raw, cleaned, time.Since(start), false)
 		printWithStats(raw, cleaned)
 		return
 	}
@@ -98,6 +117,9 @@ func main() {
 	// Handle subcommands
 	var cmdArgs []string
 	switch args[0] {
+	case "measure":
+		runMeasure(args[1:])
+		os.Exit(0)
 	case "bench":
 		runBench(args[1:])
 		os.Exit(0)
@@ -153,10 +175,12 @@ func main() {
 	if mapped, ok := cfg.Commands[cmdArgs[0]]; ok {
 		cmdType = detect.Identify(mapped)
 	}
+	start := time.Now()
 	chain := proxy.BuildChain(cfg, cmdType, maxLines)
 
 	// Apply filters
 	cleaned := chain.Apply(result.Stdout)
+	logMeasurement(strings.Join(cmdArgs, " "), cmdType.String(), result.Stdout, cleaned, time.Since(start), false)
 
 	// Output
 	printWithStats(result.Stdout, cleaned)
@@ -190,6 +214,8 @@ func parseFlags(args []string) []string {
 			shellMode = true
 		case "--stream":
 			streamMode = true
+		case "--measure":
+			measureFlag = true
 		case "--aggressive":
 			cfg.General.Mode = config.ModeAggressive
 		case "--balanced":
@@ -439,6 +465,114 @@ func runBench(args []string) {
 	}
 }
 
+// logMeasurement logs a measurement entry if the logger is active.
+func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, cached bool) {
+	if mlog == nil {
+		return
+	}
+	rawTokens := measure.EstimateTokens(raw)
+	cleanTokens := measure.EstimateTokens(cleaned)
+	saved := rawTokens - cleanTokens
+	var pct float64
+	if rawTokens > 0 {
+		pct = float64(saved) / float64(rawTokens) * 100
+	}
+	quality, important := measure.ComputeQualityScore(raw, cleaned)
+
+	_ = mlog.Log(measure.Entry{
+		Command:        command,
+		CommandType:    cmdType,
+		RawBytes:       len(raw),
+		CleanBytes:     len(cleaned),
+		RawTokens:      rawTokens,
+		CleanTokens:    cleanTokens,
+		TokensSaved:    saved,
+		ReductionPct:   pct,
+		LinesRaw:       measure.CountLines(raw),
+		LinesClean:     measure.CountLines(cleaned),
+		ImportantLines: important,
+		QualityScore:   quality,
+		Mode:           string(cfg.General.Mode),
+		Source:         "cli",
+		Cached:         cached,
+		DurationUs:     dur.Microseconds(),
+	})
+}
+
+// runMeasure handles the "gotk measure" subcommand.
+func runMeasure(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "gotk measure: missing subcommand (report, status, clear)")
+		os.Exit(1)
+	}
+
+	logPath := cfg.Measure.LogPath
+
+	switch args[0] {
+	case "status":
+		fmt.Fprintf(os.Stderr, "Measurement: ")
+		if cfg.Measure.Enabled {
+			fmt.Fprintln(os.Stderr, "enabled")
+		} else {
+			fmt.Fprintln(os.Stderr, "disabled (use --measure flag or [measure] enabled=true in config)")
+		}
+		fmt.Fprintf(os.Stderr, "Log path: %s\n", logPath)
+
+		info, err := os.Stat(logPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Log file: not found")
+			return
+		}
+		entries, _ := measure.ReadEntries(logPath)
+		fmt.Fprintf(os.Stderr, "Log size: %d bytes\n", info.Size())
+		fmt.Fprintf(os.Stderr, "Entries:  %d\n", len(entries))
+
+	case "report":
+		jsonOutput := false
+		period := "all"
+		for i := 1; i < len(args); i++ {
+			switch args[i] {
+			case "--json":
+				jsonOutput = true
+			case "--period":
+				if i+1 < len(args) {
+					period = args[i+1]
+					i++
+				}
+			default:
+				// Allow period as positional: gotk measure report 7d
+				period = args[i]
+			}
+		}
+
+		entries, err := measure.ReadEntries(logPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n", err)
+			os.Exit(1)
+		}
+
+		entries = measure.FilterEntriesByPeriod(entries, period)
+		report := measure.GenerateReport(entries, period)
+
+		if jsonOutput {
+			fmt.Print(measure.FormatReportJSON(report))
+		} else {
+			fmt.Print(measure.FormatReport(report))
+		}
+
+	case "clear":
+		if err := os.Truncate(logPath, 0); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk measure clear: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "Measurement log cleared.")
+
+	default:
+		fmt.Fprintf(os.Stderr, "gotk measure: unknown subcommand %q (use report, status, clear)\n", args[0])
+		os.Exit(1)
+	}
+}
+
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
@@ -454,6 +588,9 @@ Usage:
   gotk --mcp                                MCP server (JSON-RPC over stdio)
   gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
   gotk bench [flags]                       Run benchmarks
+  gotk measure report [--json] [--period]  Show token savings report
+  gotk measure status                      Show measurement status
+  gotk measure clear                       Clear measurement log
 
 Examples:
   gotk grep -rn "func main" .
@@ -472,6 +609,9 @@ Examples:
   gotk bench --per-filter                  Show per-filter breakdown
   gotk bench --quality                     Measure quality score (important lines preserved)
   gotk bench --json                        Output as JSON
+  gotk --measure grep -rn "func" .        Run with measurement logging
+  gotk measure report --period 7d         Show last 7 days report
+  gotk measure report --json              JSON report output
 
 Flags:
   -s, --stats        Show reduction statistics on stderr
@@ -482,6 +622,7 @@ Flags:
   --aggressive       Maximum reduction, acceptable info loss (max-lines: 30)
   --mode MODE        Set filter mode (conservative, balanced, aggressive)
   --stream           Stream output line-by-line with real-time filtering
+  --measure          Enable token consumption measurement logging
   --shell            Start proxy shell mode
   -c "command"       Execute single command through filter pipeline
   --mcp              Start MCP server (Model Context Protocol)

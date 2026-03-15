@@ -23,6 +23,32 @@ const (
 	CmdMake
 )
 
+// String returns the name of the command type.
+func (c CmdType) String() string {
+	switch c {
+	case CmdGrep:
+		return "grep"
+	case CmdFind:
+		return "find"
+	case CmdGit:
+		return "git"
+	case CmdGoTool:
+		return "go"
+	case CmdLs:
+		return "ls"
+	case CmdDocker:
+		return "docker"
+	case CmdNpm:
+		return "npm"
+	case CmdCargo:
+		return "cargo"
+	case CmdMake:
+		return "make"
+	default:
+		return "generic"
+	}
+}
+
 // Identify detects the command type from the binary name.
 func Identify(command string) CmdType {
 	base := filepath.Base(command)
