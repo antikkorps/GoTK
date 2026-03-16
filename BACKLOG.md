@@ -96,20 +96,20 @@
 ### Measure
 
 - [x] Measure real token consumption impact (before/after on full sessions)
-- [ ] A/B test: LLM response quality with/without GoTK
-- [ ] Track cases where LLM re-requests info that was filtered out (quality regression signal)
+- [x] `gotk measure last [N]` — quick view of last N invocations
+- [x] Auto-enable measurement in MCP mode (no config needed)
+- [x] A/B test: mode comparison (`gotk bench --abtest`) — conservative/balanced/aggressive
+- [x] Track cases where LLM re-requests info that was filtered out (re-request detection in MCP)
 
 ### Adjust
 
-- [ ] Feedback loop: are some removed lines re-requested by the LLM?
+- [x] Feedback loop: quality insights in `gotk measure report` (re-request rate per command, actionable suggestions)
 - [x] Whitelist/blacklist patterns to always keep/remove
-- [ ] Per-LLM profiles (Claude, GPT, Gemini — different needs?)
+- [x] Per-LLM profiles (Claude, GPT, Gemini) with MCP auto-detection
 
 ### Deliver
 
 - [ ] Tag v0.3.0
-- [ ] Project landing page
-- [ ] Package registry publishing (Homebrew, AUR, etc.)
 
 ---
 
@@ -174,12 +174,27 @@
 
 ---
 
+## Sprint 6 — Polish + Release
+
+### Build
+
+- [ ] Project-specific pattern learning
+- [ ] Full documentation update
+
+### Deliver
+
+- [ ] Tag v0.2.0, v0.3.0, v0.4.0 (catch-up)
+- [ ] Tag v1.0.0
+- [ ] Project landing page
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
 - [x] Per-command truncation threshold tuning
 - [x] Whitelist/blacklist patterns to always keep/remove
-- [ ] Per-LLM profiles (Claude, GPT, Gemini)
+- [x] Per-LLM profiles (Claude, GPT, Gemini)
 - [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
 
@@ -195,4 +210,3 @@
 - [ ] Multi-language detection support (localized error messages)
 - [ ] Semantic compression via local lightweight LLM (summarize before sending to main model)
 - [ ] Homebrew / AUR / scoop package publishing
-- [ ] Project landing page

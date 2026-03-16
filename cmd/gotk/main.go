@@ -425,6 +425,7 @@ func runBench(args []string) {
 	jsonOutput := false
 	perFilter := false
 	quality := false
+	abtest := false
 
 	for _, a := range args {
 		switch a {
@@ -434,7 +435,19 @@ func runBench(args []string) {
 			perFilter = true
 		case "--quality":
 			quality = true
+		case "--abtest":
+			abtest = true
 		}
+	}
+
+	if abtest {
+		report := bench.RunABTest(cfg)
+		if jsonOutput {
+			fmt.Print(bench.FormatABTestJSON(report))
+		} else {
+			fmt.Print(bench.FormatABTest(report))
+		}
+		return
 	}
 
 	if quality {
@@ -610,7 +623,7 @@ Usage:
   gotk -c "command"                         Shell-compatible execution
   gotk --mcp                                MCP server (JSON-RPC over stdio)
   gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
-  gotk bench [flags]                       Run benchmarks
+  gotk bench [flags]                        Run benchmarks
   gotk measure report [--json] [--period]  Show token savings report
   gotk measure last [N]                    Show last N invocations (default: 10)
   gotk measure status                      Show measurement status
@@ -632,6 +645,7 @@ Examples:
   gotk bench                               Run all benchmarks
   gotk bench --per-filter                  Show per-filter breakdown
   gotk bench --quality                     Measure quality score (important lines preserved)
+  gotk bench --abtest                      A/B test: compare modes (conservative/balanced/aggressive)
   gotk bench --json                        Output as JSON
   gotk --measure grep -rn "func" .        Run with measurement logging
   gotk measure last                       Show last 10 invocations

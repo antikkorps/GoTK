@@ -123,6 +123,66 @@ func FormatLatencyJSON(report LatencyReport) string {
 	return sb.String()
 }
 
+// FormatABTestJSON formats the A/B test report as JSON.
+func FormatABTestJSON(report ABReport) string {
+	var sb strings.Builder
+	sb.WriteString("{\n")
+
+	// Summary
+	sb.WriteString("  \"summary\": [\n")
+	for i, s := range report.Summary {
+		sb.WriteString("    {\n")
+		sb.WriteString(fmt.Sprintf("      \"mode\": %s,\n", jsonString(s.Mode)))
+		sb.WriteString(fmt.Sprintf("      \"total_raw_tokens\": %d,\n", s.TotalRawTokens))
+		sb.WriteString(fmt.Sprintf("      \"total_clean_tokens\": %d,\n", s.TotalCleanTokens))
+		sb.WriteString(fmt.Sprintf("      \"total_saved\": %d,\n", s.TotalSaved))
+		sb.WriteString(fmt.Sprintf("      \"avg_reduction\": %.2f,\n", s.AvgReduction))
+		sb.WriteString(fmt.Sprintf("      \"avg_quality\": %.2f,\n", s.AvgQuality))
+		sb.WriteString(fmt.Sprintf("      \"total_important\": %d,\n", s.TotalImportant))
+		sb.WriteString(fmt.Sprintf("      \"total_preserved\": %d\n", s.TotalPreserved))
+		sb.WriteString("    }")
+		if i < len(report.Summary)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("  ],\n")
+
+	// Fixtures
+	sb.WriteString("  \"fixtures\": [\n")
+	for i, f := range report.Fixtures {
+		sb.WriteString("    {\n")
+		sb.WriteString(fmt.Sprintf("      \"name\": %s,\n", jsonString(f.Name)))
+		sb.WriteString("      \"results\": [\n")
+		for j, r := range f.Results {
+			sb.WriteString("        {\n")
+			sb.WriteString(fmt.Sprintf("          \"mode\": %s,\n", jsonString(r.Mode)))
+			sb.WriteString(fmt.Sprintf("          \"raw_tokens\": %d,\n", r.RawTokens))
+			sb.WriteString(fmt.Sprintf("          \"clean_tokens\": %d,\n", r.CleanTokens))
+			sb.WriteString(fmt.Sprintf("          \"tokens_saved\": %d,\n", r.TokensSaved))
+			sb.WriteString(fmt.Sprintf("          \"reduction_pct\": %.2f,\n", r.ReductionPct))
+			sb.WriteString(fmt.Sprintf("          \"quality_score\": %.2f,\n", r.QualityScore))
+			sb.WriteString(fmt.Sprintf("          \"important_lines\": %d,\n", r.ImportantLines))
+			sb.WriteString(fmt.Sprintf("          \"preserved_lines\": %d\n", r.PreservedLines))
+			sb.WriteString("        }")
+			if j < len(f.Results)-1 {
+				sb.WriteString(",")
+			}
+			sb.WriteString("\n")
+		}
+		sb.WriteString("      ]\n")
+		sb.WriteString("    }")
+		if i < len(report.Fixtures)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("  ]\n")
+
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
 // jsonString returns a JSON-escaped string literal.
 func jsonString(s string) string {
 	var sb strings.Builder
