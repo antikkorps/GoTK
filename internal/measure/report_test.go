@@ -173,6 +173,130 @@ func TestFormatLastEmpty(t *testing.T) {
 	}
 }
 
+func TestReRequestPerCommandType(t *testing.T) {
+	entries := []Entry{
+		{CommandType: "grep", RawTokens: 100, CleanTokens: 20, TokensSaved: 80, ReRequest: false},
+		{CommandType: "grep", RawTokens: 100, CleanTokens: 20, TokensSaved: 80, ReRequest: true, ReRequestType: "exact"},
+		{CommandType: "grep", RawTokens: 100, CleanTokens: 20, TokensSaved: 80, ReRequest: true, ReRequestType: "escalation"},
+		{CommandType: "find", RawTokens: 50, CleanTokens: 10, TokensSaved: 40, ReRequest: false},
+	}
+
+	r := GenerateReport(entries, "all")
+
+	grep := r.ByCommandType["grep"]
+	if grep.ReRequests != 2 {
+		t.Errorf("grep ReRequests = %d, want 2", grep.ReRequests)
+	}
+	if grep.ReRequestRate < 66 || grep.ReRequestRate > 67 {
+		t.Errorf("grep ReRequestRate = %.1f, want ~66.7", grep.ReRequestRate)
+	}
+
+	find := r.ByCommandType["find"]
+	if find.ReRequests != 0 {
+		t.Errorf("find ReRequests = %d, want 0", find.ReRequests)
+	}
+}
+
+func TestInsights_HighReRequestRate(t *testing.T) {
+	// 5 invocations of grep, 3 re-requests → 60% re-request rate
+	var entries []Entry
+	for i := 0; i < 5; i++ {
+		e := Entry{CommandType: "grep", RawTokens: 100, CleanTokens: 20, TokensSaved: 80}
+		if i >= 2 {
+			e.ReRequest = true
+			e.ReRequestType = "exact"
+		}
+		entries = append(entries, e)
+	}
+
+	r := GenerateReport(entries, "all")
+
+	found := false
+	for _, ins := range r.Insights {
+		if ins.Command == "grep" && ins.Level == "warning" {
+			found = true
+			if !strings.Contains(ins.Message, "re-request rate") {
+				t.Error("insight should mention re-request rate")
+			}
+			if !strings.Contains(ins.Message, "truncation") {
+				t.Error("insight should suggest truncation adjustment")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected warning insight for grep high re-request rate")
+	}
+}
+
+func TestInsights_Positive(t *testing.T) {
+	// 15 invocations, no re-requests, good reduction
+	var entries []Entry
+	for i := 0; i < 15; i++ {
+		entries = append(entries, Entry{
+			CommandType: "grep", RawTokens: 100, CleanTokens: 30,
+			TokensSaved: 70, ReRequest: false,
+		})
+	}
+
+	r := GenerateReport(entries, "all")
+
+	found := false
+	for _, ins := range r.Insights {
+		if ins.Level == "info" && strings.Contains(ins.Message, "excellent") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected positive insight when no re-requests and good reduction")
+	}
+}
+
+func TestInsights_OverallHighRate(t *testing.T) {
+	// 10 invocations, 3 re-requests across different types → 30% overall
+	var entries []Entry
+	for i := 0; i < 10; i++ {
+		e := Entry{CommandType: "generic", RawTokens: 100, CleanTokens: 50, TokensSaved: 50}
+		if i < 3 {
+			e.ReRequest = true
+		}
+		entries = append(entries, e)
+	}
+
+	r := GenerateReport(entries, "all")
+
+	found := false
+	for _, ins := range r.Insights {
+		if ins.Command == "" && ins.Level == "warning" && strings.Contains(ins.Message, "Overall") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected overall warning insight for high re-request rate")
+	}
+}
+
+func TestFormatReport_WithInsights(t *testing.T) {
+	// Generate data that triggers insights
+	var entries []Entry
+	for i := 0; i < 5; i++ {
+		e := Entry{CommandType: "grep", RawTokens: 100, CleanTokens: 20, TokensSaved: 80}
+		if i >= 2 {
+			e.ReRequest = true
+		}
+		entries = append(entries, e)
+	}
+
+	r := GenerateReport(entries, "all")
+	output := FormatReport(r)
+
+	if !strings.Contains(output, "Quality Insights") {
+		t.Error("report should contain Quality Insights section")
+	}
+	if !strings.Contains(output, "[!]") {
+		t.Error("report should contain warning marker [!]")
+	}
+}
+
 func TestFilterEntriesByPeriod(t *testing.T) {
 	entries := []Entry{
 		{Timestamp: "2020-01-01T00:00:00Z", Command: "old"},
