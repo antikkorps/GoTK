@@ -16,6 +16,8 @@ type Report struct {
 	TotalTokensSaved int                        `json:"total_tokens_saved"`
 	AvgReduction     float64                    `json:"avg_reduction"`
 	AvgQualityScore  float64                    `json:"avg_quality_score"`
+	TotalReRequests  int                        `json:"total_rerequests"`
+	ReRequestRate    float64                    `json:"rerequest_rate"`
 	ByCommandType    map[string]*CommandTypeStats `json:"by_command_type"`
 	BySessions       []SessionStats             `json:"by_sessions"`
 }
@@ -54,6 +56,9 @@ func GenerateReport(entries []Entry, period string) Report {
 		r.TotalCleanTokens += e.CleanTokens
 		r.TotalTokensSaved += e.TokensSaved
 		r.AvgQualityScore += e.QualityScore
+		if e.ReRequest {
+			r.TotalReRequests++
+		}
 
 		// By command type
 		ct := e.CommandType
@@ -92,6 +97,7 @@ func GenerateReport(entries []Entry, period string) Report {
 		if r.TotalRawTokens > 0 {
 			r.AvgReduction = float64(r.TotalTokensSaved) / float64(r.TotalRawTokens) * 100
 		}
+		r.ReRequestRate = float64(r.TotalReRequests) / float64(r.TotalInvocations) * 100
 	}
 
 	// Compute per-command-type averages
@@ -152,6 +158,9 @@ func FormatReport(r Report) string {
 	fmt.Fprintf(&b, "Total tokens saved: %d\n", r.TotalTokensSaved)
 	fmt.Fprintf(&b, "Avg reduction:      %.1f%%\n", r.AvgReduction)
 	fmt.Fprintf(&b, "Avg quality score:  %.1f%%\n", r.AvgQualityScore)
+	if r.TotalReRequests > 0 {
+		fmt.Fprintf(&b, "Re-requests:        %d (%.1f%% of invocations)\n", r.TotalReRequests, r.ReRequestRate)
+	}
 
 	if len(r.ByCommandType) > 0 {
 		fmt.Fprintf(&b, "\nBy command type:\n")
@@ -200,9 +209,15 @@ func FormatLast(entries []Entry, n int) string {
 
 		// Truncate command for display
 		cmd := e.Command
-		if len(cmd) > 28 {
-			cmd = cmd[:25] + "..."
+		reTag := ""
+		if e.ReRequest {
+			reTag = " [RE]"
 		}
+		maxCmd := 28 - len(reTag)
+		if len(cmd) > maxCmd {
+			cmd = cmd[:maxCmd-3] + "..."
+		}
+		cmd += reTag
 
 		fmt.Fprintf(&b, "  %-4d %-5s  %-28s %7d %7d %7d %5.1f%% %6.1f%%\n",
 			i+1, timeStr, cmd,

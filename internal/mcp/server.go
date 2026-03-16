@@ -330,6 +330,9 @@ func buildConfigHash(cfg *config.Config) string {
 // mcpMeasureLogger is the measurement logger for MCP mode. Set by Serve() if enabled.
 var mcpMeasureLogger *measure.Logger
 
+// reReqTracker detects re-requests in MCP mode. Set by Serve().
+var reReqTracker *ReRequestTracker
+
 // Serve starts the MCP server, reading JSON-RPC from stdin and writing to stdout.
 func Serve(cfg *config.Config) {
 	// Initialize file-based audit log if configured
@@ -356,6 +359,7 @@ func Serve(cfg *config.Config) {
 
 	limiter := newRateLimiter(cfg.Security.RateLimit, cfg.Security.RateBurst)
 	fc := cache.New(cacheMaxEntries, buildConfigHash(cfg))
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	// Allow large input lines (up to 10 MB)
@@ -607,7 +611,12 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	filterDur := time.Since(filterStart)
 
-	logMCPMeasurement(args.Command, cmdType.String(), string(cfg.General.Mode), raw, cleaned, filterDur, cached)
+	// Re-request detection
+	normKey := NormalizeExecKey(args.Command)
+	reReq := reReqTracker.Check("gotk_exec", args.Command, normKey, maxLines, args.NoTruncate)
+	reReqTracker.Record("gotk_exec", args.Command, normKey, maxLines, args.NoTruncate)
+
+	logMCPMeasurement(args.Command, cmdType.String(), string(cfg.General.Mode), raw, cleaned, filterDur, cached, reReq)
 
 	// Build stats text
 	stats := buildStats(raw, cleaned)
@@ -677,7 +686,11 @@ func handleFilter(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawAr
 	if hint == "" {
 		hint = "filter"
 	}
-	logMCPMeasurement(hint, cmdType.String(), string(cfg.General.Mode), args.Input, cleaned, filterDur, cached)
+	normKey := NormalizeFilterKey(args.Input)
+	reReq := reReqTracker.Check("gotk_filter", hint, normKey, args.MaxLines, false)
+	reReqTracker.Record("gotk_filter", hint, normKey, args.MaxLines, false)
+
+	logMCPMeasurement(hint, cmdType.String(), string(cfg.General.Mode), args.Input, cleaned, filterDur, cached, reReq)
 
 	stats := buildStats(args.Input, cleaned)
 	if cached {
@@ -763,7 +776,12 @@ func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	filterDur := time.Since(filterStart)
 
-	logMCPMeasurement("read:"+args.Path, "generic", string(cfg.General.Mode), raw, cleaned, filterDur, cached)
+	normKey := NormalizeReadKey(args.Path)
+	rawKey := fmt.Sprintf("read:%s:%d:%d", args.Path, args.Offset, args.Limit)
+	reReq := reReqTracker.Check("gotk_read", rawKey, normKey, maxLines, false)
+	reReqTracker.Record("gotk_read", rawKey, normKey, maxLines, false)
+
+	logMCPMeasurement("read:"+args.Path, "generic", string(cfg.General.Mode), raw, cleaned, filterDur, cached, reReq)
 
 	stats := buildStats(raw, cleaned)
 	if cached {
@@ -869,7 +887,11 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	filterDur := time.Since(filterStart)
 
-	logMCPMeasurement(command, "grep", string(cfg.General.Mode), raw, cleaned, filterDur, cached)
+	normKey := NormalizeGrepKey(args.Pattern, path)
+	reReq := reReqTracker.Check("gotk_grep", command, normKey, maxLines, false)
+	reReqTracker.Record("gotk_grep", command, normKey, maxLines, false)
+
+	logMCPMeasurement(command, "grep", string(cfg.General.Mode), raw, cleaned, filterDur, cached, reReq)
 
 	stats := buildStats(raw, cleaned)
 	if cached {
@@ -896,7 +918,7 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 }
 
 // logMCPMeasurement logs a measurement entry for an MCP tool invocation.
-func logMCPMeasurement(command, cmdType, mode, raw, cleaned string, dur time.Duration, cached bool) {
+func logMCPMeasurement(command, cmdType, mode, raw, cleaned string, dur time.Duration, cached bool, reReq ReRequestResult) {
 	if mcpMeasureLogger == nil {
 		return
 	}
@@ -909,7 +931,7 @@ func logMCPMeasurement(command, cmdType, mode, raw, cleaned string, dur time.Dur
 	}
 	quality, important := measure.ComputeQualityScore(raw, cleaned)
 
-	_ = mcpMeasureLogger.Log(measure.Entry{
+	entry := measure.Entry{
 		Command:        command,
 		CommandType:    cmdType,
 		RawBytes:       len(raw),
@@ -926,7 +948,15 @@ func logMCPMeasurement(command, cmdType, mode, raw, cleaned string, dur time.Dur
 		Source:         "mcp",
 		Cached:         cached,
 		DurationUs:     dur.Microseconds(),
-	})
+	}
+
+	if reReq.IsReRequest {
+		entry.ReRequest = true
+		entry.ReRequestType = reReq.Type
+		logErr("RE-REQUEST [%s]: %q (similar to request %.0fs ago)", reReq.Type, command, reReq.TimeSincePrev.Seconds())
+	}
+
+	_ = mcpMeasureLogger.Log(entry)
 }
 
 func buildStats(raw, cleaned string) string {
