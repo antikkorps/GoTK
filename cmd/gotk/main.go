@@ -502,7 +502,7 @@ func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, ca
 // runMeasure handles the "gotk measure" subcommand.
 func runMeasure(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "gotk measure: missing subcommand (report, status, clear)")
+		fmt.Fprintln(os.Stderr, "gotk measure: missing subcommand (report, last, status, clear)")
 		os.Exit(1)
 	}
 
@@ -560,6 +560,23 @@ func runMeasure(args []string) {
 			fmt.Print(measure.FormatReport(report))
 		}
 
+	case "last":
+		n := 10
+		if len(args) > 1 {
+			if _, err := fmt.Sscanf(args[1], "%d", &n); err != nil || n <= 0 {
+				fmt.Fprintln(os.Stderr, "gotk measure last: invalid count, using default 10")
+				n = 10
+			}
+		}
+
+		entries, err := measure.ReadEntries(logPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Print(measure.FormatLast(entries, n))
+
 	case "clear":
 		if err := os.Truncate(logPath, 0); err != nil {
 			fmt.Fprintf(os.Stderr, "gotk measure clear: %v\n", err)
@@ -568,7 +585,7 @@ func runMeasure(args []string) {
 		fmt.Fprintln(os.Stderr, "Measurement log cleared.")
 
 	default:
-		fmt.Fprintf(os.Stderr, "gotk measure: unknown subcommand %q (use report, status, clear)\n", args[0])
+		fmt.Fprintf(os.Stderr, "gotk measure: unknown subcommand %q (use report, status, last, clear)\n", args[0])
 		os.Exit(1)
 	}
 }
@@ -589,6 +606,7 @@ Usage:
   gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
   gotk bench [flags]                       Run benchmarks
   gotk measure report [--json] [--period]  Show token savings report
+  gotk measure last [N]                    Show last N invocations (default: 10)
   gotk measure status                      Show measurement status
   gotk measure clear                       Clear measurement log
 
@@ -610,6 +628,8 @@ Examples:
   gotk bench --quality                     Measure quality score (important lines preserved)
   gotk bench --json                        Output as JSON
   gotk --measure grep -rn "func" .        Run with measurement logging
+  gotk measure last                       Show last 10 invocations
+  gotk measure last 20                    Show last 20 invocations
   gotk measure report --period 7d         Show last 7 days report
   gotk measure report --json              JSON report output
 

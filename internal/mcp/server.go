@@ -343,8 +343,8 @@ func Serve(cfg *config.Config) {
 		}
 	}
 
-	// Initialize measurement logger if enabled
-	if cfg.Measure.Enabled {
+	// Initialize measurement logger — always enabled in MCP mode
+	{
 		ml, err := measure.NewLogger(cfg.Measure.LogPath, measure.SessionID(), cfg.Measure.MaxLogSize)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot init measure log: %v\n", err)

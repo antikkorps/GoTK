@@ -170,6 +170,61 @@ func FormatReport(r Report) string {
 	return b.String()
 }
 
+// FormatLast returns a human-readable table of the last N entries with a totals row.
+func FormatLast(entries []Entry, n int) string {
+	if len(entries) == 0 {
+		return "No measurement entries found.\n"
+	}
+
+	// Take the last N entries
+	start := 0
+	if len(entries) > n {
+		start = len(entries) - n
+	}
+	subset := entries[start:]
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "GoTK — Last %d invocations\n", len(subset))
+	fmt.Fprintf(&b, "%s\n\n", strings.Repeat("=", 78))
+	fmt.Fprintf(&b, "  %-4s %-5s  %-28s %7s %7s %7s %6s %7s\n",
+		"#", "TIME", "COMMAND", "RAW", "CLEAN", "SAVED", "REDUC", "QUAL")
+	fmt.Fprintf(&b, "  %s\n", strings.Repeat("-", 74))
+
+	var totalRaw, totalClean, totalSaved int
+	for i, e := range subset {
+		// Parse timestamp to show just HH:MM
+		timeStr := "??:??"
+		if t, err := time.Parse(time.RFC3339, e.Timestamp); err == nil {
+			timeStr = t.Local().Format("15:04")
+		}
+
+		// Truncate command for display
+		cmd := e.Command
+		if len(cmd) > 28 {
+			cmd = cmd[:25] + "..."
+		}
+
+		fmt.Fprintf(&b, "  %-4d %-5s  %-28s %7d %7d %7d %5.1f%% %6.1f%%\n",
+			i+1, timeStr, cmd,
+			e.RawTokens, e.CleanTokens, e.TokensSaved,
+			e.ReductionPct, e.QualityScore)
+
+		totalRaw += e.RawTokens
+		totalClean += e.CleanTokens
+		totalSaved += e.TokensSaved
+	}
+
+	fmt.Fprintf(&b, "  %s\n", strings.Repeat("-", 74))
+	totalReduc := 0.0
+	if totalRaw > 0 {
+		totalReduc = float64(totalSaved) / float64(totalRaw) * 100
+	}
+	fmt.Fprintf(&b, "  %-4s %-5s  %-28s %7d %7d %7d %5.1f%%\n",
+		"", "", "TOTAL", totalRaw, totalClean, totalSaved, totalReduc)
+
+	return b.String()
+}
+
 // FormatReportJSON returns the report as indented JSON.
 func FormatReportJSON(r Report) string {
 	data, err := json.MarshalIndent(r, "", "  ")
