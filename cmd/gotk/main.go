@@ -49,9 +49,10 @@ func main() {
 	// Extract gotk flags before command
 	args = parseFlags(args)
 
-	// Apply mode overrides — affects maxLines and filter toggles.
-	// Must run after parseFlags so CLI --aggressive/--conservative takes priority.
-	// Explicit --max-lines / --no-truncate overrides the mode's default.
+	// Apply profile then mode overrides.
+	// Profile sets sensible defaults for the target LLM.
+	// Mode overrides on top. Explicit --max-lines / --no-truncate wins over both.
+	cfg.ApplyProfile()
 	savedMaxLines := maxLines
 	cfg.ApplyMode()
 	if maxLinesExplicit {
@@ -225,6 +226,11 @@ func parseFlags(args []string) []string {
 		case "--mode":
 			if i+1 < len(args) {
 				cfg.General.Mode = config.ParseMode(args[i+1])
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				cfg.Profile = config.ParseProfile(args[i+1])
 				i++
 			}
 		case "-c":
@@ -419,6 +425,7 @@ func runBench(args []string) {
 	jsonOutput := false
 	perFilter := false
 	quality := false
+	abtest := false
 
 	for _, a := range args {
 		switch a {
@@ -428,7 +435,19 @@ func runBench(args []string) {
 			perFilter = true
 		case "--quality":
 			quality = true
+		case "--abtest":
+			abtest = true
 		}
+	}
+
+	if abtest {
+		report := bench.RunABTest(cfg)
+		if jsonOutput {
+			fmt.Print(bench.FormatABTestJSON(report))
+		} else {
+			fmt.Print(bench.FormatABTest(report))
+		}
+		return
 	}
 
 	if quality {
@@ -502,7 +521,7 @@ func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, ca
 // runMeasure handles the "gotk measure" subcommand.
 func runMeasure(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "gotk measure: missing subcommand (report, status, clear)")
+		fmt.Fprintln(os.Stderr, "gotk measure: missing subcommand (report, last, status, clear)")
 		os.Exit(1)
 	}
 
@@ -560,6 +579,23 @@ func runMeasure(args []string) {
 			fmt.Print(measure.FormatReport(report))
 		}
 
+	case "last":
+		n := 10
+		if len(args) > 1 {
+			if _, err := fmt.Sscanf(args[1], "%d", &n); err != nil || n <= 0 {
+				fmt.Fprintln(os.Stderr, "gotk measure last: invalid count, using default 10")
+				n = 10
+			}
+		}
+
+		entries, err := measure.ReadEntries(logPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Print(measure.FormatLast(entries, n))
+
 	case "clear":
 		if err := os.Truncate(logPath, 0); err != nil {
 			fmt.Fprintf(os.Stderr, "gotk measure clear: %v\n", err)
@@ -568,7 +604,7 @@ func runMeasure(args []string) {
 		fmt.Fprintln(os.Stderr, "Measurement log cleared.")
 
 	default:
-		fmt.Fprintf(os.Stderr, "gotk measure: unknown subcommand %q (use report, status, clear)\n", args[0])
+		fmt.Fprintf(os.Stderr, "gotk measure: unknown subcommand %q (use report, status, last, clear)\n", args[0])
 		os.Exit(1)
 	}
 }
@@ -587,8 +623,9 @@ Usage:
   gotk -c "command"                         Shell-compatible execution
   gotk --mcp                                MCP server (JSON-RPC over stdio)
   gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
-  gotk bench [flags]                       Run benchmarks
+  gotk bench [flags]                        Run benchmarks
   gotk measure report [--json] [--period]  Show token savings report
+  gotk measure last [N]                    Show last N invocations (default: 10)
   gotk measure status                      Show measurement status
   gotk measure clear                       Clear measurement log
 
@@ -608,8 +645,11 @@ Examples:
   gotk bench                               Run all benchmarks
   gotk bench --per-filter                  Show per-filter breakdown
   gotk bench --quality                     Measure quality score (important lines preserved)
+  gotk bench --abtest                      A/B test: compare modes (conservative/balanced/aggressive)
   gotk bench --json                        Output as JSON
   gotk --measure grep -rn "func" .        Run with measurement logging
+  gotk measure last                       Show last 10 invocations
+  gotk measure last 20                    Show last 20 invocations
   gotk measure report --period 7d         Show last 7 days report
   gotk measure report --json              JSON report output
 
@@ -623,6 +663,7 @@ Flags:
   --mode MODE        Set filter mode (conservative, balanced, aggressive)
   --stream           Stream output line-by-line with real-time filtering
   --measure          Enable token consumption measurement logging
+  --profile PROFILE  Set LLM profile: claude, gpt, gemini (auto-detected in MCP)
   --shell            Start proxy shell mode
   -c "command"       Execute single command through filter pipeline
   --mcp              Start MCP server (Model Context Protocol)

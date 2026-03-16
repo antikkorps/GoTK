@@ -18,6 +18,8 @@ type Entry struct {
 	QualityScore float64 `json:"quality_score"`
 	Mode         string  `json:"mode"`
 	Source       string  `json:"source"`
-	Cached       bool    `json:"cached"`
-	DurationUs   int64   `json:"duration_us"`
+	Cached        bool    `json:"cached"`
+	DurationUs    int64   `json:"duration_us"`
+	ReRequest     bool    `json:"rerequest,omitempty"`
+	ReRequestType string  `json:"rerequest_type,omitempty"`
 }
