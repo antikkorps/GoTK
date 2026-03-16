@@ -49,9 +49,10 @@ func main() {
 	// Extract gotk flags before command
 	args = parseFlags(args)
 
-	// Apply mode overrides — affects maxLines and filter toggles.
-	// Must run after parseFlags so CLI --aggressive/--conservative takes priority.
-	// Explicit --max-lines / --no-truncate overrides the mode's default.
+	// Apply profile then mode overrides.
+	// Profile sets sensible defaults for the target LLM.
+	// Mode overrides on top. Explicit --max-lines / --no-truncate wins over both.
+	cfg.ApplyProfile()
 	savedMaxLines := maxLines
 	cfg.ApplyMode()
 	if maxLinesExplicit {
@@ -225,6 +226,11 @@ func parseFlags(args []string) []string {
 		case "--mode":
 			if i+1 < len(args) {
 				cfg.General.Mode = config.ParseMode(args[i+1])
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				cfg.Profile = config.ParseProfile(args[i+1])
 				i++
 			}
 		case "-c":
@@ -643,6 +649,7 @@ Flags:
   --mode MODE        Set filter mode (conservative, balanced, aggressive)
   --stream           Stream output line-by-line with real-time filtering
   --measure          Enable token consumption measurement logging
+  --profile PROFILE  Set LLM profile: claude, gpt, gemini (auto-detected in MCP)
   --shell            Start proxy shell mode
   -c "command"       Execute single command through filter pipeline
   --mcp              Start MCP server (Model Context Protocol)

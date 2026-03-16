@@ -1,8 +1,11 @@
 package mcp
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/antikkorps/GoTK/internal/config"
 )
 
 func TestExactRepeat(t *testing.T) {
@@ -152,6 +155,35 @@ func TestPruning(t *testing.T) {
 
 	if count != 1 {
 		t.Errorf("history should have 1 entry after pruning, got %d", count)
+	}
+}
+
+func TestDetectProfileFromInit(t *testing.T) {
+	tests := []struct {
+		name   string
+		params string
+		want   config.LLMProfile
+	}{
+		{"claude-code", `{"clientInfo":{"name":"claude-code","version":"1.0"}}`, config.ProfileClaude},
+		{"Claude Desktop", `{"clientInfo":{"name":"Claude Desktop"}}`, config.ProfileClaude},
+		{"cursor", `{"clientInfo":{"name":"cursor"}}`, config.ProfileGPT},
+		{"openai client", `{"clientInfo":{"name":"openai-client"}}`, config.ProfileGPT},
+		{"gemini", `{"clientInfo":{"name":"gemini-pro"}}`, config.ProfileGemini},
+		{"unknown", `{"clientInfo":{"name":"some-tool"}}`, config.ProfileNone},
+		{"no client info", `{}`, config.ProfileNone},
+		{"nil params", "", config.ProfileNone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var params json.RawMessage
+			if tt.params != "" {
+				params = json.RawMessage(tt.params)
+			}
+			got := detectProfileFromInit(params)
+			if got != tt.want {
+				t.Errorf("detectProfileFromInit() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

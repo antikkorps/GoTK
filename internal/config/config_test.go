@@ -646,6 +646,94 @@ func TestParseTOMLArray(t *testing.T) {
 	}
 }
 
+func TestParseProfile(t *testing.T) {
+	tests := []struct {
+		input string
+		want  LLMProfile
+	}{
+		{"claude", ProfileClaude},
+		{"Claude", ProfileClaude},
+		{"gpt", ProfileGPT},
+		{"openai", ProfileGPT},
+		{"chatgpt", ProfileGPT},
+		{"gemini", ProfileGemini},
+		{"google", ProfileGemini},
+		{"unknown", ProfileNone},
+		{"", ProfileNone},
+	}
+	for _, tt := range tests {
+		got := ParseProfile(tt.input)
+		if got != tt.want {
+			t.Errorf("ParseProfile(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestApplyProfile_Claude(t *testing.T) {
+	cfg := Default()
+	cfg.Profile = ProfileClaude
+	cfg.ApplyProfile()
+
+	if cfg.General.MaxLines != 80 {
+		t.Errorf("Claude MaxLines = %d, want 80", cfg.General.MaxLines)
+	}
+	if cfg.General.Mode != ModeBalanced {
+		t.Errorf("Claude Mode = %q, want balanced", cfg.General.Mode)
+	}
+	if cfg.Truncation["grep"] != 120 {
+		t.Errorf("Claude grep truncation = %d, want 120", cfg.Truncation["grep"])
+	}
+}
+
+func TestApplyProfile_GPT(t *testing.T) {
+	cfg := Default()
+	cfg.Profile = ProfileGPT
+	cfg.ApplyProfile()
+
+	if cfg.General.MaxLines != 50 {
+		t.Errorf("GPT MaxLines = %d, want 50", cfg.General.MaxLines)
+	}
+	if cfg.Truncation["grep"] != 80 {
+		t.Errorf("GPT grep truncation = %d, want 80", cfg.Truncation["grep"])
+	}
+}
+
+func TestApplyProfile_Gemini(t *testing.T) {
+	cfg := Default()
+	cfg.Profile = ProfileGemini
+	cfg.ApplyProfile()
+
+	if cfg.General.MaxLines != 150 {
+		t.Errorf("Gemini MaxLines = %d, want 150", cfg.General.MaxLines)
+	}
+	if cfg.General.Mode != ModeConservative {
+		t.Errorf("Gemini Mode = %q, want conservative", cfg.General.Mode)
+	}
+}
+
+func TestApplyProfile_DoesNotOverrideExplicitTruncation(t *testing.T) {
+	cfg := Default()
+	cfg.Truncation["grep"] = 42 // user set explicitly
+	cfg.Profile = ProfileClaude
+	cfg.ApplyProfile()
+
+	if cfg.Truncation["grep"] != 42 {
+		t.Errorf("explicit grep truncation should be preserved, got %d", cfg.Truncation["grep"])
+	}
+}
+
+func TestApplyTOML_ProfileSection(t *testing.T) {
+	toml := `[profile]
+name = "claude"
+`
+	cfg := Default()
+	applyTOML(cfg, toml)
+
+	if cfg.Profile != ProfileClaude {
+		t.Errorf("Profile = %q, want claude", cfg.Profile)
+	}
+}
+
 func TestLoad_ProjectConfigPrecedence(t *testing.T) {
 	// Setup: project root has .gotk.toml, subdir has gotk.toml
 	root := t.TempDir()

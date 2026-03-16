@@ -23,15 +23,26 @@ type MeasureConfig struct {
 	MaxLogSize int // max log file size in bytes, 0 = unlimited
 }
 
+// LLMProfile identifies a target LLM for profile-based configuration.
+type LLMProfile string
+
+const (
+	ProfileNone   LLMProfile = ""           // no profile, use defaults
+	ProfileClaude LLMProfile = "claude"     // Anthropic Claude (200k context)
+	ProfileGPT    LLMProfile = "gpt"        // OpenAI GPT (128k context)
+	ProfileGemini LLMProfile = "gemini"     // Google Gemini (1M+ context)
+)
+
 // Config holds all gotk configuration options.
 type Config struct {
 	General    GeneralConfig
 	Filters    FiltersConfig
 	Security   SecurityConfig
 	Measure    MeasureConfig
-	Commands   map[string]string // custom command-type mappings
-	Rules      RulesConfig       // whitelist/blacklist patterns
-	Truncation map[string]int    // per-command max_lines overrides
+	Profile    LLMProfile            // target LLM profile
+	Commands   map[string]string     // custom command-type mappings
+	Rules      RulesConfig           // whitelist/blacklist patterns
+	Truncation map[string]int        // per-command max_lines overrides
 }
 
 // SecurityConfig controls security-related settings.
@@ -280,6 +291,11 @@ func applyTOML(cfg *Config, data string) {
 					cfg.Measure.MaxLogSize = n
 				}
 			}
+		case "profile":
+			switch key {
+			case "name":
+				cfg.Profile = ParseProfile(val)
+			}
 		case "truncation":
 			if n, err := strconv.Atoi(val); err == nil {
 				cfg.Truncation[key] = n
@@ -354,6 +370,55 @@ func defaultMeasureLogPath() string {
 		return filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
 	}
 	return "measure.jsonl"
+}
+
+// ApplyProfile adjusts configuration based on the target LLM profile.
+// Call after loading config but before ApplyMode, so mode can still override.
+func (c *Config) ApplyProfile() {
+	switch c.Profile {
+	case ProfileClaude:
+		// Claude has 200k context — balanced filtering with generous limits
+		c.General.MaxLines = 80
+		c.General.Mode = ModeBalanced
+		if _, ok := c.Truncation["grep"]; !ok {
+			c.Truncation["grep"] = 120
+		}
+		if _, ok := c.Truncation["find"]; !ok {
+			c.Truncation["find"] = 100
+		}
+	case ProfileGPT:
+		// GPT has 128k context — tighter filtering to fit context
+		c.General.MaxLines = 50
+		c.General.Mode = ModeBalanced
+		if _, ok := c.Truncation["grep"]; !ok {
+			c.Truncation["grep"] = 80
+		}
+	case ProfileGemini:
+		// Gemini has 1M+ context — conservative, keep more output
+		c.General.MaxLines = 150
+		c.General.Mode = ModeConservative
+		if _, ok := c.Truncation["grep"]; !ok {
+			c.Truncation["grep"] = 200
+		}
+		if _, ok := c.Truncation["find"]; !ok {
+			c.Truncation["find"] = 150
+		}
+	}
+}
+
+// ParseProfile converts a string to an LLMProfile.
+// Returns ProfileNone for unknown values.
+func ParseProfile(s string) LLMProfile {
+	switch strings.ToLower(s) {
+	case "claude":
+		return ProfileClaude
+	case "gpt", "openai", "chatgpt":
+		return ProfileGPT
+	case "gemini", "google":
+		return ProfileGemini
+	default:
+		return ProfileNone
+	}
 }
 
 // ParseMode converts a string to a FilterMode, returning ModeBalanced for unknown values.

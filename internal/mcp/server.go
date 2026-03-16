@@ -404,6 +404,15 @@ func handleNotification(method string) {
 func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, req jsonRPCRequest) {
 	switch req.Method {
 	case "initialize":
+		// Auto-detect LLM profile from client info if no profile is configured
+		if cfg.Profile == config.ProfileNone {
+			cfg.Profile = detectProfileFromInit(req.Params)
+			if cfg.Profile != config.ProfileNone {
+				cfg.ApplyProfile()
+				cfg.ApplyMode()
+				logErr("AUTO-PROFILE: detected %q from client info", cfg.Profile)
+			}
+		}
 		result := initializeResult{
 			ProtocolVersion: "2024-11-05",
 			Capabilities:    capObject{Tools: map[string]interface{}{}},
@@ -915,6 +924,40 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	sendResult(id, toolCallResult{
 		Content: []contentBlock{{Type: "text", Text: text}},
 	})
+}
+
+// detectProfileFromInit extracts the LLM profile from the MCP initialize params.
+// MCP clients send {"clientInfo": {"name": "claude-code", ...}} or similar.
+func detectProfileFromInit(params json.RawMessage) config.LLMProfile {
+	if params == nil {
+		return config.ProfileNone
+	}
+	var p struct {
+		ClientInfo struct {
+			Name string `json:"name"`
+		} `json:"clientInfo"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil || p.ClientInfo.Name == "" {
+		return config.ProfileNone
+	}
+
+	name := strings.ToLower(p.ClientInfo.Name)
+	switch {
+	case strings.Contains(name, "claude"):
+		return config.ProfileClaude
+	case strings.Contains(name, "cursor"):
+		// Cursor uses various models but primarily GPT/Claude
+		return config.ProfileGPT
+	case strings.Contains(name, "openai"), strings.Contains(name, "gpt"), strings.Contains(name, "chatgpt"):
+		return config.ProfileGPT
+	case strings.Contains(name, "gemini"), strings.Contains(name, "google"):
+		return config.ProfileGemini
+	case strings.Contains(name, "continue"):
+		// Continue.dev supports multiple models, default to balanced
+		return config.ProfileNone
+	default:
+		return config.ProfileNone
+	}
 }
 
 // logMCPMeasurement logs a measurement entry for an MCP tool invocation.
