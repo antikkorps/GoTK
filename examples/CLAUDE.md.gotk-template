@@ -1,0 +1,32 @@
+# Token Optimization with GoTK
+
+## Shell Commands
+
+Always use gotk to execute shell commands that produce verbose output:
+
+```bash
+gotk grep -rn "pattern" .
+gotk go test ./...
+gotk git log --oneline -20
+gotk find . -name "*.go"
+gotk make build 2>&1
+gotk docker build .
+gotk npm test
+gotk cargo build
+```
+
+Never run grep, find, git, go test, make, docker, npm, cargo, or other
+verbose commands without the gotk prefix. This reduces token consumption
+by ~80% while preserving all errors, warnings, and important information.
+
+## When NOT to use gotk
+
+- Simple commands with small output: `ls`, `pwd`, `cat small-file.txt`
+- Commands where you need raw unfiltered output for debugging
+- When explicitly told to bypass: `GOTK_PASSTHROUGH=1 command`
+
+## Tuning
+
+- Use `gotk --conservative cmd` when you need more detail
+- Use `gotk --aggressive cmd` when you need maximum reduction
+- Use `gotk --no-truncate cmd` when truncation removes needed context

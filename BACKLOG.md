@@ -113,7 +113,7 @@
 
 ---
 
-## Sprint 4 — Security + Best Practices `DONE`
+## Sprint 4 — Security + Best Practices
 
 ### Build — Security hardening
 
@@ -137,6 +137,13 @@
 - [x] MCP denylist with word-boundary matching (no false positives)
 - [x] Proper error types instead of raw strings
 - [x] Fuzz testing on all filters (go test -fuzz)
+
+### Build — CLI documentation & usage
+
+- [x] Man page (`gotk.1`) — structured manual, installable
+- [x] Improved `--help` — structured by subcommands with `gotk help <cmd>`
+- [x] Guide "CLI vs MCP" (`docs/cli-vs-mcp.md`) — why CLI-first is more token-efficient
+- [x] Quick-start recipes (`docs/quickstart.md`) per AI agent in CLI mode
 
 ### Deliver
 

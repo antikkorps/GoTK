@@ -4,69 +4,47 @@ How to use GoTK with various LLM coding tools to reduce token usage.
 
 GoTK works with any tool that executes shell commands, through three mechanisms:
 
-1. **Pipe mode** — `command | gotk` (for hooks and manual use)
-2. **Shell proxy** — `SHELL=gotk` (for tools that spawn a shell)
-3. **Direct execution** — `gotk exec command` (for explicit wrapping)
+1. **Shell proxy** — `SHELL=gotk` (100% automatic for tools that spawn a shell)
+2. **CLAUDE.md instructions** — Tell Claude to prefix commands with `gotk` (for Claude Code)
+3. **Direct execution / pipe** — `gotk cmd` or `cmd | gotk` (manual or scripted)
+
+> **How to choose?** Most AI tools use `$SHELL -c "command"` to run commands.
+> Setting `SHELL=gotk` intercepts every command automatically — the LLM never
+> knows GoTK is running. Claude Code is the exception: its Bash tool does not
+> use `$SHELL`, so it requires a different approach (CLAUDE.md or MCP).
+> See [cli-vs-mcp.md](cli-vs-mcp.md) for a detailed comparison.
 
 ---
 
 ## Claude Code
 
-### Method 1: PostToolUse hook (recommended)
+### Method 1: CLAUDE.md instructions (recommended CLI approach)
 
-Claude Code hooks let you process tool output after execution. Use a `PostToolUse` hook on `Bash` to filter command output through GoTK.
+Claude Code reads `CLAUDE.md` at the project root on every conversation. Add
+instructions telling Claude to use GoTK for all shell commands:
 
-**Global** — add to `~/.claude/settings.json` (applies to all projects):
+Add to your project's `CLAUDE.md`:
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | gotk"
-          }
-        ]
-      }
-    ]
-  }
-}
+```markdown
+## Token Optimization
+
+Always use gotk to execute shell commands that produce verbose output:
+  gotk grep -rn "pattern" .
+  gotk go test ./...
+  gotk git log --oneline -20
+  gotk find . -name "*.go"
+  gotk make build 2>&1
+
+Never run grep, find, git, go test, make, or other verbose commands without
+the gotk prefix. This reduces token consumption by ~80%.
 ```
 
-**Per-project** — add to `.claude/settings.local.json` in the project (not versioned):
+A ready-to-copy template is available at `examples/CLAUDE.md.gotk-template`.
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | gotk"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+> **Note:** This approach is ~95% reliable — Claude follows CLAUDE.md instructions
+> consistently but not 100% of the time. For guaranteed filtering, use MCP mode.
 
-To **bypass** GoTK in a specific project (e.g., the GoTK repo itself), add an empty hook override in that project's `.claude/settings.local.json`:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": []
-  }
-}
-```
-
-### Method 2: MCP Server
+### Method 2: MCP Server (100% automatic)
 
 Register GoTK as an MCP tool server. This exposes four tools that Claude can use with filtered output:
 
