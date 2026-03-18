@@ -13,6 +13,7 @@ import (
 
 	"github.com/antikkorps/GoTK/internal/bench"
 	"github.com/antikkorps/GoTK/internal/config"
+	gotkctx "github.com/antikkorps/GoTK/internal/ctx"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
@@ -130,6 +131,9 @@ func main() {
 		os.Exit(0)
 	case "bench":
 		runBench(args[1:])
+		os.Exit(0)
+	case "ctx":
+		runCtx(args[1:])
 		os.Exit(0)
 	case "watch":
 		runWatch(args[1:])
@@ -491,6 +495,16 @@ func runBench(args []string) {
 	}
 }
 
+// runCtx handles the "gotk ctx" subcommand for context search.
+func runCtx(args []string) {
+	output, err := gotkctx.Run(cfg, args, maxLines, showStats)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Print(output)
+}
+
 // logMeasurement logs a measurement entry if the logger is active.
 func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, cached bool) {
 	if mlog == nil {
@@ -632,6 +646,7 @@ Usage:
   gotk --shell                        Proxy shell mode (for SHELL= integration)
 
 Subcommands:
+  ctx       Context search with 5 output modes (gotk ctx pattern)
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
@@ -656,6 +671,7 @@ Flags:
   -v, --version        Show version
 
 Examples:
+  gotk ctx BuildChain -t go                 Context search
   gotk grep -rn "func main" .              Direct mode
   gotk --stats go test ./...               With stats
   find . -name "*.go" | gotk               Pipe mode
@@ -677,6 +693,37 @@ Run "gotk help <subcommand>" for details. See also: man gotk`
 
 func printSubcommandHelp(sub string) {
 	helps := map[string]string{
+		"ctx": `gotk ctx — Context Search
+
+Usage:
+  gotk ctx [flags] <pattern> [directory]
+
+Search codebase and format results for LLM consumption. Five output modes
+with built-in exclusions (node_modules, .git, vendor, etc.) and binary
+file detection. Output is filtered through the GoTK pipeline.
+
+Modes:
+  (default)     Scan: file paths with match counts, indented matches
+  -d [N]        Detail: N-line context windows with overlap merging (default: 3)
+  --def         Def: language-aware declarations (func, class, struct, etc.)
+  --tree        Tree: structural skeleton (imports, types, functions)
+  --summary     Summary: directory breakdown table
+
+Flags:
+  -t, --type EXT     File extension filter (e.g., -t go, -t py)
+  -g, --glob GLOB    Glob filter on filename (e.g., -g "*.test.js")
+  -m, --max N        Max file results (0 = unlimited)
+  -p, --path DIR     Root directory (alternative to positional arg)
+
+Examples:
+  gotk ctx BuildChain                       Scan mode (default)
+  gotk ctx BuildChain -d 5                  Detail mode with 5 lines context
+  gotk ctx BuildChain --def                 Definition mode
+  gotk ctx BuildChain --tree                Tree/skeleton mode
+  gotk ctx BuildChain --summary             Summary mode
+  gotk --stats ctx BuildChain -t go -m 5     Filtered with stats
+  gotk ctx "func.*Error" -t go              Regex search in Go files`,
+
 		"exec": `gotk exec — Explicit command execution
 
 Usage:

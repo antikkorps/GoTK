@@ -181,8 +181,8 @@ func TestValidateSandbox_PipelineWithBlockedCommand(t *testing.T) {
 func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 	result := buildToolsList()
 
-	if len(result.Tools) != 4 {
-		t.Fatalf("expected 4 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 5 {
+		t.Fatalf("expected 5 tools, got %d", len(result.Tools))
 	}
 
 	// Verify tool names
@@ -191,7 +191,7 @@ func TestBuildToolsList_ReturnsExpectedTools(t *testing.T) {
 		toolNames[tool.Name] = true
 	}
 
-	for _, name := range []string{"gotk_exec", "gotk_filter", "gotk_read", "gotk_grep"} {
+	for _, name := range []string{"gotk_exec", "gotk_filter", "gotk_read", "gotk_grep", "gotk_ctx"} {
 		if !toolNames[name] {
 			t.Errorf("missing tool: %s", name)
 		}
