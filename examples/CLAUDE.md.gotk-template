@@ -21,9 +21,9 @@ by ~80% while preserving all errors, warnings, and important information.
 
 ## Context Search
 
-Use `gotk ctx` instead of grep when searching the codebase. It produces
-LLM-optimized output with built-in exclusions (node_modules, .git, vendor,
-lock files, binaries) and 5 output modes:
+Prefer `gotk ctx` over grep for codebase search. It produces LLM-optimized
+output (~15x fewer tokens than raw grep) with built-in exclusions
+(node_modules, .git, vendor, lock files, binaries) and 5 output modes:
 
 ```bash
 gotk ctx pattern                       # scan: file list + match counts
@@ -31,7 +31,11 @@ gotk ctx pattern -d 5                 # detail: context windows
 gotk ctx pattern --def -t go          # def: function/type declarations
 gotk ctx pattern --tree               # tree: structural skeleton
 gotk ctx pattern --summary            # summary: directory breakdown
+gotk ctx pattern -t go -m 10         # filter by type, limit results
 ```
+
+Global flags like --stats go before the subcommand:
+  gotk --stats ctx pattern --summary
 
 ## When NOT to use gotk
 
