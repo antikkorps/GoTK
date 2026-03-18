@@ -35,6 +35,11 @@ Always use gotk to execute shell commands that produce verbose output:
   gotk find . -name "*.go"
   gotk make build 2>&1
 
+Use gotk ctx for codebase search (optimized for LLM consumption):
+  gotk ctx pattern -t go             # scan mode (default)
+  gotk ctx pattern --def -t go       # definition search
+  gotk ctx pattern --summary         # directory breakdown
+
 Never run grep, find, git, go test, make, or other verbose commands without
 the gotk prefix. This reduces token consumption by ~80%.
 ```
@@ -54,6 +59,7 @@ Register GoTK as an MCP tool server. This exposes four tools that Claude can use
 | `gotk_filter` | Filter pre-existing text through the cleaning pipeline |
 | `gotk_read` | Read a file with smart truncation and noise removal |
 | `gotk_grep` | Search file contents with grouped, compressed results |
+| `gotk_ctx` | Context search with 5 modes (scan, detail, def, tree, summary) |
 
 `gotk_read` and `gotk_grep` are more token-efficient than using `gotk_exec` with `cat`/`grep` because they apply specialized defaults (higher truncation limits for reads, grep-specific output grouping).
 

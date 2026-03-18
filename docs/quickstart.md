@@ -37,6 +37,10 @@ Always use gotk to execute shell commands that produce verbose output:
   gotk git log --oneline -20
   gotk find . -name "*.go"
 
+Use gotk ctx for codebase search (optimized for LLM consumption):
+  gotk ctx pattern -t go             # scan mode
+  gotk ctx pattern --def -t go       # definition search
+
 Never run grep, find, git, go test, make, or other verbose commands without
 the gotk prefix. This reduces token consumption by ~80%.
 ```
@@ -110,6 +114,23 @@ your-command | gotk
 ```bash
 gotk your-command args...
 ```
+
+---
+
+## Context Search
+
+Search your codebase with LLM-optimized output. Built-in exclusions skip node_modules, .git, vendor, lock files, and binaries.
+
+```bash
+gotk ctx BuildChain                    # Scan: file list + match counts
+gotk ctx BuildChain -d 5              # Detail: context windows around matches
+gotk ctx Handler --def -t go          # Def: function/class declarations
+gotk ctx main --tree                  # Tree: structural skeleton
+gotk ctx "func.*Error" --summary      # Summary: directory breakdown
+gotk ctx Config -t py -m 10           # Filter by type, limit results
+```
+
+Token savings vs raw grep: **-48% to -98%** depending on mode.
 
 ---
 

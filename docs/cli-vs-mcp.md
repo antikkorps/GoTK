@@ -14,7 +14,7 @@ MCP wraps every request and response in JSON-RPC envelopes with metadata, tool s
 
 ### 2. No tool discovery tokens
 
-MCP exposes tool schemas (`gotk_exec`, `gotk_filter`, `gotk_read`, `gotk_grep`) that the LLM must process in its context window on every turn. CLI mode is invisible to the LLM — it never knows GoTK exists.
+MCP exposes tool schemas (`gotk_exec`, `gotk_filter`, `gotk_read`, `gotk_grep`, `gotk_ctx`) that the LLM must process in its context window on every turn. CLI mode is invisible to the LLM — it never knows GoTK exists.
 
 ### 3. No extra tool calls
 
@@ -104,7 +104,7 @@ Result: Claude prefixes its commands with `gotk`. ~95% compliance.
 claude mcp add --transport stdio gotk -- gotk --mcp
 ```
 
-Result: the LLM sees 4 new tools. 100% filtering but with JSON-RPC token overhead.
+Result: the LLM sees 5 new tools. 100% filtering but with JSON-RPC token overhead.
 
 ---
 
