@@ -1,0 +1,330 @@
+.TH GOTK 1 "March 2026" "gotk" "User Commands"
+.SH NAME
+gotk \- LLM output proxy for token-efficient AI coding
+.SH SYNOPSIS
+.B gotk
+.RI [ flags ]
+.I command
+.RI [ args... ]
+.br
+.B gotk
+.RI [ flags ]
+.B exec \-\-
+.I command
+.RI [ args... ]
+.br
+.I command
+.B |
+.B gotk
+.RI [ flags ]
+.br
+.B gotk \-\-shell
+.br
+.B gotk \-c
+.I """command"""
+.br
+.B gotk \-\-mcp
+.br
+.B gotk watch
+.RI [ flags ]
+.B \-\-
+.I command
+.RI [ args... ]
+.br
+.B gotk bench
+.RI [ flags ]
+.br
+.B gotk measure
+.I subcommand
+.SH DESCRIPTION
+.B gotk
+acts as a proxy between shell commands and LLMs, cleaning command output to
+reduce token consumption by ~80% while preserving semantically important content.
+.PP
+Output quality is the #1 priority. GoTK never removes error messages, warnings,
+stack traces, or diagnostic information. It only strips pure noise: ANSI escape
+codes, decorative separators, duplicate lines, redundant path prefixes, and
+excessive blank lines.
+.PP
+GoTK detects the command type (grep, git, find, go test, etc.) and applies
+specialized filters on top of generic cleaning. The result is output that
+contains the same information in far fewer tokens.
+.SH MODES
+.TP
+.B Direct mode
+.B gotk grep \-rn """func main""" .
+.br
+Run any command through GoTK. The command type is detected from the binary name.
+.TP
+.B Explicit mode
+.B gotk exec \-\- command args...
+.br
+Explicitly separate GoTK flags from the command using \fB\-\-\fR.
+.TP
+.B Pipe mode
+.I command
+.B | gotk
+.br
+Read from stdin. The command type is auto-detected from the output format.
+.TP
+.B Shell proxy
+.B gotk \-\-shell
+.br
+Interactive shell where all commands are filtered. Designed for LLM tool
+integration via the
+.B SHELL
+environment variable.
+.TP
+.B Shell command
+.B gotk \-c """command"""
+.br
+Execute a single command through the filter pipeline. Compatible with
+.BR sh (1)
+\fB\-c\fR convention.
+.TP
+.B MCP server
+.B gotk \-\-mcp
+.br
+Start a Model Context Protocol server over stdio (JSON-RPC). Exposes
+.BR gotk_exec ,
+.BR gotk_filter ,
+.BR gotk_read ,
+and
+.B gotk_grep
+tools. See
+.I docs/cli\-vs\-mcp.md
+for CLI vs MCP trade-offs.
+.TP
+.B Watch mode
+.B gotk watch \-\-ext .go \-\- go test ./...
+.br
+Watch files for changes and re-run the command with filtered output.
+.TP
+.B Benchmark
+.B gotk bench
+.br
+Run the built-in benchmark suite on realistic command output fixtures.
+.TP
+.B Measurement
+.B gotk measure report
+.br
+View token consumption metrics and savings reports.
+.SH OPTIONS
+.TP
+.BR \-s ", " \-\-stats
+Show reduction statistics on stderr (original size, cleaned size, % saved).
+.TP
+.BR \-m ", " "\-\-max-lines \fIN\fR"
+Maximum output lines (default: 50). Keeps head and tail, truncates middle.
+.TP
+.B \-\-no-truncate
+Disable line truncation entirely.
+.TP
+.B \-\-conservative
+Minimal reduction, zero information loss. Sets max-lines to 200 with no truncation.
+.TP
+.B \-\-balanced
+Default mode. Good reduction while preserving important lines.
+.TP
+.B \-\-aggressive
+Maximum reduction, acceptable information loss. Sets max-lines to 30.
+.TP
+.BI "\-\-mode " MODE
+Set filter mode explicitly:
+.BR conservative ,
+.BR balanced ,
+or
+.BR aggressive .
+.TP
+.B \-\-stream
+Stream output line-by-line with real-time filtering instead of batch processing.
+.TP
+.B \-\-measure
+Enable token consumption measurement logging for the current invocation.
+.TP
+.BI "\-\-profile " PROFILE
+Set LLM profile:
+.BR claude ,
+.BR gpt ,
+or
+.BR gemini .
+Auto-detected when running in MCP mode.
+.TP
+.B \-\-shell
+Start proxy shell mode.
+.TP
+.BI "\-c " """command"""
+Execute a single command through the filter pipeline.
+.TP
+.B \-\-mcp
+Start MCP server (Model Context Protocol) over stdio.
+.TP
+.BR \-h ", " \-\-help
+Show usage summary. Use
+.B gotk help
+.I subcommand
+for detailed help.
+.TP
+.BR \-v ", " \-\-version
+Show version.
+.SS Watch flags (before \-\-)
+.TP
+.BR \-i ", " "\-\-interval \fIDURATION\fR"
+Polling interval (default: 2s). Examples: 5s, 500ms, 1m.
+.TP
+.BR \-e ", " "\-\-ext \fIEXT\fR"
+File extension to watch (repeatable). Example:
+.B \-e .go \-e .mod
+.TP
+.BR \-p ", " "\-\-path \fIPATH\fR"
+Path to watch (repeatable, default: ".").
+.SH SUBCOMMANDS
+.TP
+.B exec
+Execute a command explicitly.
+.B gotk exec \-\- grep \-rn """pattern""" .
+.TP
+.B watch
+Watch files and re-run command on changes. See
+.B Watch flags
+above.
+.TP
+.B bench
+Run benchmarks.
+.RS
+.TP
+.B \-\-json
+Output results as JSON.
+.TP
+.B \-\-per-filter
+Show per-filter contribution breakdown.
+.TP
+.B \-\-quality
+Measure quality score (% of important lines preserved).
+.TP
+.B \-\-abtest
+Compare conservative/balanced/aggressive modes side by side.
+.RE
+.TP
+.B measure
+Token consumption measurement.
+.RS
+.TP
+.BI "report " "[--json] [--period DURATION]"
+Show token savings report. Period examples: 7d, 30d, 24h.
+.TP
+.BI "last " "[N]"
+Show last N invocations (default: 10).
+.TP
+.B status
+Show measurement status (enabled/disabled, log path, log size).
+.TP
+.B clear
+Clear the measurement log.
+.RE
+.TP
+.B help
+Show help for a subcommand.
+.B gotk help watch
+.SH CONFIGURATION
+Configuration files are loaded in order of precedence (lowest to highest):
+.TP
+.I ~/.config/gotk/config.toml
+Global defaults.
+.TP
+.I .gotk.toml
+Project config, found by walking up parent directories to the repository root.
+.TP
+.I ./gotk.toml
+Local override (highest precedence).
+.PP
+Example configuration:
+.PP
+.nf
+[general]
+mode = "balanced"
+stats = false
+max_lines = 50
+
+[filters]
+strip_ansi = true
+normalize_whitespace = true
+dedup = true
+trim_decorative = true
+truncate = true
+
+[rules]
+always_keep = ["^ERROR:", "^FATAL:"]
+always_remove = ["^DEBUG:", "^TRACE:"]
+
+[truncation]
+grep = 30
+test = 200
+git = 100
+
+[security]
+command_timeout = 300
+sandbox_mode = false
+.fi
+.SH ENVIRONMENT
+.TP
+.B GOTK_PASSTHROUGH=1
+Disable all filtering. Output passes through unchanged. Use as an escape hatch.
+.TP
+.B GOTK_SHELL=/bin/bash
+The real shell GoTK uses internally to execute commands. Defaults to
+.BR $SHELL
+(if not gotk itself), then
+.BR /bin/bash ,
+then
+.BR /bin/sh .
+.TP
+.B GOTK_BIN
+Used by wrapper scripts to locate the gotk binary.
+.SH EXAMPLES
+.SS Basic usage
+.nf
+# Filter grep output
+gotk grep -rn "func main" .
+
+# Filter with stats
+gotk --stats git log --oneline -20
+
+# Pipe mode
+find . -name "*.go" | gotk
+
+# No truncation
+gotk --no-truncate go test ./...
+.fi
+.SS AI tool integration (CLI mode — recommended)
+.nf
+# Claude Code: add PostToolUse hook in ~/.claude/settings.json
+# { "hooks": { "PostToolUse": [
+#   { "matcher": "Bash",
+#     "hooks": [{"type":"command","command":"cat | gotk"}] }
+# ]}}
+
+# Aider
+SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash aider
+
+# Cursor
+SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash cursor .
+.fi
+.SS Measurement
+.nf
+gotk --measure grep -rn "func" .
+gotk measure last
+gotk measure report --period 7d
+.fi
+.SH SEE ALSO
+.TP
+.I docs/quickstart.md
+Quick-start recipes for each AI coding tool.
+.TP
+.I docs/cli\-vs\-mcp.md
+Detailed comparison of CLI vs MCP mode token efficiency.
+.TP
+.I docs/integrations.md
+Advanced integration patterns.
+.SH AUTHORS
+GoTK contributors.

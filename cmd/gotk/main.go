@@ -118,6 +118,13 @@ func main() {
 	// Handle subcommands
 	var cmdArgs []string
 	switch args[0] {
+	case "help":
+		if len(args) > 1 {
+			printSubcommandHelp(args[1])
+		} else {
+			printUsage()
+		}
+		os.Exit(0)
 	case "measure":
 		runMeasure(args[1:])
 		os.Exit(0)
@@ -612,79 +619,175 @@ func runMeasure(args []string) {
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
-Clean up command output before sending to LLMs.
-Reduces token usage by removing noise from command output.
+Clean command output before sending to LLMs. Reduces token usage by ~80%
+while preserving errors, warnings, and semantically important content.
+
+Best used as a CLI tool integrated with your AI coding assistant.
+See "gotk help mcp" for MCP server mode (higher token overhead).
 
 Usage:
-  gotk [flags] <command> [args...]          Direct mode
-  gotk [flags] exec -- <command> [args...]  Explicit mode
-  <command> | gotk [flags]                  Pipe mode
-  gotk --shell                              Proxy shell mode
-  gotk -c "command"                         Shell-compatible execution
-  gotk --mcp                                MCP server (JSON-RPC over stdio)
-  gotk watch [flags] -- <command> [args...] Watch mode (re-run on file changes)
-  gotk bench [flags]                        Run benchmarks
-  gotk measure report [--json] [--period]  Show token savings report
-  gotk measure last [N]                    Show last N invocations (default: 10)
-  gotk measure status                      Show measurement status
-  gotk measure clear                       Clear measurement log
+  gotk [flags] <command> [args...]    Run a command with filtered output
+  <command> | gotk [flags]            Filter piped input
+  gotk -c "command"                   Shell-compatible execution
+  gotk --shell                        Proxy shell mode (for SHELL= integration)
 
-Examples:
-  gotk grep -rn "func main" .
-  gotk git log --oneline -20
-  gotk find . -name "*.go"
-  gotk go test ./...
-  grep -rn "TODO" . | gotk --stats
-  gotk --max-lines 100 find / -name "*.log"
-  SHELL=/path/to/gotk gotk --shell          LLM integration
-  gotk -c "grep -rn foo ."                  Single command
-  gotk --stream make build                   Stream filtered output in real-time
-  gotk watch --ext .go -- go test ./...     Watch .go files, re-run tests
-  gotk watch --interval 5s -- make build    Poll every 5s
-  gotk watch -e .py -p src -- python -m pytest
-  gotk bench                               Run all benchmarks
-  gotk bench --per-filter                  Show per-filter breakdown
-  gotk bench --quality                     Measure quality score (important lines preserved)
-  gotk bench --abtest                      A/B test: compare modes (conservative/balanced/aggressive)
-  gotk bench --json                        Output as JSON
-  gotk --measure grep -rn "func" .        Run with measurement logging
-  gotk measure last                       Show last 10 invocations
-  gotk measure last 20                    Show last 20 invocations
-  gotk measure report --period 7d         Show last 7 days report
-  gotk measure report --json              JSON report output
+Subcommands:
+  exec      Execute a command explicitly (gotk exec -- cmd args...)
+  watch     Re-run command on file changes (gotk watch -- make test)
+  bench     Run benchmark suite
+  measure   Token consumption metrics (report, last, status, clear)
+  help      Show help for a subcommand (gotk help watch)
 
 Flags:
-  -s, --stats        Show reduction statistics on stderr
-  -m, --max-lines N  Max output lines (default: 50, keeps head+tail)
-  --no-truncate      Disable line truncation
-  --conservative     Minimal reduction, zero info loss (max-lines: 200, no truncation)
-  --balanced         Default mode — good reduction, preserves important lines
-  --aggressive       Maximum reduction, acceptable info loss (max-lines: 30)
-  --mode MODE        Set filter mode (conservative, balanced, aggressive)
-  --stream           Stream output line-by-line with real-time filtering
-  --measure          Enable token consumption measurement logging
-  --profile PROFILE  Set LLM profile: claude, gpt, gemini (auto-detected in MCP)
-  --shell            Start proxy shell mode
-  -c "command"       Execute single command through filter pipeline
-  --mcp              Start MCP server (Model Context Protocol)
-  -h, --help         Show this help
-  -v, --version      Show version
+  -s, --stats          Show reduction statistics on stderr
+  -m, --max-lines N    Max output lines (default: 50, keeps head+tail)
+  --no-truncate        Disable line truncation
+  --conservative       Minimal reduction, zero info loss
+  --balanced           Default mode, good reduction
+  --aggressive         Maximum reduction
+  --mode MODE          Set filter mode explicitly
+  --stream             Stream output line-by-line (real-time)
+  --measure            Enable token consumption logging
+  --profile PROFILE    LLM profile: claude, gpt, gemini
+  --shell              Start proxy shell mode
+  -c "command"         Execute single command
+  --mcp                Start MCP server (JSON-RPC over stdio)
+  -h, --help           Show this help
+  -v, --version        Show version
 
-Watch flags (before --):
-  -i, --interval D   Polling interval (default: 2s, e.g., 5s, 500ms)
-  -e, --ext EXT      File extension to watch (repeatable, e.g., -e .go -e .mod)
-  -p, --path PATH    Path to watch (repeatable, default: ".")
+Examples:
+  gotk grep -rn "func main" .              Direct mode
+  gotk --stats go test ./...               With stats
+  find . -name "*.go" | gotk               Pipe mode
+  gotk --aggressive find / -name "*.log"   Maximum reduction
+  gotk --stream make build                 Real-time filtering
 
-Config (in order of precedence):
-  ~/.config/gotk/config.toml    Global config
-  .gotk.toml                    Project config (found by walking up to repo root)
-  ./gotk.toml                   Local config (highest precedence)
+AI tool integration (CLI mode, recommended for token efficiency):
+  Aider        SHELL=gotk GOTK_SHELL=/bin/bash aider       (100% auto)
+  Cursor       SHELL=gotk GOTK_SHELL=/bin/bash cursor .    (100% auto)
+  Claude Code  Add "gotk" prefix instructions to CLAUDE.md (~95% auto)
 
-Environment:
-  GOTK_PASSTHROUGH=1    Disable filtering (escape hatch)
-  GOTK_SHELL=/bin/bash  Shell used for -c and --shell execution`
+Config: ~/.config/gotk/config.toml | .gotk.toml | ./gotk.toml
+Environment: GOTK_PASSTHROUGH=1 (bypass) | GOTK_SHELL (real shell)
+
+Run "gotk help <subcommand>" for details. See also: man gotk`
 
 	fmt.Println(strings.TrimSpace(usage))
+}
+
+func printSubcommandHelp(sub string) {
+	helps := map[string]string{
+		"exec": `gotk exec — Explicit command execution
+
+Usage:
+  gotk [flags] exec -- <command> [args...]
+
+Execute a command with GoTK flags clearly separated from command arguments
+using the -- delimiter.
+
+Examples:
+  gotk exec -- grep -rn "pattern" .
+  gotk --aggressive exec -- find / -name "*.log"
+  gotk --stats exec -- go test -v ./...`,
+
+		"watch": `gotk watch — Watch files and re-run command on changes
+
+Usage:
+  gotk watch [watch-flags] -- <command> [args...]
+
+Watch for file changes and automatically re-run the command with filtered
+output. Useful for test-driven development with AI assistants.
+
+Watch flags (before --):
+  -i, --interval D    Polling interval (default: 2s, e.g., 5s, 500ms, 1m)
+  -e, --ext EXT       File extension to watch (repeatable)
+  -p, --path PATH     Path to watch (repeatable, default: ".")
+
+Examples:
+  gotk watch -- go test ./...
+  gotk watch --ext .go -- go test ./...
+  gotk watch --interval 5s -- make build
+  gotk watch -e .py -p src -- python -m pytest
+  gotk watch -e .go -e .mod -p ./internal -- go test ./internal/...`,
+
+		"bench": `gotk bench — Run benchmark suite
+
+Usage:
+  gotk bench [flags]
+
+Run benchmarks on realistic command output fixtures to measure reduction
+rates, quality scores, and latency.
+
+Flags:
+  --json          Output results as JSON
+  --per-filter    Show per-filter contribution breakdown
+  --quality       Measure quality score (% of important lines preserved)
+  --abtest        Compare conservative/balanced/aggressive modes side by side
+
+Examples:
+  gotk bench
+  gotk bench --per-filter
+  gotk bench --quality
+  gotk bench --abtest
+  gotk bench --json`,
+
+		"measure": `gotk measure — Token consumption metrics
+
+Usage:
+  gotk measure <subcommand>
+
+Track and analyze token savings from GoTK filtering.
+
+Subcommands:
+  report [--json] [--period D]    Show savings report (e.g., --period 7d)
+  last [N]                        Show last N invocations (default: 10)
+  status                          Show measurement status and log info
+  clear                           Clear the measurement log
+
+To enable measurement, use --measure flag or set measure.enabled = true
+in your config file. Measurement is auto-enabled in MCP mode.
+
+Examples:
+  gotk --measure grep -rn "func" .
+  gotk measure last
+  gotk measure last 20
+  gotk measure report
+  gotk measure report --period 7d --json
+  gotk measure status`,
+
+		"mcp": `gotk --mcp — MCP Server Mode (Model Context Protocol)
+
+Usage:
+  gotk --mcp
+
+Start a JSON-RPC server over stdio that exposes GoTK tools to MCP-compatible
+AI coding assistants (Claude Code, etc.).
+
+Exposed tools:
+  gotk_exec     Execute any command and return cleaned output
+  gotk_filter   Filter pre-existing text through the cleaning pipeline
+  gotk_read     Read a file with smart truncation and noise removal
+  gotk_grep     Search file contents with grouped, compressed results
+
+Setup:
+  claude mcp add --transport stdio gotk -- gotk --mcp
+
+Note: CLI mode (PostToolUse hook) is more token-efficient than MCP mode.
+MCP adds JSON-RPC overhead and tool schema tokens on every LLM turn.
+See docs/cli-vs-mcp.md for a detailed comparison.
+
+Use MCP mode when:
+  - Your AI tool doesn't support hooks or SHELL replacement
+  - You want the AI to explicitly choose when to filter
+  - You need gotk_read or gotk_grep specialized tools`,
+	}
+
+	if h, ok := helps[sub]; ok {
+		fmt.Println(strings.TrimSpace(h))
+	} else {
+		fmt.Fprintf(os.Stderr, "gotk help: unknown subcommand %q\n\n", sub)
+		printUsage()
+	}
 }
 
 // setupSignalHandler catches SIGINT and SIGTERM for graceful shutdown.
