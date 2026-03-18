@@ -232,14 +232,14 @@
 ### Measure
 
 - [x] Token savings benchmarks: scan -48 to -96%, def -50 to -96%, summary -89 to -98% vs raw grep
-- [ ] Add `gotk ctx` fixtures to `gotk bench` suite
+- [x] Add `gotk ctx` fixtures to `gotk bench` suite (ctx scan + ctx detail)
 
 ### Deliver
 
-- [ ] Man page section for `gotk ctx`
+- [x] Man page section for `gotk ctx` (synopsis, modes, subcommands, examples)
 - [x] `gotk help ctx` with examples
 - [x] Unit tests for all components (14 tests: ParseFlags, WalkFiles, Search, all 5 formatters, merge windows)
-- [ ] Integration tests for all 5 modes
+- [x] Integration tests for all 5 modes (8 E2E tests: scan, detail, def, tree, summary, stats, no-match, help)
 - [ ] Tag v1.1.0
 
 ---

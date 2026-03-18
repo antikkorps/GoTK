@@ -254,3 +254,118 @@ func TestE2E_Passthrough(t *testing.T) {
 		t.Errorf("passthrough should preserve output, got: %q", stdout.String())
 	}
 }
+
+func TestE2E_Ctx_Scan(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "ctx", "BuildChain", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx scan exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "BuildChain") {
+		t.Errorf("ctx scan should contain match, got: %q", stdout)
+	}
+	// Scan mode shows "Nx file.go" format
+	if !strings.Contains(stdout, "x ") {
+		t.Errorf("ctx scan should show match count format 'Nx file', got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Detail(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "ctx", "BuildChain", "-d", "3", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx detail exit code = %d, want 0", code)
+	}
+	// Detail mode has "--- file:line ---" headers
+	if !strings.Contains(stdout, "---") {
+		t.Errorf("ctx detail should contain '---' headers, got: %q", stdout)
+	}
+	// Detail mode marks matching lines with ">"
+	if !strings.Contains(stdout, ">") {
+		t.Errorf("ctx detail should contain '>' match markers, got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Def(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "ctx", "BuildChain", "--def", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx def exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "BuildChain") {
+		t.Errorf("ctx def should contain match, got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Tree(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "ctx", "BuildChain", "--tree", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx tree exit code = %d, want 0", code)
+	}
+	// Tree mode has "== file ==" headers
+	if !strings.Contains(stdout, "==") {
+		t.Errorf("ctx tree should contain '==' file headers, got: %q", stdout)
+	}
+	// Should show structural elements like package/import/func
+	if !strings.Contains(stdout, "package") {
+		t.Errorf("ctx tree should show 'package' in skeleton, got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Summary(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "ctx", "BuildChain", "--summary", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx summary exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "Pattern: BuildChain") {
+		t.Errorf("ctx summary should show pattern, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Total:") {
+		t.Errorf("ctx summary should show totals, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Directory") {
+		t.Errorf("ctx summary should show directory header, got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Stats(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "--stats", "ctx", "BuildChain", "-t", "go")
+	if code != 0 {
+		t.Errorf("ctx stats exit code = %d, want 0", code)
+	}
+	// Stats are embedded in the output by gotkctx.Run
+	if !strings.Contains(stdout, "[gotk]") {
+		t.Errorf("--stats should produce stats in output, got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_NoMatch(t *testing.T) {
+	bin := binary(t)
+	// Search in a temp dir with no matching files to guarantee no matches
+	dir := t.TempDir()
+	os.WriteFile(dir+"/test.go", []byte("package main\nfunc main() {}\n"), 0644)
+	stdout, _, code := run(t, bin, "", "ctx", "xyzNeverMatchThis123", "-p", dir)
+	if code != 0 {
+		t.Errorf("ctx no-match exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "no matches") {
+		t.Errorf("ctx no-match should say 'no matches', got: %q", stdout)
+	}
+}
+
+func TestE2E_Ctx_Help(t *testing.T) {
+	bin := binary(t)
+	stdout, _, code := run(t, bin, "", "help", "ctx")
+	if code != 0 {
+		t.Errorf("help ctx exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "Context Search") {
+		t.Errorf("help ctx should contain 'Context Search', got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "--def") {
+		t.Errorf("help ctx should mention --def flag, got: %q", stdout)
+	}
+}

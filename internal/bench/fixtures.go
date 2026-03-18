@@ -507,6 +507,110 @@ func generateMixedErrorsFixture() string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
+// generateCtxScanFixture generates realistic gotk ctx scan mode output
+// with 30 files and 200+ matches across a project structure.
+func generateCtxScanFixture() string {
+	files := []string{
+		"src/server/handler.go", "src/server/middleware.go", "src/server/routes.go",
+		"src/db/postgres.go", "src/db/migrations.go", "src/db/models.go",
+		"src/api/users.go", "src/api/auth.go", "src/api/products.go",
+		"src/utils/helpers.go", "src/utils/validator.go", "src/utils/logger.go",
+		"pkg/config/config.go", "pkg/config/defaults.go", "pkg/config/loader.go",
+		"internal/cache/redis.go", "internal/cache/memory.go", "internal/cache/lru.go",
+		"cmd/server/main.go", "cmd/worker/main.go", "cmd/cli/main.go",
+		"test/integration/api_test.go", "test/integration/db_test.go",
+		"test/unit/handler_test.go", "test/unit/auth_test.go",
+		"pkg/errors/errors.go", "pkg/errors/wrap.go",
+		"internal/metrics/prometheus.go", "internal/metrics/collector.go",
+		"docs/api.go",
+	}
+	matchLines := []string{
+		"func HandleRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) error {",
+		"type Config struct {",
+		"func NewServer(cfg *Config) *Server {",
+		"if err != nil { return fmt.Errorf(\"failed: %w\", err) }",
+		"func (s *Server) Start() error {",
+		"type Handler interface {",
+		"func Validate(input string) error {",
+		"const MaxRetries = 3",
+		"func init() { registerMetrics() }",
+		"var ErrNotFound = errors.New(\"not found\")",
+	}
+
+	var b strings.Builder
+	for i, file := range files {
+		matchCount := 3 + i%8
+		b.WriteString(fmt.Sprintf("%dx %s\n", matchCount, file))
+		for j := 0; j < matchCount; j++ {
+			lineNum := 10 + j*15 + i*3
+			line := matchLines[(i+j)%len(matchLines)]
+			// Truncate long lines like scan mode does
+			display := fmt.Sprintf("  %d: %s", lineNum, line)
+			if len(display) > 120 {
+				display = display[:117] + "..."
+			}
+			b.WriteString(display)
+			b.WriteByte('\n')
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// generateCtxDetailFixture generates realistic gotk ctx detail mode output
+// with context windows around matches.
+func generateCtxDetailFixture() string {
+	files := []string{
+		"src/server/handler.go", "src/db/postgres.go", "src/api/auth.go",
+		"pkg/config/config.go", "internal/cache/redis.go",
+		"cmd/server/main.go", "test/integration/api_test.go",
+		"pkg/errors/errors.go", "internal/metrics/prometheus.go",
+		"src/utils/validator.go",
+	}
+	contextLines := []string{
+		"package server",
+		"import (",
+		"\t\"context\"",
+		"\t\"fmt\"",
+		"\t\"net/http\"",
+		")",
+		"",
+		"// HandleRequest processes incoming HTTP requests.",
+		"func HandleRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) error {",
+		"\tif r.Method != http.MethodPost {",
+		"\t\treturn fmt.Errorf(\"unsupported method: %s\", r.Method)",
+		"\t}",
+		"\tresult, err := processBody(r.Body)",
+		"\tif err != nil {",
+		"\t\treturn fmt.Errorf(\"process error: %w\", err)",
+		"\t}",
+		"\tw.WriteHeader(http.StatusOK)",
+		"\treturn json.NewEncoder(w).Encode(result)",
+		"}",
+		"",
+	}
+
+	var b strings.Builder
+	for _, file := range files {
+		for window := 0; window < 2+len(file)%3; window++ {
+			startLine := 10 + window*25
+			b.WriteString(fmt.Sprintf("--- %s:%d ---\n", file, startLine))
+			for j := 0; j < 7; j++ {
+				lineNum := startLine + j
+				content := contextLines[(window*3+j)%len(contextLines)]
+				prefix := "  "
+				if j == 3 { // match line
+					prefix = "> "
+				}
+				b.WriteString(fmt.Sprintf("%s%d: %s\n", prefix, lineNum, content))
+			}
+			b.WriteString("  ...\n")
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
