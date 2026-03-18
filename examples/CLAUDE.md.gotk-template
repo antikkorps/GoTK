@@ -19,6 +19,20 @@ Never run grep, find, git, go test, make, docker, npm, cargo, or other
 verbose commands without the gotk prefix. This reduces token consumption
 by ~80% while preserving all errors, warnings, and important information.
 
+## Context Search
+
+Use `gotk ctx` instead of grep when searching the codebase. It produces
+LLM-optimized output with built-in exclusions (node_modules, .git, vendor,
+lock files, binaries) and 5 output modes:
+
+```bash
+gotk ctx pattern                       # scan: file list + match counts
+gotk ctx pattern -d 5                 # detail: context windows
+gotk ctx pattern --def -t go          # def: function/type declarations
+gotk ctx pattern --tree               # tree: structural skeleton
+gotk ctx pattern --summary            # summary: directory breakdown
+```
+
 ## When NOT to use gotk
 
 - Simple commands with small output: `ls`, `pwd`, `cat small-file.txt`
