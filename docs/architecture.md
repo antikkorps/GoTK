@@ -15,6 +15,11 @@ internal/filter/        The filter chain and all generic filter functions.
 
 internal/detect/        Command type identification (by name and by output
                         pattern) and command-specific filter functions.
+
+internal/ctx/           Context search engine. Walks files with built-in
+                        exclusions, regex search, and 5 output formatters
+                        (scan, detail, def, tree, summary). Output goes
+                        through proxy.BuildChain for standard GoTK filtering.
 ```
 
 ## Filter Chain Pattern

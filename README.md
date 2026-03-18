@@ -38,7 +38,7 @@ For LLM tool integrations (Claude Code, Aider, Cursor, Continue.dev), see [docs/
 
 ## Usage
 
-GoTK operates in three modes:
+GoTK operates in several modes:
 
 ### Direct mode
 
@@ -50,6 +50,21 @@ gotk git log --oneline -20
 gotk find . -name "*.go"
 gotk go test ./...
 ```
+
+### Context search
+
+Search your codebase with output optimized for LLMs. Five output modes, built-in exclusions (node_modules, .git, vendor, lock files), and binary file detection:
+
+```bash
+gotk ctx BuildChain                    # Scan: file list + match counts
+gotk ctx BuildChain -d 5              # Detail: 5-line context windows
+gotk ctx BuildChain --def             # Def: function/class/type declarations
+gotk ctx BuildChain --tree            # Tree: structural skeleton
+gotk ctx BuildChain --summary         # Summary: directory breakdown table
+gotk ctx BuildChain -t go -m 10      # Filter by type, max 10 files
+```
+
+Token savings vs raw `grep -rn`: **-48% to -98%** depending on mode and result volume.
 
 ### Explicit exec mode
 
@@ -122,7 +137,8 @@ cmd/gotk/          CLI entrypoint, flag parsing, pipe detection
 internal/exec/     Command execution and output capture
 internal/filter/   Filter chain + individual filter functions
 internal/detect/   Command identification + command-specific filter selection
-internal/mcp/      MCP server (gotk_exec, gotk_filter, gotk_read, gotk_grep)
+internal/ctx/      Context search engine (walk, search, 5 formatters)
+internal/mcp/      MCP server (gotk_exec, gotk_filter, gotk_read, gotk_grep, gotk_ctx)
 internal/cache/    LRU content-hash cache for filter results
 ```
 

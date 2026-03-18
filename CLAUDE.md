@@ -13,6 +13,7 @@ Goal: ~80% token reduction by stripping noise.
 go build -o gotk ./cmd/gotk/
 ./gotk --stats grep -rn "pattern" .
 echo "test" | ./gotk --stats
+./gotk ctx BuildChain -t go          # context search
 go test ./...
 ```
 
@@ -22,6 +23,7 @@ go test ./...
 - `internal/exec/` — Command execution and output capture
 - `internal/filter/` — Filter chain + individual filters (ANSI, whitespace, dedup, paths, trim, truncate)
 - `internal/detect/` — Command detection (explicit + auto-detect) + command-specific filter selection
+- `internal/ctx/` — Context search engine (walk, search, 5 output formatters)
 - `internal/config/` — TOML config loader (no external deps)
 - `internal/proxy/` — Proxy shell mode (`--shell`, `-c`)
 

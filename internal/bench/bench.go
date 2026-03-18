@@ -52,6 +52,8 @@ func allFixtures() []fixture {
 		{"stack traces", generateStackTraceFixture, detect.CmdGeneric},
 		{"noisy log", generateNoisyLogFixture, detect.CmdGeneric},
 		{"mixed errors", generateMixedErrorsFixture, detect.CmdGeneric},
+		{"ctx scan", generateCtxScanFixture, detect.CmdGeneric},
+		{"ctx detail", generateCtxDetailFixture, detect.CmdGeneric},
 	}
 }
 

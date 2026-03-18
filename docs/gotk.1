@@ -31,6 +31,11 @@ gotk \- LLM output proxy for token-efficient AI coding
 .I command
 .RI [ args... ]
 .br
+.B gotk ctx
+.RI [ flags ]
+.I pattern
+.RI [ directory ]
+.br
 .B gotk bench
 .RI [ flags ]
 .br
@@ -89,11 +94,19 @@ Start a Model Context Protocol server over stdio (JSON-RPC). Exposes
 .BR gotk_exec ,
 .BR gotk_filter ,
 .BR gotk_read ,
+.BR gotk_grep ,
 and
-.B gotk_grep
+.B gotk_ctx
 tools. See
 .I docs/cli\-vs\-mcp.md
 for CLI vs MCP trade-offs.
+.TP
+.B Context search
+.B gotk ctx BuildChain \-t go
+.br
+Search the codebase with 5 output modes optimized for LLM consumption.
+Built-in exclusions skip node_modules, .git, vendor, lock files, and
+binary files. Output goes through the GoTK filter pipeline.
 .TP
 .B Watch mode
 .B gotk watch \-\-ext .go \-\- go test ./...
@@ -188,6 +201,40 @@ Execute a command explicitly.
 Watch files and re-run command on changes. See
 .B Watch flags
 above.
+.TP
+.B ctx
+Context search with 5 output modes.
+.RS
+.TP
+(default)
+Scan mode: file paths with match counts, indented matches truncated to 120 chars.
+.TP
+.BI "\-d " "[N]"
+Detail mode: N-line context windows around each match (default: 3), with overlap merging.
+.TP
+.B \-\-def
+Definition mode: language-aware declarations (func, class, struct, type, interface, etc.).
+Falls back to keyword match when no definitions are found.
+.TP
+.B \-\-tree
+Tree mode: structural skeleton of matching files (imports, types, functions).
+Supports Go, Python, JS/TS, Rust, Java, Ruby, C/C++, and Shell.
+.TP
+.B \-\-summary
+Summary mode: directory breakdown table with file counts and total matches.
+.TP
+.BI "\-t " "EXT"
+File type filter (e.g., \-t go, \-t py). Repeatable.
+.TP
+.BI "\-g " "GLOB"
+Glob filter on filename (e.g., \-g "*.test.js").
+.TP
+.BI "\-m " "N"
+Maximum number of file results (0 = unlimited).
+.TP
+.BI "\-p " "DIR"
+Root directory to search (alternative to positional argument).
+.RE
 .TP
 .B bench
 Run benchmarks.
@@ -309,6 +356,26 @@ SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash aider
 
 # Cursor
 SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash cursor .
+.fi
+.SS Context search
+.nf
+# Scan mode (default)
+gotk ctx BuildChain
+
+# Detail mode with 5 lines of context
+gotk ctx BuildChain -d 5
+
+# Definition mode (func, class, type declarations)
+gotk ctx Handler --def -t go
+
+# Tree mode (structural skeleton)
+gotk ctx main --tree
+
+# Summary mode (directory breakdown)
+gotk ctx "func.*Error" --summary
+
+# Filter by type with max results
+gotk --stats ctx BuildChain -t go -m 10
 .fi
 .SS Measurement
 .nf

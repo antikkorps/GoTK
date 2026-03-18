@@ -13,6 +13,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/classify"
 	"github.com/antikkorps/GoTK/internal/config"
+	gotkctx "github.com/antikkorps/GoTK/internal/ctx"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/measure"
@@ -308,6 +309,15 @@ type grepArgs struct {
 	LineNumber bool  `json:"line_number"`
 }
 
+type ctxArgs struct {
+	Pattern  string `json:"pattern"`
+	Path     string `json:"path"`
+	Mode     string `json:"mode"`
+	Context  int    `json:"context"`
+	FileType string `json:"file_type"`
+	MaxFiles int    `json:"max_files"`
+}
+
 type toolCallResult struct {
 	Content []contentBlock `json:"content"`
 }
@@ -485,6 +495,22 @@ func buildToolsList() toolsListResult {
 				},
 			},
 			{
+				Name:        "gotk_ctx",
+				Description: "Search codebase with 5 output modes optimized for LLM consumption. Built-in exclusions (node_modules, .git, vendor, etc.), binary detection, and GoTK filtering. Modes: scan (default), detail, def, tree, summary.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"pattern":   {Type: "string", Description: "Search pattern (regex)"},
+						"path":      {Type: "string", Description: "Root directory to search (default: current directory)"},
+						"mode":      {Type: "string", Description: "Output mode: scan (default), detail, def, tree, summary"},
+						"context":   {Type: "integer", Description: "Lines of context for detail mode (default: 3)"},
+						"file_type": {Type: "string", Description: "File extension filter (e.g., 'go', 'py', 'ts')"},
+						"max_files": {Type: "integer", Description: "Maximum number of file results (0 = unlimited)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+			{
 				Name:        "gotk_grep",
 				Description: "Search file contents with noise removal. Results are grouped by file with compressed paths. More token-efficient than grep. Automatically applies recursive search and line numbers.",
 				InputSchema: inputSchema{
@@ -516,6 +542,8 @@ func handleToolCall(cfg *config.Config, fc *cache.Cache, req jsonRPCRequest) {
 		handleExec(cfg, fc, req.ID, params.Arguments)
 	case "gotk_filter":
 		handleFilter(cfg, fc, req.ID, params.Arguments)
+	case "gotk_ctx":
+		handleCtx(cfg, req.ID, params.Arguments)
 	case "gotk_read":
 		handleRead(cfg, fc, req.ID, params.Arguments)
 	case "gotk_grep":
@@ -919,6 +947,71 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	if result.ExitCode == 1 {
 		text = "[no matches found]\n" + stats
+	}
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+func handleCtx(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args ctxArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Pattern == "" {
+		sendError(id, -32602, "pattern is required")
+		return
+	}
+
+	logErr("CTX: pattern=%q mode=%s path=%s", args.Pattern, args.Mode, args.Path)
+
+	// Build CLI-style args for gotkctx.Run
+	var ctxCLIArgs []string
+
+	switch args.Mode {
+	case "detail":
+		ctxCLIArgs = append(ctxCLIArgs, "-d")
+		if args.Context > 0 {
+			ctxCLIArgs = append(ctxCLIArgs, fmt.Sprintf("%d", args.Context))
+		}
+	case "def":
+		ctxCLIArgs = append(ctxCLIArgs, "--def")
+	case "tree":
+		ctxCLIArgs = append(ctxCLIArgs, "--tree")
+	case "summary":
+		ctxCLIArgs = append(ctxCLIArgs, "--summary")
+	}
+
+	if args.FileType != "" {
+		ctxCLIArgs = append(ctxCLIArgs, "-t", args.FileType)
+	}
+	if args.MaxFiles > 0 {
+		ctxCLIArgs = append(ctxCLIArgs, "-m", fmt.Sprintf("%d", args.MaxFiles))
+	}
+	if args.Path != "" {
+		ctxCLIArgs = append(ctxCLIArgs, "-p", args.Path)
+	}
+
+	ctxCLIArgs = append(ctxCLIArgs, args.Pattern)
+
+	maxLines := cfg.General.MaxLines
+	output, err := gotkctx.Run(cfg, ctxCLIArgs, maxLines, false)
+	if err != nil {
+		sendError(id, -32603, err.Error())
+		return
+	}
+
+	text := output
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
 	}
 
 	sendResult(id, toolCallResult{
