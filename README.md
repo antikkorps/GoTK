@@ -85,6 +85,34 @@ git log -50 | gotk --stats
 cat build.log | gotk --max-lines 100
 ```
 
+### Watch mode
+
+Re-run commands on file changes:
+
+```bash
+gotk watch -- go test ./...
+gotk watch --ext .go --ext .mod -- go test ./internal/...
+```
+
+### Pattern learning
+
+Teach GoTK which lines are noise in your project:
+
+```bash
+gotk learn run go test ./...     # Observe (repeat a few times)
+gotk learn suggest               # Get regex suggestions for .gotk.toml
+gotk --learn make build          # Passive observation
+```
+
+### Benchmarks and measurement
+
+```bash
+gotk bench                       # Run benchmark suite
+gotk bench --per-filter          # Per-filter contribution
+gotk --measure go test ./...     # Log token savings
+gotk measure report --period 7d  # View report
+```
+
 ## Flags
 
 | Flag | Short | Description |
@@ -96,6 +124,9 @@ cat build.log | gotk --max-lines 100
 | `--balanced` | | Default mode — good reduction, preserves important lines |
 | `--aggressive` | | Maximum reduction, acceptable info loss |
 | `--stream` | | Stream output line-by-line with real-time filtering |
+| `--measure` | | Enable token consumption logging |
+| `--learn` | | Passively observe output for pattern learning |
+| `--profile` | | LLM profile: `claude`, `gpt`, `gemini` |
 | `--help` | `-h` | Show help |
 | `--version` | `-v` | Show version |
 
@@ -112,11 +143,15 @@ command output
       |
       v
   [Filter Chain]
+      |-- RemoveByRules ........ blacklist (always_remove patterns)
       |-- StripANSI ............. remove escape codes
       |-- NormalizeWhitespace ... collapse blanks, trim trailing spaces
       |-- Dedup ................. collapse consecutive duplicate lines
       |-- <command-specific> .... grep grouping, path compression, etc.
       |-- TrimEmpty ............. remove decorative separator lines
+      |-- CompressStackTraces ... condense Go/Python/Node.js traces
+      |-- RedactSecrets ......... API keys, tokens, passwords → [REDACTED]
+      |-- Summarize ............. error/warning counts for large output
       |-- Truncate .............. cap at --max-lines (head + tail)
       |
       v
@@ -135,11 +170,18 @@ For detailed internals, see [docs/architecture.md](docs/architecture.md).
 ```
 cmd/gotk/          CLI entrypoint, flag parsing, pipe detection
 internal/exec/     Command execution and output capture
-internal/filter/   Filter chain + individual filter functions
-internal/detect/   Command identification + command-specific filter selection
+internal/filter/   Filter chain, generic filters, stack traces, secret redaction
+internal/detect/   Command identification + 9 command-specific filters
+internal/classify/ Semantic line classifier (Noise → Critical)
 internal/ctx/      Context search engine (walk, search, 5 formatters)
+internal/learn/    Project-specific pattern learning
+internal/proxy/    Proxy shell mode, filter chain builder
+internal/config/   TOML config loader (global, project, local)
 internal/mcp/      MCP server (gotk_exec, gotk_filter, gotk_read, gotk_grep, gotk_ctx)
 internal/cache/    LRU content-hash cache for filter results
+internal/watch/    File watcher with re-run loop
+internal/measure/  Token consumption measurement and reporting
+internal/bench/    Benchmark suite with realistic fixtures
 ```
 
 Key design decisions:
@@ -180,6 +222,14 @@ always_remove = ["^DEBUG:", "^TRACE:"]   # regex: these lines are always removed
 grep = 30       # per-command max_lines overrides
 test = 200
 git = 100
+
+[learn]
+min_sessions = 3       # sessions needed before suggesting patterns
+min_frequency = 0.05   # minimum line frequency (5%)
+min_noise = 0.80       # minimum noise confidence (80%)
+
+[measure]
+enabled = false
 ```
 
 ## Filter Catalog

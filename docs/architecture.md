@@ -9,17 +9,56 @@ cmd/gotk/main.go       Entry point. Parses flags, detects pipe vs direct mode,
                         orchestrates exec -> detect -> filter -> output.
 
 internal/exec/          Runner. Executes a subprocess, captures stdout/stderr
-                        separately, returns exit code.
+                        separately, returns exit code. Supports timeout and
+                        streaming (RunStream).
 
-internal/filter/        The filter chain and all generic filter functions.
+internal/filter/        The filter chain, generic filter functions, stream
+                        filter, stack trace compression, secret redaction,
+                        and output summarization.
 
 internal/detect/        Command type identification (by name and by output
-                        pattern) and command-specific filter functions.
+                        pattern) and command-specific filter functions for
+                        9 command types (grep, find, git, go, ls, docker,
+                        npm/yarn, cargo, make).
+
+internal/classify/      Semantic line classifier. Categorizes each line as
+                        Noise, Debug, Info, Warning, Error, or Critical.
+                        Used by quality scoring, learn, and summarization.
 
 internal/ctx/           Context search engine. Walks files with built-in
                         exclusions, regex search, and 5 output formatters
                         (scan, detail, def, tree, summary). Output goes
                         through proxy.BuildChain for standard GoTK filtering.
+
+internal/proxy/         Proxy shell mode (--shell, -c). Builds the filter
+                        chain (BuildChain) combining config, command type,
+                        and rules.
+
+internal/config/        TOML config loader with 3-level precedence (global,
+                        project, local). No external dependencies.
+
+internal/mcp/           MCP server (Model Context Protocol). Exposes
+                        gotk_exec, gotk_filter, gotk_read, gotk_grep,
+                        gotk_ctx as JSON-RPC tools over stdio.
+
+internal/cache/         LRU content-hash cache for filter results. Skips
+                        re-filtering identical output across invocations.
+
+internal/learn/         Project-specific pattern learning. Observes command
+                        output, classifies lines, normalizes variable parts,
+                        and suggests always_remove patterns for .gotk.toml.
+
+internal/watch/         Watch mode. Polls for file changes and re-runs the
+                        command with filtered output. Debounce and extension
+                        filtering support.
+
+internal/measure/       Token consumption measurement. JSONL logger, report
+                        generation, quality scoring.
+
+internal/bench/         Benchmark suite with realistic fixtures. Per-filter
+                        contribution analysis, A/B testing, quality scoring.
+
+internal/errors/        Custom error types (typed errors instead of raw strings).
 ```
 
 ## Filter Chain Pattern
@@ -32,15 +71,19 @@ type FilterFunc func(string) string
 
 Filters are pure functions: string in, string out. They are composed into a `filter.Chain`, which applies them sequentially — each filter receives the output of the previous one.
 
-The chain is built in `main.go` (`buildFilterChainForType`) with a fixed structure:
+The chain is built in `proxy.BuildChain()` with a fixed structure:
 
-1. **Generic filters** (always applied, in order):
+1. **Blacklist rules** (`RemoveByRules` — from `[rules] always_remove` config)
+2. **Generic filters** (always applied, in order):
    - `StripANSI`
    - `NormalizeWhitespace`
    - `Dedup`
-2. **Command-specific filters** (zero or more, determined by `detect.FiltersFor`)
-3. **Final cleanup**:
+3. **Command-specific filters** (zero or more, determined by `detect.FiltersFor`)
+4. **Final cleanup**:
    - `TrimEmpty`
+   - `CompressStackTraces` (Go, Python, Node.js)
+   - `RedactSecrets` (API keys, tokens, passwords, JWTs)
+   - `Summarize` (error/warning counts for large output)
    - `Truncate` (always last)
 
 Order matters. ANSI codes must be stripped before whitespace normalization. Dedup runs before command-specific filters so they operate on already-deduplicated input. Truncation is always last so the line budget applies to the final cleaned output.
@@ -60,6 +103,10 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `CmdGit` | git, gh |
 | `CmdGoTool` | go |
 | `CmdLs` | ls, exa, eza, lsd |
+| `CmdDocker` | docker, docker-compose, podman |
+| `CmdNpm` | npm, yarn, pnpm, npx, bun |
+| `CmdCargo` | cargo, rustc |
+| `CmdMake` | make, cmake, ninja |
 | `CmdGeneric` | everything else |
 
 ### Auto-detection (pipe mode)
@@ -88,6 +135,10 @@ A command type is selected only if it matches more than 40% of sampled lines (mi
 | `CmdGit` | `compressGitOutput` |
 | `CmdGoTool` | `CompressPaths`, `compressGoOutput` |
 | `CmdLs` | `compressLsOutput` |
+| `CmdDocker` | `compressDockerOutput` |
+| `CmdNpm` | `compressNpmOutput` |
+| `CmdCargo` | `compressCargoOutput` |
+| `CmdMake` | `compressMakeOutput` |
 | `CmdGeneric` | `CompressPaths` |
 
 For details on what each filter does, see [docs/filters.md](filters.md).
@@ -98,7 +149,7 @@ To add a new generic filter:
 
 1. Create a file in `internal/filter/` (e.g., `myfilter.go`)
 2. Implement the function with signature `func(string) string`
-3. Add it to the chain in `main.go`'s `buildFilterChainForType` at the appropriate position
+3. Add it to the chain in `proxy.BuildChain()` at the appropriate position
 
 Guidelines:
 - Filters must be idempotent — applying twice should produce the same result as once

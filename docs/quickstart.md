@@ -156,6 +156,47 @@ gotk --stream make build
 GOTK_PASSTHROUGH=1 your-command
 ```
 
+## Watch Mode
+
+Re-run commands on file changes with filtered output — great for TDD loops:
+
+```bash
+gotk watch -- go test ./...                     # Watch all files
+gotk watch --ext .go --ext .mod -- go test ./...  # Only .go and .mod files
+gotk watch --interval 5s -p src -- make build   # Custom interval and path
+```
+
+## Pattern Learning
+
+Teach GoTK which lines are noise in your project. After a few sessions, it suggests `always_remove` patterns for your `.gotk.toml`:
+
+```bash
+gotk learn run go test ./...        # Observe test output
+gotk learn run make build           # Observe build output
+gotk learn run cargo build          # Repeat a few times...
+gotk learn suggest                  # Get pattern suggestions
+gotk learn status                   # View observation stats
+gotk learn clear                    # Reset observations
+```
+
+Passive mode — observe while working normally:
+
+```bash
+gotk --learn go test ./...
+```
+
+## Benchmarks
+
+Measure GoTK's performance on realistic fixtures:
+
+```bash
+gotk bench                     # Full benchmark suite
+gotk bench --per-filter        # Per-filter contribution breakdown
+gotk bench --quality           # Quality score (% important lines preserved)
+gotk bench --abtest            # Compare conservative/balanced/aggressive
+gotk bench --json              # JSON output for CI
+```
+
 ## Measure Token Savings
 
 ```bash
