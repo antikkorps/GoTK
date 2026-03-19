@@ -141,9 +141,56 @@ line 186
 line 200
 ```
 
+## Stack Trace Filters
+
+These run on all output (generic), since panics and tracebacks can appear in any command's output.
+
+### CompressStackTraces
+
+**File:** `internal/filter/stacktrace.go`
+
+Condenses repetitive stack traces for Go, Python, and Node.js. Keeps the error cause and top frame(s), collapses the rest.
+
+**Go stack trace before:**
+```
+goroutine 1 [running]:
+main.handler(0xc0000b2000)
+	/app/server.go:45 +0x1a0
+main.middleware(0xc0000b2000)
+	/app/middleware.go:22 +0x80
+main.router(0xc0000b2000)
+	/app/router.go:15 +0x60
+net/http.(*ServeMux).ServeHTTP(...)
+	/usr/local/go/src/net/http/server.go:2424
+net/http.serverHandler.ServeHTTP(...)
+	/usr/local/go/src/net/http/server.go:2938
+```
+
+**After:**
+```
+goroutine 1 [running]:
+main.handler(0xc0000b2000)
+	/app/server.go:45 +0x1a0
+  ... (4 frames collapsed)
+```
+
+**Python traceback** and **Node.js stack traces** follow the same pattern: keep the cause and top frames, collapse deep internal frames.
+
+### RedactSecrets
+
+**File:** `internal/filter/secrets.go`
+
+Detects and redacts sensitive values: API keys, bearer tokens, JWTs, AWS credentials, private keys, and password patterns. Replaces with `[REDACTED]`.
+
+### Summarize
+
+**File:** `internal/filter/summarize.go`
+
+For large outputs, prepends a structured summary with error/warning counts, file paths mentioned in errors, and key error lines. Helps LLMs quickly understand the output before reading details.
+
 ## Command-Specific Filters
 
-These are selected based on command detection. They live in `internal/detect/detect.go`. See [architecture.md](architecture.md#command-detection) for how detection works.
+These are selected based on command detection. They live in `internal/detect/`. See [architecture.md](architecture.md#command-detection) for how detection works.
 
 ### Grep: `compressGrepOutput`
 
@@ -278,4 +325,92 @@ drwxr-xr-x 384 .
 drwxr-xr-x 160 ..
 -rw-r--r-- 1234 main.go
 -rw-r--r-- 567 go.mod
+```
+
+### Docker: `compressDockerOutput`
+
+**Applies to:** docker, docker-compose, podman
+
+Strips pull progress bars (`Pulling fs layer`, `Downloading`, `Extracting`), build step prefixes, and redundant layer hashes. Preserves build errors, warnings, and final image IDs.
+
+**Before:**
+```
+Step 1/5 : FROM node:18-alpine
+ ---> abc1234def56
+Step 2/5 : COPY package.json .
+ ---> Using cache
+ ---> 789abc012def
+Downloading [========>          ] 45.2MB/120MB
+Downloading [===========>       ] 67.8MB/120MB
+Successfully built abc1234def56
+```
+
+**After:**
+```
+Step 1/5 : FROM node:18-alpine
+Step 2/5 : COPY package.json .
+Successfully built abc1234def56
+```
+
+### Npm: `compressNpmOutput`
+
+**Applies to:** npm, yarn, pnpm, npx, bun
+
+Strips install progress, download counts, deprecation warnings (kept as summary), and audit noise. Preserves errors and the final install summary.
+
+**Before:**
+```
+npm warn deprecated inflight@1.0.6: This module is not supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+added 847 packages, and audited 848 packages in 12s
+found 0 vulnerabilities
+```
+
+**After:**
+```
+added 847 packages, and audited 848 packages in 12s
+found 0 vulnerabilities
+```
+
+### Cargo: `compressCargoOutput`
+
+**Applies to:** cargo, rustc
+
+Collapses `Compiling` and `Downloading` lines into summary counts. Preserves all error and warning messages verbatim.
+
+**Before:**
+```
+   Compiling serde v1.0.152
+   Compiling tokio v1.28.0
+   Compiling hyper v0.14.26
+   Compiling my-project v0.1.0
+    Finished dev [unoptimized + debuginfo] target(s) in 15.3s
+```
+
+**After:**
+```
+  compiled 4 crates
+    Finished dev [unoptimized + debuginfo] target(s) in 15.3s
+```
+
+### Make: `compressMakeOutput`
+
+**Applies to:** make, cmake, ninja
+
+Strips `make[N]: Entering/Leaving directory` messages and collapses verbose compiler invocations (gcc/g++/cc with many flags) into a short form. Preserves all errors and warnings.
+
+**Before:**
+```
+make[1]: Entering directory '/src/lib'
+gcc -Wall -Wextra -O2 -fPIC -I../include -I/usr/local/include -DNDEBUG -c -o lib.o lib.c
+make[1]: Leaving directory '/src/lib'
+make[1]: Entering directory '/src/main'
+gcc -Wall -Wextra -O2 -I../include -c -o main.o main.c
+make[1]: Leaving directory '/src/main'
+```
+
+**After:**
+```
+gcc ... -o lib.o lib.c
+gcc ... -o main.o main.c
 ```

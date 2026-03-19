@@ -17,6 +17,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/mcp"
 	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
@@ -29,6 +30,7 @@ var (
 	shellCmd        string // -c "command"
 	streamMode      bool
 	measureFlag     bool   // --measure flag
+	learnFlag       bool   // --learn flag for passive observation
 	maxLines        int
 	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
 	cfg             *config.Config
@@ -135,6 +137,9 @@ func main() {
 	case "ctx":
 		runCtx(args[1:])
 		os.Exit(0)
+	case "learn":
+		runLearn(args[1:])
+		os.Exit(0)
 	case "watch":
 		runWatch(args[1:])
 		os.Exit(0)
@@ -194,6 +199,11 @@ func main() {
 	cleaned := chain.Apply(result.Stdout)
 	logMeasurement(strings.Join(cmdArgs, " "), cmdType.String(), result.Stdout, cleaned, time.Since(start), false)
 
+	// Passive learn: observe raw output if --learn flag is set
+	if learnFlag && result.Stdout != "" {
+		observeForLearn(strings.Join(cmdArgs, " "), result.Stdout)
+	}
+
 	// Output
 	printWithStats(result.Stdout, cleaned)
 
@@ -228,6 +238,8 @@ func parseFlags(args []string) []string {
 			streamMode = true
 		case "--measure":
 			measureFlag = true
+		case "--learn":
+			learnFlag = true
 		case "--aggressive":
 			cfg.General.Mode = config.ModeAggressive
 		case "--balanced":
@@ -630,6 +642,110 @@ func runMeasure(args []string) {
 	}
 }
 
+// runLearn handles the "gotk learn" subcommand.
+func runLearn(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "gotk learn: missing subcommand (run, suggest, status, clear)")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  gotk learn run <command> [args...]   Observe a command's output")
+		fmt.Fprintln(os.Stderr, "  gotk learn suggest                   Analyze and propose patterns")
+		fmt.Fprintln(os.Stderr, "  gotk learn status                    Show observation statistics")
+		fmt.Fprintln(os.Stderr, "  gotk learn clear                     Delete all observations")
+		os.Exit(1)
+	}
+
+	storePath := learn.DefaultStorePath()
+
+	switch args[0] {
+	case "run":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "gotk learn run: missing command")
+			os.Exit(1)
+		}
+		cmdArgs := args[1:]
+
+		// Execute the command
+		result, err := exec.Run(cmdArgs[0], cmdArgs[1:]...)
+		if err != nil && result == nil {
+			fmt.Fprintf(os.Stderr, "gotk learn run: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Observe the raw output
+		sessionID := learn.NewSessionID()
+		collector := learn.NewCollector(strings.Join(cmdArgs, " "), sessionID)
+		collector.Observe(result.Stdout)
+		if result.Stderr != "" {
+			collector.Observe(result.Stderr)
+		}
+
+		if err := learn.StoreWrite(storePath, collector.Observations()); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk learn: failed to write observations: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Also output the filtered result normally
+		cmdType := detect.Identify(cmdArgs[0])
+		chain := proxy.BuildChain(cfg, cmdType, maxLines)
+		cleaned := chain.Apply(result.Stdout)
+		fmt.Print(cleaned)
+		if result.Stderr != "" {
+			fmt.Fprint(os.Stderr, result.Stderr)
+		}
+
+		fmt.Fprintf(os.Stderr, "\n[gotk learn] observed %d lines from %q\n", collector.Count(), strings.Join(cmdArgs, " "))
+
+	case "suggest":
+		observations, err := learn.StoreRead(storePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk learn suggest: %v\n", err)
+			os.Exit(1)
+		}
+
+		acfg := learn.AnalyzerConfig{
+			MinSessions:   cfg.Learn.MinSessions,
+			MinFrequency:  cfg.Learn.MinFrequency,
+			MinNoiseScore: cfg.Learn.MinNoise,
+			MaxBreadth:    0.30,
+		}
+		result := learn.Analyze(observations, acfg)
+		fmt.Print(learn.FormatSuggestions(result))
+
+	case "status":
+		stats, err := learn.StoreStat(storePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk learn status: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(learn.FormatStatus(stats))
+
+	case "clear":
+		if err := learn.StoreClear(storePath); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk learn clear: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "gotk learn: observation store cleared.")
+
+	default:
+		fmt.Fprintf(os.Stderr, "gotk learn: unknown subcommand %q (use run, suggest, status, clear)\n", args[0])
+		os.Exit(1)
+	}
+}
+
+// observeForLearn performs passive observation when --learn flag is active.
+func observeForLearn(command, rawOutput string) {
+	storePath := learn.DefaultStorePath()
+	sessionID := learn.NewSessionID()
+	collector := learn.NewCollector(command, sessionID)
+	collector.Observe(rawOutput)
+	if err := learn.StoreWrite(storePath, collector.Observations()); err != nil {
+		fmt.Fprintf(os.Stderr, "[gotk learn] warning: %v\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[gotk learn] observed %d lines\n", collector.Count())
+}
+
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
@@ -647,6 +763,7 @@ Usage:
 
 Subcommands:
   ctx       Context search with 5 output modes (gotk ctx pattern)
+  learn     Project-specific pattern learning (run, suggest, status, clear)
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
@@ -663,6 +780,7 @@ Flags:
   --mode MODE          Set filter mode explicitly
   --stream             Stream output line-by-line (real-time)
   --measure            Enable token consumption logging
+  --learn              Passively observe output for pattern learning
   --profile PROFILE    LLM profile: claude, gpt, gemini
   --shell              Start proxy shell mode
   -c "command"         Execute single command
@@ -801,6 +919,41 @@ Examples:
   gotk measure report
   gotk measure report --period 7d --json
   gotk measure status`,
+
+		"learn": `gotk learn — Project-Specific Pattern Learning
+
+Usage:
+  gotk learn run <command> [args...]   Observe a command's output
+  gotk learn suggest                   Analyze and propose always_remove patterns
+  gotk learn status                    Show observation statistics
+  gotk learn clear                     Delete all observations
+
+Passive mode (observe while working normally):
+  gotk --learn <command> [args...]     Same as normal execution + silent observation
+
+How it works:
+  1. Run your usual commands with "gotk learn run" a few times
+  2. GoTK classifies each line (noise/debug/info/warning/error)
+  3. Normalizes variable parts (hashes, timestamps, numbers, versions)
+  4. Groups by normalized form and tracks frequency across sessions
+  5. "gotk learn suggest" proposes regex patterns for .gotk.toml [rules]
+
+Safety:
+  - Patterns that match any warning/error line are never suggested
+  - Minimum 80% noise confidence required (configurable)
+  - Human review required: suggestions are not auto-applied
+
+Config (.gotk.toml):
+  [learn]
+  min_sessions = 3       # Sessions needed before suggesting
+  min_frequency = 0.05   # Minimum line frequency (5%)
+  min_noise = 0.80       # Minimum noise confidence (80%)
+
+Examples:
+  gotk learn run go test ./...         Observe test output
+  gotk learn run make build            Observe build output
+  gotk learn suggest                   See pattern suggestions
+  gotk --learn go test ./...           Passive observation`,
 
 		"mcp": `gotk --mcp — MCP Server Mode (Model Context Protocol)
 

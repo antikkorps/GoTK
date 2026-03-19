@@ -41,6 +41,9 @@ gotk \- LLM output proxy for token-efficient AI coding
 .br
 .B gotk measure
 .I subcommand
+.br
+.B gotk learn
+.I subcommand
 .SH DESCRIPTION
 .B gotk
 acts as a proxy between shell commands and LLMs, cleaning command output to
@@ -51,9 +54,12 @@ stack traces, or diagnostic information. It only strips pure noise: ANSI escape
 codes, decorative separators, duplicate lines, redundant path prefixes, and
 excessive blank lines.
 .PP
-GoTK detects the command type (grep, git, find, go test, etc.) and applies
-specialized filters on top of generic cleaning. The result is output that
-contains the same information in far fewer tokens.
+GoTK detects the command type (grep, git, find, go test, docker, npm, cargo,
+make, etc.) and applies specialized filters on top of generic cleaning. The
+result is output that contains the same information in far fewer tokens.
+.PP
+GoTK can also learn project-specific noise patterns over time and suggest
+custom filter rules for your \fI.gotk.toml\fR configuration.
 .SH MODES
 .TP
 .B Direct mode
@@ -154,6 +160,13 @@ Stream output line-by-line with real-time filtering instead of batch processing.
 .TP
 .B \-\-measure
 Enable token consumption measurement logging for the current invocation.
+.TP
+.B \-\-learn
+Passively observe output for pattern learning. Observations are stored in
+.I .gotk\-learn.jsonl
+and can be analyzed with
+.B gotk learn suggest
+to generate custom filter rules.
 .TP
 .BI "\-\-profile " PROFILE
 Set LLM profile:
@@ -270,9 +283,32 @@ Show measurement status (enabled/disabled, log path, log size).
 Clear the measurement log.
 .RE
 .TP
+.B learn
+Project-specific pattern learning.
+.RS
+.TP
+.BI "run " "command [args...]"
+Execute a command, observe its output for noise patterns. Repeat with different
+commands over multiple sessions to build up enough data.
+.TP
+.B suggest
+Analyze collected observations and propose
+.B always_remove
+regex patterns for
+.IR .gotk.toml .
+Requires at least 3 sessions (configurable). Patterns that match any
+Warning or Error lines are never suggested.
+.TP
+.B status
+Show observation statistics (lines, sessions, store size).
+.TP
+.B clear
+Delete all collected observations.
+.RE
+.TP
 .B help
 Show help for a subcommand.
-.B gotk help watch
+.B gotk help learn
 .SH CONFIGURATION
 Configuration files are loaded in order of precedence (lowest to highest):
 .TP
@@ -312,6 +348,11 @@ git = 100
 [security]
 command_timeout = 300
 sandbox_mode = false
+
+[learn]
+min_sessions = 3
+min_frequency = 0.05
+min_noise = 0.80
 .fi
 .SH ENVIRONMENT
 .TP
@@ -345,17 +386,21 @@ gotk --no-truncate go test ./...
 .fi
 .SS AI tool integration (CLI mode — recommended)
 .nf
-# Claude Code: add PostToolUse hook in ~/.claude/settings.json
-# { "hooks": { "PostToolUse": [
-#   { "matcher": "Bash",
-#     "hooks": [{"type":"command","command":"cat | gotk"}] }
-# ]}}
+# Claude Code: add gotk prefix instructions to CLAUDE.md
+# Or use MCP mode: claude mcp add --transport stdio gotk -- gotk --mcp
 
 # Aider
 SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash aider
 
 # Cursor
 SHELL=/usr/local/bin/gotk GOTK_SHELL=/bin/bash cursor .
+.fi
+.SS Pattern learning
+.nf
+gotk learn run go test ./...
+gotk learn run make build
+gotk learn suggest
+gotk --learn cargo build
 .fi
 .SS Context search
 .nf

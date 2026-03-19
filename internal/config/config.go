@@ -33,12 +33,20 @@ const (
 	ProfileGemini LLMProfile = "gemini"     // Google Gemini (1M+ context)
 )
 
+// LearnConfig controls the pattern learning subsystem.
+type LearnConfig struct {
+	MinSessions  int     // minimum sessions before suggesting (default: 3)
+	MinFrequency float64 // minimum line frequency to suggest (default: 0.05)
+	MinNoise     float64 // minimum noise confidence (default: 0.80)
+}
+
 // Config holds all gotk configuration options.
 type Config struct {
 	General    GeneralConfig
 	Filters    FiltersConfig
 	Security   SecurityConfig
 	Measure    MeasureConfig
+	Learn      LearnConfig
 	Profile    LLMProfile            // target LLM profile
 	Commands   map[string]string     // custom command-type mappings
 	Rules      RulesConfig           // whitelist/blacklist patterns
@@ -110,6 +118,11 @@ func Default() *Config {
 			Enabled:    false,
 			LogPath:    defaultMeasureLogPath(),
 			MaxLogSize: 5 * 1024 * 1024, // 5 MB
+		},
+		Learn: LearnConfig{
+			MinSessions:  3,
+			MinFrequency: 0.05,
+			MinNoise:     0.80,
 		},
 		Commands:   map[string]string{},
 		Rules:      RulesConfig{},
@@ -295,6 +308,21 @@ func applyTOML(cfg *Config, data string) {
 			switch key {
 			case "name":
 				cfg.Profile = ParseProfile(val)
+			}
+		case "learn":
+			switch key {
+			case "min_sessions":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.Learn.MinSessions = n
+				}
+			case "min_frequency":
+				if f, err := strconv.ParseFloat(val, 64); err == nil {
+					cfg.Learn.MinFrequency = f
+				}
+			case "min_noise":
+				if f, err := strconv.ParseFloat(val, 64); err == nil {
+					cfg.Learn.MinNoise = f
+				}
 			}
 		case "truncation":
 			if n, err := strconv.Atoi(val); err == nil {
