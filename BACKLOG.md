@@ -240,7 +240,7 @@
 - [x] Update filter catalog documentation
 - [x] Update architecture documentation
 - [x] Update man page with new supported commands
-- [ ] Tag v1.2.0
+- [x] Tag v1.2.0
 
 ---
 
