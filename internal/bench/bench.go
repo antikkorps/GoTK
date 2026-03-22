@@ -54,6 +54,13 @@ func allFixtures() []fixture {
 		{"mixed errors", generateMixedErrorsFixture, detect.CmdGeneric},
 		{"ctx scan", generateCtxScanFixture, detect.CmdGeneric},
 		{"ctx detail", generateCtxDetailFixture, detect.CmdGeneric},
+		{"curl verbose", generateCurlFixture, detect.CmdCurl},
+		{"python traceback", generatePythonFixture, detect.CmdPython},
+		{"terraform plan", generateTerraformFixture, detect.CmdTerraform},
+		{"kubectl describe", generateKubectlFixture, detect.CmdKubectl},
+		{"tar listing", generateTarFixture, detect.CmdTar},
+		{"ssh remote", generateSSHFixture, detect.CmdSSH},
+		{"node runtime", generateNodeFixture, detect.CmdNode},
 	}
 }
 

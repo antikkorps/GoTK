@@ -44,8 +44,13 @@ func TestIdentify(t *testing.T) {
 		{"npm", "npm", CmdNpm},
 		{"yarn", "yarn", CmdNpm},
 		{"pnpm", "pnpm", CmdNpm},
-		{"npx", "npx", CmdNpm},
 		{"bun", "bun", CmdNpm},
+
+		// Node family
+		{"node", "node", CmdNode},
+		{"npx", "npx", CmdNode},
+		{"tsx", "tsx", CmdNode},
+		{"deno", "deno", CmdNode},
 
 		// Cargo family
 		{"cargo", "cargo", CmdCargo},
@@ -141,6 +146,7 @@ func TestFiltersFor(t *testing.T) {
 		{"jq filters", CmdJq, 1},
 		{"tar filters", CmdTar, 1},
 		{"ssh filters", CmdSSH, 1},
+		{"node filters", CmdNode, 1},
 		{"generic filters", CmdGeneric, 1},
 	}
 

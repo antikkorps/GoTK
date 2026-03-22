@@ -100,7 +100,29 @@ func AutoDetect(output string) CmdType {
 		}
 	}
 
-	// Return the type with highest score (if it matches >40% of sampled lines)
+	// Apply weights: error-bearing patterns score higher because they indicate
+	// the "real" command even in mixed output (e.g., npm errors inside make output)
+	weights := map[CmdType]int{
+		CmdGrep:   1,
+		CmdGoTool: 2, // go test failures are high signal
+		CmdLs:     1,
+		CmdFind:   1,
+		CmdNpm:    2, // npm ERR! lines are high signal
+		CmdCargo:  2,
+		CmdMake:   1,
+		CmdCurl:   1,
+	}
+
+	weightedScores := map[CmdType]int{}
+	for cmdType, score := range scores {
+		w := 1
+		if wt, ok := weights[cmdType]; ok {
+			w = wt
+		}
+		weightedScores[cmdType] = score * w
+	}
+
+	// Primary: return the type with highest weighted score (if it matches >40% of sampled lines)
 	bestType := CmdGeneric
 	bestScore := 0
 	threshold := len(sample) * 40 / 100
@@ -109,9 +131,34 @@ func AutoDetect(output string) CmdType {
 	}
 
 	for cmdType, score := range scores {
-		if score > bestScore && score >= threshold {
+		if score >= threshold && weightedScores[cmdType] > bestScore {
 			bestType = cmdType
-			bestScore = score
+			bestScore = weightedScores[cmdType]
+		}
+	}
+
+	// Fallback: if no type reached 40%, check if any type has at least 20% AND
+	// is the only one with meaningful matches (no competition).
+	// This helps with mixed output where the "real" command has a minority of lines.
+	if bestType == CmdGeneric {
+		lowThreshold := len(sample) * 20 / 100
+		if lowThreshold < 2 {
+			lowThreshold = 2
+		}
+		candidates := 0
+		var candidate CmdType
+		for cmdType, score := range scores {
+			if score >= lowThreshold {
+				candidates++
+				if weightedScores[cmdType] > bestScore {
+					candidate = cmdType
+					bestScore = weightedScores[cmdType]
+				}
+			}
+		}
+		// Only use the fallback if there's a single clear candidate
+		if candidates == 1 {
+			bestType = candidate
 		}
 	}
 

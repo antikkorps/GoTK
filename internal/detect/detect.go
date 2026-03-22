@@ -29,6 +29,7 @@ const (
 	CmdJq
 	CmdTar
 	CmdSSH
+	CmdNode
 )
 
 // String returns the name of the command type.
@@ -68,6 +69,8 @@ func (c CmdType) String() string {
 		return "tar"
 	case CmdSSH:
 		return "ssh"
+	case CmdNode:
+		return "node"
 	default:
 		return "generic"
 	}
@@ -91,8 +94,10 @@ func Identify(command string) CmdType {
 		return CmdLs
 	case base == "docker" || base == "docker-compose" || base == "podman":
 		return CmdDocker
-	case base == "npm" || base == "yarn" || base == "pnpm" || base == "npx" || base == "bun":
+	case base == "npm" || base == "yarn" || base == "pnpm" || base == "bun":
 		return CmdNpm
+	case base == "node" || base == "npx" || base == "tsx" || base == "ts-node" || base == "deno":
+		return CmdNode
 	case base == "cargo" || base == "rustc":
 		return CmdCargo
 	case base == "make" || base == "cmake" || base == "ninja":
@@ -155,6 +160,8 @@ func FiltersFor(cmdType CmdType) []filter.FilterFunc {
 		return []filter.FilterFunc{compressTarOutput}
 	case CmdSSH:
 		return []filter.FilterFunc{compressSSHOutput}
+	case CmdNode:
+		return []filter.FilterFunc{compressNodeOutput}
 	default:
 		return []filter.FilterFunc{filter.CompressPaths}
 	}

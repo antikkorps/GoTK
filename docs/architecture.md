@@ -18,9 +18,9 @@ internal/filter/        The filter chain, generic filter functions, stream
 
 internal/detect/        Command type identification (by name and by output
                         pattern) and command-specific filter functions for
-                        17 command types (grep, find, git, go, ls, docker,
+                        18 command types (grep, find, git, go, ls, docker,
                         npm/yarn, cargo, make, curl, python, tree, terraform,
-                        kubectl, jq, tar, ssh).
+                        kubectl, jq, tar, ssh, node).
 
 internal/classify/      Semantic line classifier. Categorizes each line as
                         Noise, Debug, Info, Warning, Error, or Critical.
@@ -116,6 +116,7 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `CmdJq` | jq, yq, gojq |
 | `CmdTar` | tar, zip, unzip, gzip, 7z |
 | `CmdSSH` | ssh, scp, sftp, rsync |
+| `CmdNode` | node, npx, tsx, ts-node, deno |
 | `CmdGeneric` | everything else |
 
 ### Auto-detection (pipe mode)
@@ -160,6 +161,7 @@ A command type is selected only if it matches more than 40% of sampled lines (mi
 | `CmdJq` | `compressJqOutput` |
 | `CmdTar` | `compressTarOutput` |
 | `CmdSSH` | `compressSSHOutput` |
+| `CmdNode` | `compressNodeOutput` |
 | `CmdGeneric` | `CompressPaths` |
 
 For details on what each filter does, see [docs/filters.md](filters.md).

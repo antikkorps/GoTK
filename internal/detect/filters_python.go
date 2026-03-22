@@ -19,6 +19,9 @@ var (
 	pipSatisfied = regexp.MustCompile(`^Requirement already satisfied:`)
 	// Python deprecation warnings
 	pyDeprecationWarning = regexp.MustCompile(`^\S+:\d+:\s*(DeprecationWarning|PendingDeprecationWarning|FutureWarning):`)
+	// Python import-related errors (preserve full chain for these)
+	pyImportError = regexp.MustCompile(`^(ImportError|ModuleNotFoundError|ModuleNotFound):`)
+
 )
 
 // compressPythonOutput compresses python/pip output.
@@ -86,24 +89,39 @@ func compressPythonOutput(input string) string {
 		}
 
 		// Condense Python tracebacks: keep header, first frame, last frame + error
+		// Exception: ImportError/ModuleNotFoundError keeps ALL frames (import chain is critical)
 		if pyTracebackHeader.MatchString(trimmed) {
 			result = append(result, line)
 			i++
 			frames := collectTracebackFrames(lines, &i)
+
+			// Peek at the error line to decide compression strategy
+			errorLine := ""
+			if i < len(lines) {
+				errorLine = lines[i]
+			}
+			isImportError := pyImportError.MatchString(strings.TrimSpace(errorLine))
+
 			if len(frames) > 0 {
-				if len(frames) > 2 {
-					result = append(result, frames[0].fileLine)
-					result = append(result, frames[0].codeLine)
-					result = append(result, "  ... "+itoa(len(frames)-2)+" more frames ...")
-					last := frames[len(frames)-1]
-					result = append(result, last.fileLine)
-					result = append(result, last.codeLine)
-				} else {
+				if isImportError || len(frames) <= 2 {
+					// Import errors: keep all frames (each shows a link in the import chain)
 					for _, f := range frames {
 						result = append(result, f.fileLine)
 						if f.codeLine != "" {
 							result = append(result, f.codeLine)
 						}
+					}
+				} else {
+					// Other errors: compress middle frames
+					result = append(result, frames[0].fileLine)
+					if frames[0].codeLine != "" {
+						result = append(result, frames[0].codeLine)
+					}
+					result = append(result, "  ... "+itoa(len(frames)-2)+" more frames ...")
+					last := frames[len(frames)-1]
+					result = append(result, last.fileLine)
+					if last.codeLine != "" {
+						result = append(result, last.codeLine)
 					}
 				}
 			}

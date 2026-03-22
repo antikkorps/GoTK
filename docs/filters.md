@@ -536,6 +536,32 @@ project/main.go
 project/utils.go
 ```
 
+### Node: `compressNodeOutput`
+
+**Applies to:** node, npx, tsx, ts-node, deno
+
+Strips experimental warnings (summarized by count), compresses deprecation warnings (keep first, count rest), removes webpack/vite/esbuild build progress and verbose module listings, and collapses Node.js internal stack frames. Preserves error messages, app stack frames, and build results.
+
+**Before:**
+```
+(node:12345) ExperimentalWarning: The Fetch API is an experimental feature
+(node:12345) ExperimentalWarning: Custom ESM Loaders is an experimental feature
+(node:12345) [DEP0001] DeprecationWarning: Deprecated API
+  10% building modules (50/500)
+  50% building modules (250/500)
+modules by path ./src/ 120 KiB
+webpack 5.89.0 compiled successfully in 4523 ms
+```
+
+**After:**
+```
+(2 experimental warnings)
+(node:12345) [DEP0001] DeprecationWarning: Deprecated API
+(3 build progress updates)
+(2 module/asset details)
+webpack 5.89.0 compiled successfully in 4523 ms
+```
+
 ### SSH: `compressSSHOutput`
 
 **Applies to:** ssh, scp, sftp, rsync

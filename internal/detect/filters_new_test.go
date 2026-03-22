@@ -131,6 +131,7 @@ func TestCompressPythonPipInstall(t *testing.T) {
 }
 
 func TestCompressPythonTraceback(t *testing.T) {
+	// ImportError traceback: ALL frames should be preserved (import chain)
 	input := strings.Join([]string{
 		"Traceback (most recent call last):",
 		`  File "/app/main.py", line 10, in <module>`,
@@ -151,17 +152,23 @@ func TestCompressPythonTraceback(t *testing.T) {
 		t.Error("should keep traceback header")
 	}
 
-	// Should keep first and last frames
+	// ImportError: all frames preserved (full import chain)
 	if !strings.Contains(got, "main.py") {
 		t.Error("should keep first frame")
+	}
+	if !strings.Contains(got, "handlers.py") {
+		t.Error("should keep import chain frame handlers.py")
+	}
+	if !strings.Contains(got, "utils.py") {
+		t.Error("should keep import chain frame utils.py")
 	}
 	if !strings.Contains(got, "db.py") {
 		t.Error("should keep last frame")
 	}
 
-	// Should compress middle frames
-	if !strings.Contains(got, "more frames") {
-		t.Error("should compress middle frames")
+	// Should NOT compress for ImportError
+	if strings.Contains(got, "more frames") {
+		t.Error("ImportError should NOT compress frames")
 	}
 
 	// Should keep error line
@@ -799,5 +806,180 @@ func TestCompressGoOutputPreservesErrors(t *testing.T) {
 	}
 	if !strings.Contains(got, "imported and not used") {
 		t.Error("must preserve unused import error")
+	}
+}
+
+// --- Node filter tests ---
+
+func TestCompressNodeWebpackNoise(t *testing.T) {
+	input := strings.Join([]string{
+		"(node:12345) ExperimentalWarning: The Fetch API is an experimental feature",
+		"(node:12345) ExperimentalWarning: Custom ESM Loaders is an experimental feature",
+		"(node:12345) [DEP0001] DeprecationWarning: Deprecated API 1",
+		"(node:12345) [DEP0002] DeprecationWarning: Deprecated API 2",
+		"(node:12345) [DEP0003] DeprecationWarning: Deprecated API 3",
+		"",
+		"  10% building modules (50/500)",
+		"  50% building modules (250/500)",
+		"  100% building modules (500/500)",
+		"asset main.js 245 KiB [emitted] (name: main)",
+		"modules by path ./src/ 120 KiB",
+		"runtime modules 5 KiB 10 modules",
+		"",
+		"webpack 5.89.0 compiled successfully in 4523 ms",
+	}, "\n")
+
+	got := compressNodeOutput(input)
+
+	// Should compress experimental warnings
+	if strings.Contains(got, "Fetch API") {
+		t.Error("should compress experimental warnings")
+	}
+	if !strings.Contains(got, "experimental warnings") {
+		t.Error("should have experimental warning summary")
+	}
+
+	// Should compress deprecation warnings
+	if !strings.Contains(got, "DEP0001") {
+		t.Error("should keep first deprecation")
+	}
+	if !strings.Contains(got, "more deprecation") {
+		t.Error("should summarize other deprecation warnings")
+	}
+
+	// Should compress webpack progress
+	if strings.Contains(got, "10% building") {
+		t.Error("should compress webpack progress")
+	}
+
+	// Should compress module details
+	if strings.Contains(got, "modules by path") {
+		t.Error("should compress webpack module details")
+	}
+
+	// Should keep build result
+	if !strings.Contains(got, "compiled successfully") {
+		t.Error("should keep webpack build result")
+	}
+}
+
+func TestCompressNodeInternalFrames(t *testing.T) {
+	input := strings.Join([]string{
+		"TypeError: Cannot read properties of undefined (reading 'map')",
+		"    at renderList (/app/src/components/UserList.tsx:15:23)",
+		"    at processChild (/app/src/utils/renderer.ts:42:10)",
+		"    at Module._compile (node:internal/modules/cjs/loader:1241:14)",
+		"    at Module._extensions..js (node:internal/modules/cjs/loader:1295:10)",
+		"    at Module.load (node:internal/modules/cjs/loader:1091:32)",
+		"    at Module._load (node:internal/modules/cjs/loader:938:12)",
+		"    at require (node:internal/modules/helpers:177:18)",
+	}, "\n")
+
+	got := compressNodeOutput(input)
+
+	// Must preserve error message
+	if !strings.Contains(got, "TypeError") {
+		t.Error("must preserve error message")
+	}
+
+	// Must preserve app frames
+	if !strings.Contains(got, "renderList") {
+		t.Error("must preserve app stack frames")
+	}
+	if !strings.Contains(got, "processChild") {
+		t.Error("must preserve app stack frames")
+	}
+
+	// Should compress internal frames
+	if strings.Contains(got, "Module._compile") {
+		t.Error("should compress node internal frames")
+	}
+	if !strings.Contains(got, "node internal frames") {
+		t.Error("should have internal frames summary")
+	}
+}
+
+// --- Python ImportError chain preservation ---
+
+func TestCompressPythonImportErrorPreservesChain(t *testing.T) {
+	input := strings.Join([]string{
+		"Traceback (most recent call last):",
+		`  File "/app/main.py", line 10, in <module>`,
+		"    from app.server import create_app",
+		`  File "/app/server.py", line 5, in <module>`,
+		"    from app.routes import register_routes",
+		`  File "/app/routes.py", line 3, in <module>`,
+		"    from app.handlers.auth import AuthHandler",
+		`  File "/app/handlers/auth.py", line 2, in <module>`,
+		"    from app.services.ldap import LDAPClient",
+		`  File "/app/services/ldap.py", line 1, in <module>`,
+		"    import ldap3",
+		"ModuleNotFoundError: No module named 'ldap3'",
+	}, "\n")
+
+	got := compressPythonOutput(input)
+
+	// ImportError: ALL frames should be preserved (import chain is critical)
+	if !strings.Contains(got, "main.py") {
+		t.Error("should preserve first frame for ImportError")
+	}
+	if !strings.Contains(got, "server.py") {
+		t.Error("should preserve import chain frame server.py")
+	}
+	if !strings.Contains(got, "routes.py") {
+		t.Error("should preserve import chain frame routes.py")
+	}
+	if !strings.Contains(got, "auth.py") {
+		t.Error("should preserve import chain frame auth.py")
+	}
+	if !strings.Contains(got, "ldap.py") {
+		t.Error("should preserve import chain frame ldap.py")
+	}
+
+	// Should NOT have "more frames" compression
+	if strings.Contains(got, "more frames") {
+		t.Error("ImportError should NOT compress frames")
+	}
+
+	// Must preserve error line
+	if !strings.Contains(got, "ModuleNotFoundError") {
+		t.Error("must preserve error line")
+	}
+}
+
+func TestCompressPythonNonImportErrorCompresses(t *testing.T) {
+	input := strings.Join([]string{
+		"Traceback (most recent call last):",
+		`  File "/app/main.py", line 10, in <module>`,
+		"    process()",
+		`  File "/app/process.py", line 20, in process`,
+		"    transform(data)",
+		`  File "/app/transform.py", line 30, in transform`,
+		"    validate(item)",
+		`  File "/app/validate.py", line 40, in validate`,
+		"    check(value)",
+		`  File "/app/check.py", line 50, in check`,
+		"    raise ValueError('bad')",
+		"ValueError: bad",
+	}, "\n")
+
+	got := compressPythonOutput(input)
+
+	// Non-import errors with >2 frames SHOULD be compressed
+	if !strings.Contains(got, "more frames") {
+		t.Error("non-import errors should compress middle frames")
+	}
+
+	// Should keep first and last frame
+	if !strings.Contains(got, "main.py") {
+		t.Error("should keep first frame")
+	}
+	if !strings.Contains(got, "check.py") {
+		t.Error("should keep last frame")
+	}
+
+	// Must preserve error
+	if !strings.Contains(got, "ValueError: bad") {
+		t.Error("must preserve error line")
 	}
 }
