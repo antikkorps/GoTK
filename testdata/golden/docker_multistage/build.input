@@ -1,0 +1,31 @@
+Sending build context to Docker daemon  15.87kB
+Step 1/8 : FROM golang:1.21-alpine AS builder
+ ---> abc123def456
+Step 2/8 : WORKDIR /app
+ ---> Running in 1234567890ab
+Removing intermediate container 1234567890ab
+ ---> 2345678901bc
+Step 3/8 : COPY go.mod go.sum ./
+ ---> Running in 3456789012cd
+Removing intermediate container 3456789012cd
+ ---> 4567890123de
+Step 4/8 : RUN go mod download
+ ---> Running in 5678901234ef
+Removing intermediate container 5678901234ef
+ ---> 6789012345fa
+Step 5/8 : COPY . .
+ ---> Running in 7890123456ab
+Removing intermediate container 7890123456ab
+ ---> 8901234567bc
+Step 6/8 : RUN CGO_ENABLED=0 go build -o /app/server ./cmd/server
+ ---> Running in 9012345678cd
+Removing intermediate container 9012345678cd
+ ---> 0123456789de
+Step 7/8 : FROM alpine:3.19
+ ---> aabbccddee11
+Step 8/8 : COPY --from=builder /app/server /server
+ ---> Running in bbccddee2233
+Removing intermediate container bbccddee2233
+ ---> ccddee334455
+Successfully built ccddee334455
+Successfully tagged myapp:v1.2.3

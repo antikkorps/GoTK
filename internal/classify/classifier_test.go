@@ -71,6 +71,17 @@ func TestClassify(t *testing.T) {
 		{"HACK comment", "HACK: workaround for issue #123", Warning},
 		{"skipped test", "--- SKIP: TestFoo (0.00s)", Warning},
 
+		// Rust compiler diagnostics (note/help lines)
+		{"rust note", "   = note: expected type `String`", Warning},
+		{"rust help", "   = help: consider using `.to_string()`", Warning},
+
+		// JSON/YAML/TOML parse errors
+		{"json parse error", "json parse error: unexpected token", Error},
+		{"yaml scan error", "yaml: line 5: did not find expected key", Error},
+		{"json unmarshal", "json unmarshal failed at offset 42", Error},
+		{"toml decode error", "toml decode error: invalid key", Error},
+		{"unexpected token json", "unexpected token } in json at position 10", Error},
+
 		// Info - normal output
 		{"normal output", "Hello, World!", Info},
 		{"file listing", "drwxr-xr-x  2 user group 4096 Jan 1 main.go", Info},

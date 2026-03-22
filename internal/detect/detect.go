@@ -21,6 +21,14 @@ const (
 	CmdNpm
 	CmdCargo
 	CmdMake
+	CmdCurl
+	CmdPython
+	CmdTree
+	CmdTerraform
+	CmdKubectl
+	CmdJq
+	CmdTar
+	CmdSSH
 )
 
 // String returns the name of the command type.
@@ -44,6 +52,22 @@ func (c CmdType) String() string {
 		return "cargo"
 	case CmdMake:
 		return "make"
+	case CmdCurl:
+		return "curl"
+	case CmdPython:
+		return "python"
+	case CmdTree:
+		return "tree"
+	case CmdTerraform:
+		return "terraform"
+	case CmdKubectl:
+		return "kubectl"
+	case CmdJq:
+		return "jq"
+	case CmdTar:
+		return "tar"
+	case CmdSSH:
+		return "ssh"
 	default:
 		return "generic"
 	}
@@ -73,6 +97,22 @@ func Identify(command string) CmdType {
 		return CmdCargo
 	case base == "make" || base == "cmake" || base == "ninja":
 		return CmdMake
+	case base == "curl" || base == "wget" || base == "http" || base == "httpie":
+		return CmdCurl
+	case base == "python" || base == "python3" || base == "python2" || base == "pip" || base == "pip3":
+		return CmdPython
+	case base == "tree":
+		return CmdTree
+	case base == "terraform" || base == "tofu" || base == "tf":
+		return CmdTerraform
+	case base == "kubectl" || base == "helm" || base == "k9s" || base == "oc":
+		return CmdKubectl
+	case base == "jq" || base == "yq" || base == "gojq":
+		return CmdJq
+	case base == "tar" || base == "zip" || base == "unzip" || base == "gzip" || base == "7z":
+		return CmdTar
+	case base == "ssh" || base == "scp" || base == "sftp" || base == "rsync":
+		return CmdSSH
 	default:
 		return CmdGeneric
 	}
@@ -99,6 +139,22 @@ func FiltersFor(cmdType CmdType) []filter.FilterFunc {
 		return []filter.FilterFunc{compressCargoOutput}
 	case CmdMake:
 		return []filter.FilterFunc{compressMakeOutput}
+	case CmdCurl:
+		return []filter.FilterFunc{compressCurlOutput}
+	case CmdPython:
+		return []filter.FilterFunc{compressPythonOutput}
+	case CmdTree:
+		return []filter.FilterFunc{compressTreeOutput}
+	case CmdTerraform:
+		return []filter.FilterFunc{compressTerraformOutput}
+	case CmdKubectl:
+		return []filter.FilterFunc{compressKubectlOutput}
+	case CmdJq:
+		return []filter.FilterFunc{compressJqOutput}
+	case CmdTar:
+		return []filter.FilterFunc{compressTarOutput}
+	case CmdSSH:
+		return []filter.FilterFunc{compressSSHOutput}
 	default:
 		return []filter.FilterFunc{filter.CompressPaths}
 	}
@@ -244,14 +300,14 @@ func compressGitOutput(input string) string {
 }
 
 // compressGoOutput cleans up go test / go build output.
-// Preserves all FAIL lines and test names. Only compresses consecutive passing
-// package lines into a summary to avoid losing diagnostic info.
+// Preserves all FAIL lines, test names, and build error context.
+// Only compresses consecutive passing package lines into a summary.
 func compressGoOutput(input string) string {
 	lines := strings.Split(input, "\n")
 	var result []string
 	var passedPkgs []string
 
-	for _, line := range lines {
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		// Collect consecutive "ok" lines
@@ -267,6 +323,16 @@ func compressGoOutput(input string) string {
 		if len(passedPkgs) > 0 {
 			result = append(result, "ok "+itoa(len(passedPkgs))+" packages: "+strings.Join(passedPkgs, ", "))
 			passedPkgs = nil
+		}
+
+		// For go build errors, look ahead to capture the context
+		// Error lines look like: "./file.go:10:5: error message"
+		// Package header looks like: "# package/path"
+		if strings.HasPrefix(trimmed, "#") && i+1 < len(lines) {
+			// Package header — check if next lines are errors
+			// Keep the header, it provides essential context
+			result = append(result, line)
+			continue
 		}
 
 		result = append(result, line)

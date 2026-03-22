@@ -1,0 +1,32 @@
+aws_vpc.main: Refreshing state... [id=vpc-abc123]
+aws_subnet.public[0]: Refreshing state... [id=subnet-def456]
+aws_subnet.public[1]: Refreshing state... [id=subnet-ghi789]
+aws_subnet.private[0]: Refreshing state... [id=subnet-jkl012]
+aws_subnet.private[1]: Refreshing state... [id=subnet-mno345]
+aws_security_group.web: Refreshing state... [id=sg-pqr678]
+aws_security_group.db: Refreshing state... [id=sg-stu901]
+aws_instance.web[0]: Refreshing state... [id=i-vwx234]
+aws_instance.web[1]: Refreshing state... [id=i-yza567]
+aws_rds_instance.main: Refreshing state... [id=mydb]
+aws_route53_record.web: Refreshing state... [id=Z123_example.com_A]
+aws_alb.web: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/web/abc]
+
+Terraform used the selected providers to generate the following execution plan.
+
+  # aws_instance.web[0] will be updated in-place
+  ~ resource "aws_instance" "web" {
+      ~ instance_type = "t3.micro" -> "t3.small"
+        tags          = {
+            "Name" = "web-0"
+        }
+    }
+
+  # aws_instance.web[1] will be updated in-place
+  ~ resource "aws_instance" "web" {
+      ~ instance_type = "t3.micro" -> "t3.small"
+        tags          = {
+            "Name" = "web-1"
+        }
+    }
+
+Plan: 0 to add, 2 to change, 0 to destroy.

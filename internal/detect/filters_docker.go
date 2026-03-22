@@ -45,11 +45,17 @@ func compressDockerOutput(input string) string {
 		}
 
 		// Docker build steps: keep the command description, strip "Step N/M :" prefix
+		// For multi-stage builds, annotate FROM lines with stage markers
 		if dockerStepPattern.MatchString(trimmed) {
-			// Extract just the command after "Step N/M : "
 			parts := strings.SplitN(trimmed, ": ", 2)
 			if len(parts) == 2 {
-				result = append(result, parts[1])
+				cmd := parts[1]
+				// Annotate FROM lines to highlight multi-stage boundaries
+				if strings.HasPrefix(strings.ToUpper(cmd), "FROM ") {
+					result = append(result, "--- "+cmd+" ---")
+				} else {
+					result = append(result, cmd)
+				}
 			} else {
 				result = append(result, trimmed)
 			}

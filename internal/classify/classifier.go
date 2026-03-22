@@ -67,6 +67,14 @@ var (
 	todoFixme      = regexp.MustCompile(`\b(TODO|FIXME|HACK)\b`)
 	skippedWord    = regexp.MustCompile(`(?i)\b(skipped|SKIP)\b`)
 
+	// Compiler diagnostic patterns (Rust note/help, important for LLM context)
+	rustNoteHelp = regexp.MustCompile(`^\s*=\s*(note|help):`)
+	// JSON/YAML parse error patterns
+	jsonParseError = regexp.MustCompile(`(?i)(json|yaml|toml)\s*(parse|syntax|decode|unmarshal)\s*(error|failed|invalid)`)
+	jsonUnexpected = regexp.MustCompile(`(?i)unexpected (token|end|character).*json`)
+	yamlScanError  = regexp.MustCompile(`(?i)yaml:\s*(line \d+|did not find|could not find|mapping values)`)
+
+
 	// Debug patterns
 	timestampOnly = regexp.MustCompile(`^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}`)
 	verbosePrefix = regexp.MustCompile(`(?i)^\[?(debug|trace|verbose)\]?:?\s`)
@@ -149,6 +157,15 @@ func Classify(line string) Level {
 		return Error
 	}
 	if compileError.MatchString(trimmed) {
+		return Error
+	}
+
+	// Compiler diagnostics (Rust note/help) — classify as Warning so they're never removed
+	if rustNoteHelp.MatchString(trimmed) {
+		return Warning
+	}
+	// JSON/YAML/TOML parse errors
+	if jsonParseError.MatchString(trimmed) || jsonUnexpected.MatchString(trimmed) || yamlScanError.MatchString(trimmed) {
 		return Error
 	}
 

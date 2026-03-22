@@ -13,7 +13,9 @@ var (
 	// npm warn lines
 	npmWarnPattern = regexp.MustCompile(`^npm warn`)
 	// npm audit individual package detail lines (indented package info)
-	npmAuditPkgPattern = regexp.MustCompile(`^\s+(Severity|Vulnerable|Patched|Dependency|Path|More info):`)
+	npmAuditPkgPattern  = regexp.MustCompile(`^\s+(Severity|Vulnerable|Patched|Dependency|Path|More info):`)
+	npmAuditSeverity    = regexp.MustCompile(`^\s+Severity:\s*(critical|high)`)
+	npmAuditSeverityLow = regexp.MustCompile(`^\s+Severity:\s*(low|moderate|info)`)
 	// yarn resolving progress
 	yarnResolvingPattern = regexp.MustCompile(`^\[[\d/]+\] Resolving packages`)
 	yarnFetchingPattern  = regexp.MustCompile(`^\[[\d/]+\] Fetching packages`)
@@ -26,8 +28,9 @@ func compressNpmOutput(input string) string {
 	var result []string
 	warnCount := 0
 	firstWarn := ""
-	auditDetails := 0
+	lowAuditDetails := 0
 	auditSummaryStarted := false
+	inHighSeverityBlock := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -63,19 +66,30 @@ func compressNpmOutput(input string) string {
 			firstWarn = ""
 		}
 
-		// npm audit: compress individual package details when there are many
+		// npm audit: always keep critical/high severity blocks, compress low/moderate
 		if strings.Contains(trimmed, "vulnerabilities") || strings.Contains(trimmed, "found 0") {
-			// This is a summary line, keep it
 			auditSummaryStarted = true
 			result = append(result, line)
 			continue
 		}
-		if !auditSummaryStarted && npmAuditPkgPattern.MatchString(trimmed) {
-			auditDetails++
-			if auditDetails <= 10 {
+		if !auditSummaryStarted && npmAuditPkgPattern.MatchString(line) {
+			// Track severity to decide whether to keep
+			if npmAuditSeverity.MatchString(line) {
+				inHighSeverityBlock = true
+			} else if npmAuditSeverityLow.MatchString(line) {
+				inHighSeverityBlock = false
+			}
+
+			if inHighSeverityBlock {
+				// Always keep critical/high severity details
 				result = append(result, line)
-			} else if auditDetails == 11 {
-				result = append(result, "  ... additional vulnerability details omitted")
+			} else {
+				lowAuditDetails++
+				if lowAuditDetails <= 10 {
+					result = append(result, line)
+				} else if lowAuditDetails == 11 {
+					result = append(result, "  ... additional low/moderate vulnerability details omitted")
+				}
 			}
 			continue
 		}

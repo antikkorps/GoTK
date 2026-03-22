@@ -1,0 +1,16 @@
+project/README.md
+project/Makefile
+project/src/
+project/src/main.go
+project/src/handler.go
+project/src/config.go
+project/src/utils.go
+project/src/models/
+project/src/models/user.go
+project/src/models/post.go
+... 16 more files ...
+project/internal/logger.go
+project/internal/metrics.go
+project/internal/health.go
+project/internal/server.go
+project/internal/errors.go

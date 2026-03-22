@@ -1,0 +1,14 @@
+Requirement already satisfied: flask in /usr/lib/python3/dist-packages (2.3.0)
+Requirement already satisfied: requests in /usr/lib/python3/dist-packages (2.31.0)
+Requirement already satisfied: click>=8.1 in /usr/lib/python3/dist-packages (8.1.7)
+Requirement already satisfied: itsdangerous>=2.1 in /usr/lib/python3/dist-packages (2.1.2)
+Requirement already satisfied: jinja2>=3.1 in /usr/lib/python3/dist-packages (3.1.2)
+Requirement already satisfied: werkzeug>=2.3 in /usr/lib/python3/dist-packages (2.3.7)
+Requirement already satisfied: certifi>=2017.4 in /usr/lib/python3/dist-packages (2023.7.22)
+Requirement already satisfied: charset-normalizer>=2 in /usr/lib/python3/dist-packages (3.2.0)
+Requirement already satisfied: idna>=2.5 in /usr/lib/python3/dist-packages (3.4)
+Requirement already satisfied: urllib3>=1.21 in /usr/lib/python3/dist-packages (2.0.4)
+Collecting sqlalchemy==2.0.21
+Downloading SQLAlchemy-2.0.21.tar.gz (9.5 MB)
+Installing collected packages: sqlalchemy
+Successfully installed sqlalchemy-2.0.21

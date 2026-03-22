@@ -27,6 +27,14 @@ var (
 	autoCargoPattern = regexp.MustCompile(`^\s*(Compiling|Downloading|Finished)\s+`)
 	// Make output: "make[N]:" or "make:"
 	autoMakePattern = regexp.MustCompile(`^make(\[\d+\])?:`)
+	// curl verbose output: "< HTTP/", "> Host:", "* Connected to"
+	autoCurlPattern = regexp.MustCompile(`^[<>*]\s+\S`)
+	// Python traceback
+	autoPythonPattern = regexp.MustCompile(`^(Traceback \(most recent call last\):|^\s+File ".+", line \d+)`)
+	// terraform output: resource refresh/plan lines
+	autoTerraformPattern = regexp.MustCompile(`^(\S+\.\S+: (Refreshing|Creating|Modifying|Destroying|Reading)|Plan: \d+ to add)`)
+	// kubectl output: resource lines with NAME/READY/STATUS headers or YAML with apiVersion/kind
+	autoKubectlPattern = regexp.MustCompile(`^(NAME\s+READY\s+STATUS|apiVersion:\s|kind:\s|metadata:\s)`)
 )
 
 // AutoDetect analyzes output content to guess the source command type.
@@ -34,13 +42,13 @@ var (
 func AutoDetect(output string) CmdType {
 	lines := strings.Split(output, "\n")
 
-	// Sample first 20 non-empty lines
+	// Sample first 50 non-empty lines for better pattern detection
 	var sample []string
 	for _, l := range lines {
 		if strings.TrimSpace(l) != "" {
 			sample = append(sample, l)
 		}
-		if len(sample) >= 20 {
+		if len(sample) >= 50 {
 			break
 		}
 	}
@@ -56,6 +64,15 @@ func AutoDetect(output string) CmdType {
 		}
 		if autoDockerBuildPattern.MatchString(line) {
 			return CmdDocker
+		}
+		if autoPythonPattern.MatchString(line) {
+			return CmdPython
+		}
+		if autoTerraformPattern.MatchString(line) {
+			return CmdTerraform
+		}
+		if autoKubectlPattern.MatchString(line) {
+			return CmdKubectl
 		}
 	}
 
@@ -78,6 +95,8 @@ func AutoDetect(output string) CmdType {
 			scores[CmdCargo]++
 		case autoMakePattern.MatchString(line):
 			scores[CmdMake]++
+		case autoCurlPattern.MatchString(line):
+			scores[CmdCurl]++
 		}
 	}
 

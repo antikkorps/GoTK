@@ -70,9 +70,9 @@ func TestCompressDockerOutput(t *testing.T) {
 		t.Error("output should not contain arrow-hash lines")
 	}
 
-	// Should contain the step commands
-	if !strings.Contains(got, "FROM golang:1.21-alpine AS builder") {
-		t.Error("output should contain FROM command")
+	// Should contain the step commands with FROM stage annotation
+	if !strings.Contains(got, "--- FROM golang:1.21-alpine AS builder ---") {
+		t.Error("output should contain annotated FROM command")
 	}
 	if !strings.Contains(got, "COPY go.mod go.sum ./") {
 		t.Error("output should contain COPY command")

@@ -1,0 +1,11 @@
+Warning: Permanently added '10.0.1.50' (ED25519) to the list of known hosts.
+###############################################
+#        Welcome to Production Server         #
+#   Unauthorized access is prohibited         #
+###############################################
+Last login: Fri Mar 21 18:30:00 2026 from 10.0.0.5
+CONTAINER ID   IMAGE                    STATUS          NAMES
+abc123def456   myregistry.io/api:v2.3   Up 2 days       api-server
+bcd234ef5678   myregistry.io/web:v1.8   Up 2 days       web-frontend
+cde345fa6789   redis:7-alpine           Up 5 days       redis-cache
+def456ab7890   postgres:15              Up 5 days       postgres-db

@@ -414,3 +414,130 @@ make[1]: Leaving directory '/src/main'
 gcc ... -o lib.o lib.c
 gcc ... -o main.o main.c
 ```
+
+### Curl: `compressCurlOutput`
+
+**Applies to:** curl, wget, http (httpie)
+
+Strips progress bars and compresses verbose headers. Keeps response body, HTTP status, important headers (content-type, location), and error messages. Request headers are summarized by count.
+
+**Before:**
+```
+* Connected to api.example.com (93.184.216.34) port 443
+* TLS 1.3 connection using TLS_AES_256_GCM_SHA384
+> GET /api/users HTTP/2
+> Host: api.example.com
+> User-Agent: curl/8.1.2
+> Accept: application/json
+>
+< HTTP/2 200
+< content-type: application/json
+< date: Sat, 22 Mar 2026 10:00:00 GMT
+< cache-control: max-age=60
+<
+{"users":[{"id":1,"name":"Alice"}]}
+```
+
+**After:**
+```
+> (4 request headers)
+< content-type: application/json
+< (2 other headers)
+{"users":[{"id":1,"name":"Alice"}]}
+```
+
+### Python: `compressPythonOutput`
+
+**Applies to:** python, python3, pip, pip3
+
+Compresses pip install noise (`Requirement already satisfied` spam, download progress). Condenses Python tracebacks: keeps first frame, last frame, and error line, compresses middle frames.
+
+**Before:**
+```
+Requirement already satisfied: flask in /usr/lib/... (2.3.0)
+Requirement already satisfied: requests in /usr/lib/... (2.31.0)
+... (8 more)
+Collecting sqlalchemy==2.0.21
+Successfully installed sqlalchemy-2.0.21
+```
+
+**After:**
+```
+Already satisfied: 10 packages
+pip: 1 packages downloaded/installed
+Successfully installed sqlalchemy-2.0.21
+```
+
+### Tree: `compressTreeOutput`
+
+**Applies to:** tree
+
+Compresses deep directory chains (single-child directories collapsed into one path). Small trees (<20 lines) are kept as-is. Summary line always preserved.
+
+### Terraform: `compressTerraformOutput`
+
+**Applies to:** terraform, tofu, tf
+
+Strips `Refreshing state...` lines (summarized by count), `Still creating/modifying...` progress lines, and `Read complete` lines. Preserves plan changes, error messages, and the plan summary.
+
+**Before:**
+```
+aws_instance.web[0]: Refreshing state... [id=i-abc123]
+aws_instance.web[1]: Refreshing state... [id=i-def456]
+... (10 more resources)
+
+  # aws_instance.web[0] will be updated in-place
+  ~ instance_type = "t3.micro" -> "t3.small"
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+**After:**
+```
+Refreshed 12 resources
+
+  # aws_instance.web[0] will be updated in-place
+  ~ instance_type = "t3.micro" -> "t3.small"
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+### Kubectl: `compressKubectlOutput`
+
+**Applies to:** kubectl, helm, k9s, oc
+
+Strips `managedFields` blocks (replaced with `(omitted)`), `last-applied-configuration` annotations, and helm debug lines. Preserves resource specs, status, labels, and conditions.
+
+**Before:** A 40-line Pod YAML with `managedFields` and `last-applied-configuration`.
+
+**After:** 28-line Pod YAML with `managedFields: (omitted)` and annotation replaced.
+
+### Jq: `compressJqOutput`
+
+**Applies to:** jq, yq, gojq
+
+Compresses large JSON array output by keeping the first 10 elements and summarizing the rest. Small outputs (<50 lines) are kept as-is.
+
+### Tar: `compressTarOutput`
+
+**Applies to:** tar, zip, unzip, gzip, 7z
+
+Strips verbose metadata (permissions, user/group, dates) from listings. For large listings (>20 files), keeps first 10 and last 5 files with a count summary. Compresses extraction progress (`x file`) into a count.
+
+**Before:**
+```
+-rw-r--r-- user/group  1024 2024-01-15 10:30 project/main.go
+-rw-r--r-- user/group  2048 2024-01-15 10:30 project/utils.go
+```
+
+**After:**
+```
+project/main.go
+project/utils.go
+```
+
+### SSH: `compressSSHOutput`
+
+**Applies to:** ssh, scp, sftp, rsync
+
+Strips SSH connection banners (`Warning: Permanently added`), debug lines, host key fingerprints, and MOTD decorations. Compresses SCP progress lines into a file count. Preserves actual command output and errors.

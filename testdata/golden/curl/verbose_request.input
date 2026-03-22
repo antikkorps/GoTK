@@ -1,0 +1,21 @@
+* Connected to api.example.com (93.184.216.34) port 443
+* TLS 1.3 connection using TLS_AES_256_GCM_SHA384
+* ALPN: server accepted h2
+* Server certificate verified
+> GET /api/v2/users HTTP/2
+> Host: api.example.com
+> User-Agent: curl/8.1.2
+> Accept: application/json
+> Authorization: Bearer eyJhbGciOiJIUzI1...
+>
+< HTTP/2 200
+< content-type: application/json; charset=utf-8
+< date: Sat, 22 Mar 2026 10:00:00 GMT
+< server: nginx/1.24.0
+< x-request-id: req-abc123def
+< x-ratelimit-remaining: 98
+< cache-control: max-age=60
+< vary: Accept-Encoding
+< strict-transport-security: max-age=31536000
+<
+{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}],"total":2}
