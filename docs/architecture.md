@@ -18,8 +18,9 @@ internal/filter/        The filter chain, generic filter functions, stream
 
 internal/detect/        Command type identification (by name and by output
                         pattern) and command-specific filter functions for
-                        9 command types (grep, find, git, go, ls, docker,
-                        npm/yarn, cargo, make).
+                        18 command types (grep, find, git, go, ls, docker,
+                        npm/yarn, cargo, make, curl, python, tree, terraform,
+                        kubectl, jq, tar, ssh, node).
 
 internal/classify/      Semantic line classifier. Categorizes each line as
                         Noise, Debug, Info, Warning, Error, or Critical.
@@ -107,11 +108,20 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `CmdNpm` | npm, yarn, pnpm, npx, bun |
 | `CmdCargo` | cargo, rustc |
 | `CmdMake` | make, cmake, ninja |
+| `CmdCurl` | curl, wget, http, httpie |
+| `CmdPython` | python, python3, python2, pip, pip3 |
+| `CmdTree` | tree |
+| `CmdTerraform` | terraform, tofu, tf |
+| `CmdKubectl` | kubectl, helm, k9s, oc |
+| `CmdJq` | jq, yq, gojq |
+| `CmdTar` | tar, zip, unzip, gzip, 7z |
+| `CmdSSH` | ssh, scp, sftp, rsync |
+| `CmdNode` | node, npx, tsx, ts-node, deno |
 | `CmdGeneric` | everything else |
 
 ### Auto-detection (pipe mode)
 
-`detect.AutoDetect(output)` samples the first 20 non-empty lines and matches them against regex patterns:
+`detect.AutoDetect(output)` samples the first 50 non-empty lines and matches them against regex patterns:
 
 | Pattern | Detected type |
 |---------|--------------|
@@ -121,8 +131,12 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `diff --git a/...` | git diff |
 | `ok`/`FAIL`/`--- PASS` prefixes | go test |
 | 10-char permission strings (`drwxr-xr-x`) | ls |
+| `> Header:`, `< Header:`, `* info` patterns | curl (frequency-based) |
+| `Traceback (most recent call last):` | python (high-confidence) |
+| `resource.name: Refreshing/Creating/...` | terraform (high-confidence) |
+| `NAME  READY  STATUS` or `apiVersion:` | kubectl (high-confidence) |
 
-A command type is selected only if it matches more than 40% of sampled lines (minimum 2 matches). This prevents false positives on mixed output.
+A command type is selected only if it matches more than 40% of sampled lines (minimum 2 matches). This prevents false positives on mixed output. High-confidence patterns (git, docker, python, terraform, kubectl) require only a single match.
 
 ## Command-Specific Filters
 
@@ -139,6 +153,15 @@ A command type is selected only if it matches more than 40% of sampled lines (mi
 | `CmdNpm` | `compressNpmOutput` |
 | `CmdCargo` | `compressCargoOutput` |
 | `CmdMake` | `compressMakeOutput` |
+| `CmdCurl` | `compressCurlOutput` |
+| `CmdPython` | `compressPythonOutput` |
+| `CmdTree` | `compressTreeOutput` |
+| `CmdTerraform` | `compressTerraformOutput` |
+| `CmdKubectl` | `compressKubectlOutput` |
+| `CmdJq` | `compressJqOutput` |
+| `CmdTar` | `compressTarOutput` |
+| `CmdSSH` | `compressSSHOutput` |
+| `CmdNode` | `compressNodeOutput` |
 | `CmdGeneric` | `CompressPaths` |
 
 For details on what each filter does, see [docs/filters.md](filters.md).

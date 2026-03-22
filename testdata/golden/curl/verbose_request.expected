@@ -1,0 +1,4 @@
+> (5 request headers)
+< content-type: application/json; charset=utf-8
+< (8 other headers)
+{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}],"total":2}

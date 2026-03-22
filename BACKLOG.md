@@ -196,6 +196,54 @@
 
 ---
 
+## Sprint 8 — Extended Command Support + Filter Quality
+
+> Improve filtering efficiency by adding detectors for common commands and fixing quality gaps in existing compiler filters.
+
+### Build — New command detectors
+
+- [x] `curl`/`wget` filter (strip progress bars, compress headers, keep response body + status)
+- [x] `jq` filter (detect JSON output, compact verbose formatting)
+- [x] `tar`/`zip`/`unzip` filter (compress file listing, strip verbose metadata)
+- [x] `python`/`python3` filter (traceback compression, pip noise removal)
+- [x] `node` filter (experimental/deprecation warnings, webpack/vite noise, internal frames)
+- [x] `tree` filter (compress deep nesting, chain compression)
+- [x] `terraform` filter (compress plan output, strip refresh lines, keep changes)
+- [x] `kubectl`/`helm` filter (compress status output, strip managed fields)
+- [x] `ssh`/`scp` filter (strip remote ANSI, compress connection banners)
+
+### Build — Improve existing filters
+
+- [x] Go build: preserve package headers and error context
+- [x] Rust/cargo: preserve `note:` and `help:` lines (classified as Warning via classifier)
+- [x] npm audit: keep all critical/high severity details (only truncate low/moderate)
+- [x] Docker build: annotate FROM image names in multi-stage builds as stage boundaries
+- [x] Python traceback: preserve import chain in ImportError/ModuleNotFoundError
+- [x] JSON/YAML parse errors: classify as error-level
+
+### Build — Auto-detection improvements
+
+- [x] Increase auto-detect sample from 20 to 50 lines (catch late-appearing patterns)
+- [x] Add detection patterns for: python traceback, terraform plan, kubectl output, curl verbose
+- [x] Improve cross-command detection (weighted scoring, 20% fallback for single-candidate)
+
+### Measure
+
+- [x] Benchmark new detectors with realistic fixtures (7 new: curl, python, terraform, kubectl, tar, ssh, node)
+- [x] Quality score: verify no regression on existing filters (all tests pass)
+- [x] Per-filter contribution analysis for new filters (available via `gotk bench --per-filter`)
+
+### Deliver
+
+- [x] Unit tests for each new detector
+- [x] Golden-file tests for each new detector (curl, python, terraform, kubectl, docker, tar, ssh)
+- [x] Update filter catalog documentation
+- [x] Update architecture documentation
+- [x] Update man page with new supported commands
+- [x] Tag v1.2.0
+
+---
+
 ## Sprint 7 — Context Search (`gotk ctx`) `DONE`
 
 > Integrate smart search capabilities inspired by `ai-ctx` into GoTK.

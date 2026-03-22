@@ -87,3 +87,38 @@ func TestGolden_QualityGoTestFail(t *testing.T) {
 	expectedPath := filepath.Join(dir, "go_test_fail.expected")
 	testutil.RunGoldenTestSingle(t, "go_test_fail", inputPath, expectedPath, applyFiltersFor(detect.CmdGoTool))
 }
+
+func TestGolden_Curl(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "curl")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdCurl))
+}
+
+func TestGolden_Python(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "python")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdPython))
+}
+
+func TestGolden_Terraform(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "terraform")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdTerraform))
+}
+
+func TestGolden_Kubectl(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "kubectl")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdKubectl))
+}
+
+func TestGolden_DockerMultistage(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "docker_multistage")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdDocker))
+}
+
+func TestGolden_Tar(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "tar")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdTar))
+}
+
+func TestGolden_SSH(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "ssh")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdSSH))
+}

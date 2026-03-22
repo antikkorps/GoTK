@@ -27,6 +27,14 @@ var (
 	autoCargoPattern = regexp.MustCompile(`^\s*(Compiling|Downloading|Finished)\s+`)
 	// Make output: "make[N]:" or "make:"
 	autoMakePattern = regexp.MustCompile(`^make(\[\d+\])?:`)
+	// curl verbose output: "< HTTP/", "> Host:", "* Connected to"
+	autoCurlPattern = regexp.MustCompile(`^[<>*]\s+\S`)
+	// Python traceback
+	autoPythonPattern = regexp.MustCompile(`^(Traceback \(most recent call last\):|^\s+File ".+", line \d+)`)
+	// terraform output: resource refresh/plan lines
+	autoTerraformPattern = regexp.MustCompile(`^(\S+\.\S+: (Refreshing|Creating|Modifying|Destroying|Reading)|Plan: \d+ to add)`)
+	// kubectl output: resource lines with NAME/READY/STATUS headers or YAML with apiVersion/kind
+	autoKubectlPattern = regexp.MustCompile(`^(NAME\s+READY\s+STATUS|apiVersion:\s|kind:\s|metadata:\s)`)
 )
 
 // AutoDetect analyzes output content to guess the source command type.
@@ -34,13 +42,13 @@ var (
 func AutoDetect(output string) CmdType {
 	lines := strings.Split(output, "\n")
 
-	// Sample first 20 non-empty lines
+	// Sample first 50 non-empty lines for better pattern detection
 	var sample []string
 	for _, l := range lines {
 		if strings.TrimSpace(l) != "" {
 			sample = append(sample, l)
 		}
-		if len(sample) >= 20 {
+		if len(sample) >= 50 {
 			break
 		}
 	}
@@ -56,6 +64,15 @@ func AutoDetect(output string) CmdType {
 		}
 		if autoDockerBuildPattern.MatchString(line) {
 			return CmdDocker
+		}
+		if autoPythonPattern.MatchString(line) {
+			return CmdPython
+		}
+		if autoTerraformPattern.MatchString(line) {
+			return CmdTerraform
+		}
+		if autoKubectlPattern.MatchString(line) {
+			return CmdKubectl
 		}
 	}
 
@@ -78,10 +95,34 @@ func AutoDetect(output string) CmdType {
 			scores[CmdCargo]++
 		case autoMakePattern.MatchString(line):
 			scores[CmdMake]++
+		case autoCurlPattern.MatchString(line):
+			scores[CmdCurl]++
 		}
 	}
 
-	// Return the type with highest score (if it matches >40% of sampled lines)
+	// Apply weights: error-bearing patterns score higher because they indicate
+	// the "real" command even in mixed output (e.g., npm errors inside make output)
+	weights := map[CmdType]int{
+		CmdGrep:   1,
+		CmdGoTool: 2, // go test failures are high signal
+		CmdLs:     1,
+		CmdFind:   1,
+		CmdNpm:    2, // npm ERR! lines are high signal
+		CmdCargo:  2,
+		CmdMake:   1,
+		CmdCurl:   1,
+	}
+
+	weightedScores := map[CmdType]int{}
+	for cmdType, score := range scores {
+		w := 1
+		if wt, ok := weights[cmdType]; ok {
+			w = wt
+		}
+		weightedScores[cmdType] = score * w
+	}
+
+	// Primary: return the type with highest weighted score (if it matches >40% of sampled lines)
 	bestType := CmdGeneric
 	bestScore := 0
 	threshold := len(sample) * 40 / 100
@@ -90,9 +131,34 @@ func AutoDetect(output string) CmdType {
 	}
 
 	for cmdType, score := range scores {
-		if score > bestScore && score >= threshold {
+		if score >= threshold && weightedScores[cmdType] > bestScore {
 			bestType = cmdType
-			bestScore = score
+			bestScore = weightedScores[cmdType]
+		}
+	}
+
+	// Fallback: if no type reached 40%, check if any type has at least 20% AND
+	// is the only one with meaningful matches (no competition).
+	// This helps with mixed output where the "real" command has a minority of lines.
+	if bestType == CmdGeneric {
+		lowThreshold := len(sample) * 20 / 100
+		if lowThreshold < 2 {
+			lowThreshold = 2
+		}
+		candidates := 0
+		var candidate CmdType
+		for cmdType, score := range scores {
+			if score >= lowThreshold {
+				candidates++
+				if weightedScores[cmdType] > bestScore {
+					candidate = cmdType
+					bestScore = weightedScores[cmdType]
+				}
+			}
+		}
+		// Only use the fallback if there's a single clear candidate
+		if candidates == 1 {
+			bestType = candidate
 		}
 	}
 

@@ -55,8 +55,9 @@ codes, decorative separators, duplicate lines, redundant path prefixes, and
 excessive blank lines.
 .PP
 GoTK detects the command type (grep, git, find, go test, docker, npm, cargo,
-make, etc.) and applies specialized filters on top of generic cleaning. The
-result is output that contains the same information in far fewer tokens.
+make, curl, python, terraform, kubectl, jq, tar, ssh, tree, etc.) and applies
+specialized filters on top of generic cleaning. The result is output that
+contains the same information in far fewer tokens.
 .PP
 GoTK can also learn project-specific noise patterns over time and suggest
 custom filter rules for your \fI.gotk.toml\fR configuration.
@@ -428,6 +429,42 @@ gotk --measure grep -rn "func" .
 gotk measure last
 gotk measure report --period 7d
 .fi
+.SH SUPPORTED COMMANDS
+GoTK has specialized filters for the following command families:
+.TP
+.B Search
+grep, rg, ag, ack, find, fd
+.TP
+.B Version control
+git, gh
+.TP
+.B Build tools
+go, cargo, rustc, make, cmake, ninja
+.TP
+.B Package managers
+npm, yarn, pnpm, npx, bun, pip, pip3
+.TP
+.B Containers & orchestration
+docker, docker-compose, podman, kubectl, helm, k9s, oc
+.TP
+.B Infrastructure
+terraform, tofu, tf
+.TP
+.B Network & transfer
+curl, wget, http (httpie), ssh, scp, sftp, rsync
+.TP
+.B File tools
+ls, exa, eza, lsd, tree, tar, zip, unzip, gzip, 7z
+.TP
+.B Data processing
+jq, yq, gojq
+.TP
+.B Scripting
+python, python3
+.PP
+Unknown commands receive generic filtering (ANSI strip, whitespace normalize,
+dedup, path compression, truncation). In pipe mode, output format is
+auto-detected using pattern matching on the first 50 lines.
 .SH SEE ALSO
 .TP
 .I docs/quickstart.md

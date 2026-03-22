@@ -44,8 +44,13 @@ func TestIdentify(t *testing.T) {
 		{"npm", "npm", CmdNpm},
 		{"yarn", "yarn", CmdNpm},
 		{"pnpm", "pnpm", CmdNpm},
-		{"npx", "npx", CmdNpm},
 		{"bun", "bun", CmdNpm},
+
+		// Node family
+		{"node", "node", CmdNode},
+		{"npx", "npx", CmdNode},
+		{"tsx", "tsx", CmdNode},
+		{"deno", "deno", CmdNode},
 
 		// Cargo family
 		{"cargo", "cargo", CmdCargo},
@@ -56,8 +61,42 @@ func TestIdentify(t *testing.T) {
 		{"cmake", "cmake", CmdMake},
 		{"ninja", "ninja", CmdMake},
 
+		// Curl family
+		{"curl", "curl", CmdCurl},
+		{"wget", "wget", CmdCurl},
+
+		// Python family
+		{"python", "python", CmdPython},
+		{"python3", "python3", CmdPython},
+		{"pip", "pip", CmdPython},
+
+		// Tree
+		{"tree", "tree", CmdTree},
+
+		// Terraform family
+		{"terraform", "terraform", CmdTerraform},
+		{"tofu", "tofu", CmdTerraform},
+
+		// Kubectl family
+		{"kubectl", "kubectl", CmdKubectl},
+		{"helm", "helm", CmdKubectl},
+
+		// Jq family
+		{"jq", "jq", CmdJq},
+		{"yq", "yq", CmdJq},
+
+		// Tar family
+		{"tar", "tar", CmdTar},
+		{"zip", "zip", CmdTar},
+		{"unzip", "unzip", CmdTar},
+
+		// SSH family
+		{"ssh", "ssh", CmdSSH},
+		{"scp", "scp", CmdSSH},
+		{"rsync", "rsync", CmdSSH},
+
 		// Unknown
-		{"unknown command", "curl", CmdGeneric},
+		{"unknown command", "htop", CmdGeneric},
 		{"empty string", "", CmdGeneric},
 
 		// Path-qualified commands
@@ -66,7 +105,8 @@ func TestIdentify(t *testing.T) {
 		{"absolute path git", "/usr/local/bin/git", CmdGit},
 		{"absolute path go", "/usr/local/go/bin/go", CmdGoTool},
 		{"absolute path ls", "/bin/ls", CmdLs},
-		{"absolute path unknown", "/usr/bin/curl", CmdGeneric},
+		{"absolute path curl", "/usr/bin/curl", CmdCurl},
+		{"absolute path unknown", "/usr/bin/htop", CmdGeneric},
 
 		// Windows-style .exe suffix
 		{"grep.exe", "grep.exe", CmdGrep},
@@ -98,6 +138,15 @@ func TestFiltersFor(t *testing.T) {
 		{"npm filters", CmdNpm, 1},
 		{"cargo filters", CmdCargo, 1},
 		{"make filters", CmdMake, 1},
+		{"curl filters", CmdCurl, 1},
+		{"python filters", CmdPython, 1},
+		{"tree filters", CmdTree, 1},
+		{"terraform filters", CmdTerraform, 1},
+		{"kubectl filters", CmdKubectl, 1},
+		{"jq filters", CmdJq, 1},
+		{"tar filters", CmdTar, 1},
+		{"ssh filters", CmdSSH, 1},
+		{"node filters", CmdNode, 1},
 		{"generic filters", CmdGeneric, 1},
 	}
 
