@@ -34,7 +34,13 @@ To make `gotk` available system-wide:
 sudo ln -s $(pwd)/gotk /usr/local/bin/gotk
 ```
 
-For LLM tool integrations (Claude Code, Aider, Cursor, Continue.dev), see [docs/integrations.md](docs/integrations.md).
+Quick setup for Claude Code:
+
+```bash
+gotk install claude
+```
+
+For other LLM tools (Aider, Cursor, Continue.dev), see [docs/integrations.md](docs/integrations.md).
 
 ## Usage
 
@@ -93,6 +99,16 @@ Re-run commands on file changes:
 gotk watch -- go test ./...
 gotk watch --ext .go --ext .mod -- go test ./internal/...
 ```
+
+### Daemon mode
+
+Start a filtered shell session — all command output is automatically cleaned:
+
+```bash
+gotk daemon
+```
+
+Inside the session, every command runs through GoTK. Interactive programs (vim, ssh, less) and trivial commands (cd, pwd) are not intercepted. Type `gotk exit` to leave and see a session summary.
 
 ### Pattern learning
 
@@ -171,9 +187,12 @@ For detailed internals, see [docs/architecture.md](docs/architecture.md).
 cmd/gotk/          CLI entrypoint, flag parsing, pipe detection
 internal/exec/     Command execution and output capture
 internal/filter/   Filter chain, generic filters, stack traces, secret redaction
-internal/detect/   Command identification + 9 command-specific filters
+internal/detect/   Command identification + 18 command-specific filters
 internal/classify/ Semantic line classifier (Noise → Critical)
 internal/ctx/      Context search engine (walk, search, 5 formatters)
+internal/daemon/   Daemon mode (filtered shell session)
+internal/hook/     Claude Code PreToolUse hook handler
+internal/install/  Auto-configuration for AI tool integrations
 internal/learn/    Project-specific pattern learning
 internal/proxy/    Proxy shell mode, filter chain builder
 internal/config/   TOML config loader (global, project, local)

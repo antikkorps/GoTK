@@ -2,28 +2,79 @@
 
 How to use GoTK with various LLM coding tools to reduce token usage.
 
-GoTK works with any tool that executes shell commands, through three mechanisms:
+GoTK works with any tool that executes shell commands, through four mechanisms:
 
-1. **Shell proxy** — `SHELL=gotk` (100% automatic for tools that spawn a shell)
-2. **CLAUDE.md instructions** — Tell Claude to prefix commands with `gotk` (for Claude Code)
-3. **Direct execution / pipe** — `gotk cmd` or `cmd | gotk` (manual or scripted)
+1. **Claude Code hook** — `gotk install claude` (100% automatic, recommended for Claude Code)
+2. **Shell proxy** — `SHELL=gotk` (100% automatic for tools that spawn a shell)
+3. **MCP server** — `gotk --mcp` (100% automatic, higher token overhead)
+4. **Direct execution / pipe** — `gotk cmd` or `cmd | gotk` (manual or scripted)
 
 > **How to choose?** Most AI tools use `$SHELL -c "command"` to run commands.
-> Setting `SHELL=gotk` intercepts every command automatically — the LLM never
-> knows GoTK is running. Claude Code is the exception: its Bash tool does not
-> use `$SHELL`, so it requires a different approach (CLAUDE.md or MCP).
+> Setting `SHELL=gotk` intercepts every command automatically. Claude Code is
+> the exception: its Bash tool does not use `$SHELL`, so use `gotk install claude`
+> which registers a PreToolUse hook that wraps commands automatically.
 > See [cli-vs-mcp.md](cli-vs-mcp.md) for a detailed comparison.
 
 ---
 
 ## Claude Code
 
-### Method 1: CLAUDE.md instructions (recommended CLI approach)
+### Method 1: PreToolUse hook (recommended)
 
-Claude Code reads `CLAUDE.md` at the project root on every conversation. Add
-instructions telling Claude to use GoTK for all shell commands:
+The fastest way to integrate GoTK with Claude Code. One command, 100% automatic:
 
-Add to your project's `CLAUDE.md`:
+```bash
+gotk install claude
+```
+
+This registers GoTK as a PreToolUse hook for the Bash tool. Every shell command
+Claude runs is automatically wrapped with `| gotk`, so the output is filtered
+before Claude sees it.
+
+**How it works:**
+
+1. Claude Code fires a `PreToolUse` event before running a Bash command
+2. GoTK receives the command as JSON on stdin
+3. GoTK wraps it: `set -o pipefail; (original command) | gotk`
+4. Claude Code executes the wrapped command
+5. Claude receives filtered output — ANSI stripped, deduplicated, truncated
+
+Trivial commands (`cd`, `pwd`, `echo`, etc.) are not wrapped. Commands already
+piped through GoTK are not double-wrapped.
+
+**Options:**
+
+```bash
+gotk install claude                 # Install for current project (.claude/settings.json)
+gotk install claude --global        # Install for all projects (~/.claude/settings.json)
+gotk install claude --status        # Check installation status
+gotk install claude --uninstall     # Remove the hook
+```
+
+The hook configuration added to `settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/gotk hook"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Method 2: CLAUDE.md instructions (fallback)
+
+If you prefer not to use hooks, add instructions to your project's `CLAUDE.md`
+telling Claude to prefix commands with `gotk`:
 
 ```markdown
 ## Token Optimization
@@ -47,9 +98,9 @@ the gotk prefix. This reduces token consumption by ~80%.
 A ready-to-copy template is available at `examples/CLAUDE.md.gotk-template`.
 
 > **Note:** This approach is ~95% reliable — Claude follows CLAUDE.md instructions
-> consistently but not 100% of the time. For guaranteed filtering, use MCP mode.
+> consistently but not 100% of the time. Use the hook method for guaranteed filtering.
 
-### Method 2: MCP Server (100% automatic)
+### Method 3: MCP Server
 
 Register GoTK as an MCP tool server. This exposes four tools that Claude can use with filtered output:
 

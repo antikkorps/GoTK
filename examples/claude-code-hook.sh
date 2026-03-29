@@ -1,44 +1,44 @@
 #!/bin/sh
-# GoTK hook for Claude Code — shell command output filter
+# GoTK hook for Claude Code — PreToolUse Bash output filter
 #
-# This hook filters all command output through GoTK before sending to Claude,
-# reducing token usage by stripping ANSI codes, deduplicating lines,
-# compressing paths, and truncating excessive output.
+# This hook is called by Claude Code before executing Bash commands.
+# It wraps commands with "| gotk" so output is filtered before Claude sees it,
+# reducing token usage by ~80%.
 #
-# Installation:
+# RECOMMENDED: Use "gotk install claude" instead of manual setup.
+#
+# Manual installation:
 #   1. Build gotk:  go build -o gotk ./cmd/gotk/
 #   2. Place gotk in your PATH (e.g., /usr/local/bin/gotk)
-#   3. Add this hook to your Claude Code settings (~/.claude/settings.json):
+#   3. Add this hook to your Claude Code settings:
+#
+#      ~/.claude/settings.json (global) or .claude/settings.json (project):
 #
 #      {
 #        "hooks": {
-#          "shell_command_output": [
+#          "PreToolUse": [
 #            {
-#              "matcher": "",
-#              "command": "/path/to/examples/claude-code-hook.sh"
-#            }
-#          ]
-#        }
-#      }
-#
-#   Or use gotk directly as the command (simpler, no wrapper needed):
-#
-#      {
-#        "hooks": {
-#          "shell_command_output": [
-#            {
-#              "matcher": "",
-#              "command": "gotk"
+#              "matcher": "Bash",
+#              "hooks": [
+#                {
+#                  "type": "command",
+#                  "command": "gotk hook"
+#                }
+#              ]
 #            }
 #          ]
 #        }
 #      }
 #
 # How it works:
-#   Claude Code sends command output on stdin to this hook.
-#   GoTK filters the output (strip ANSI, normalize whitespace, dedup,
-#   compress paths, truncate) and writes the cleaned result to stdout.
-#   Claude receives the filtered output instead of the raw version.
+#   1. Claude Code fires a PreToolUse event before running a Bash command
+#   2. The hook receives a JSON payload on stdin with the command
+#   3. GoTK wraps the command: "set -o pipefail; (cmd) | gotk"
+#   4. Claude Code executes the wrapped command
+#   5. Claude receives filtered output (ANSI stripped, deduplicated, truncated)
+#
+# Trivial commands (cd, pwd, echo, etc.) are not wrapped.
+# Commands already using gotk are not double-wrapped.
 #
 # Environment variables:
 #   GOTK_PASSTHROUGH=1   Disable all filtering (escape hatch)
@@ -46,13 +46,11 @@
 
 set -e
 
-# Locate gotk binary
 GOTK_BIN="${GOTK_BIN:-gotk}"
 
 if command -v "$GOTK_BIN" >/dev/null 2>&1; then
-    # Pipe stdin through gotk (pipe mode: auto-detects command type)
-    exec "$GOTK_BIN"
+    exec "$GOTK_BIN" hook
 else
-    # Fallback: if gotk is not installed, pass through raw output
-    exec cat
+    # Fallback: if gotk is not installed, exit silently (no modification)
+    exit 0
 fi
