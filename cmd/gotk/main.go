@@ -14,9 +14,12 @@ import (
 	"github.com/antikkorps/GoTK/internal/bench"
 	"github.com/antikkorps/GoTK/internal/config"
 	gotkctx "github.com/antikkorps/GoTK/internal/ctx"
+	"github.com/antikkorps/GoTK/internal/daemon"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/hook"
+	"github.com/antikkorps/GoTK/internal/install"
 	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/mcp"
 	"github.com/antikkorps/GoTK/internal/measure"
@@ -142,6 +145,15 @@ func main() {
 		os.Exit(0)
 	case "watch":
 		runWatch(args[1:])
+		os.Exit(0)
+	case "hook":
+		runHook()
+		os.Exit(0)
+	case "daemon":
+		runDaemon(args[1:])
+		os.Exit(0)
+	case "install":
+		runInstall(args[1:])
 		os.Exit(0)
 	case "exec":
 		if len(args) < 2 {
@@ -746,6 +758,128 @@ func observeForLearn(command, rawOutput string) {
 	fmt.Fprintf(os.Stderr, "[gotk learn] observed %d lines\n", collector.Count())
 }
 
+// runDaemon handles the "gotk daemon" subcommand.
+func runDaemon(args []string) {
+	sub := "start"
+	if len(args) > 0 {
+		sub = args[0]
+	}
+
+	switch sub {
+	case "start":
+		if err := daemon.Start(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk daemon: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "status":
+		daemon.Status()
+
+	case "init":
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "/bin/bash"
+		}
+		for _, a := range args[1:] {
+			if a == "--bash" {
+				shell = "bash"
+			} else if a == "--zsh" {
+				shell = "zsh"
+			}
+		}
+		if err := daemon.Init(shell); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk daemon init: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "summary":
+		sessionID := ""
+		for i, a := range args[1:] {
+			if a == "--session" && i+2 < len(args) {
+				sessionID = args[i+2]
+			}
+		}
+		if sessionID == "" {
+			sessionID = os.Getenv("GOTK_SESSION_ID")
+		}
+		if sessionID != "" {
+			daemon.PrintSummary(os.Stderr, cfg.Measure.LogPath, sessionID)
+		}
+
+	case "stop":
+		if os.Getenv("GOTK_DAEMON") == "1" {
+			fmt.Fprintln(os.Stderr, "gotk daemon: type 'gotk exit' to leave the daemon session")
+		} else {
+			fmt.Fprintln(os.Stderr, "gotk daemon: no active session")
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "gotk daemon: unknown subcommand %q (use start, status, init, summary, stop)\n", sub)
+		os.Exit(1)
+	}
+}
+
+// runHook handles the "gotk hook" subcommand, invoked by Claude Code hooks.
+func runHook() {
+	if err := hook.Run(os.Stdin, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "gotk hook: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runInstall handles the "gotk install" subcommand.
+func runInstall(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "gotk install: missing target (claude)")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  gotk install claude [--global] [--project] [--uninstall] [--status]")
+		os.Exit(1)
+	}
+
+	switch args[0] {
+	case "claude":
+		scope := install.ScopeProject
+		uninstallFlag := false
+		statusFlag := false
+
+		for _, a := range args[1:] {
+			switch a {
+			case "--global":
+				scope = install.ScopeGlobal
+			case "--project":
+				scope = install.ScopeProject
+			case "--uninstall":
+				uninstallFlag = true
+			case "--status":
+				statusFlag = true
+			default:
+				fmt.Fprintf(os.Stderr, "gotk install claude: unknown flag %q\n", a)
+				os.Exit(1)
+			}
+		}
+
+		var err error
+		switch {
+		case statusFlag:
+			err = install.ClaudeStatus(scope)
+		case uninstallFlag:
+			err = install.ClaudeUninstall(scope)
+		default:
+			err = install.ClaudeInstall(scope)
+		}
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk install claude: %v\n", err)
+			os.Exit(1)
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "gotk install: unknown target %q (supported: claude)\n", args[0])
+		os.Exit(1)
+	}
+}
+
 func printUsage() {
 	usage := `GoTK - LLM Output Proxy
 
@@ -764,6 +898,8 @@ Usage:
 Subcommands:
   ctx       Context search with 5 output modes (gotk ctx pattern)
   learn     Project-specific pattern learning (run, suggest, status, clear)
+  daemon    Start a filtered shell session (gotk daemon)
+  install   Configure GoTK integration (gotk install claude)
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
@@ -797,9 +933,9 @@ Examples:
   gotk --stream make build                 Real-time filtering
 
 AI tool integration (CLI mode, recommended for token efficiency):
+  Claude Code  gotk install claude                          (auto hook)
   Aider        SHELL=gotk GOTK_SHELL=/bin/bash aider       (100% auto)
   Cursor       SHELL=gotk GOTK_SHELL=/bin/bash cursor .    (100% auto)
-  Claude Code  Add "gotk" prefix instructions to CLAUDE.md (~95% auto)
 
 Config: ~/.config/gotk/config.toml | .gotk.toml | ./gotk.toml
 Environment: GOTK_PASSTHROUGH=1 (bypass) | GOTK_SHELL (real shell)
@@ -954,6 +1090,92 @@ Examples:
   gotk learn run make build            Observe build output
   gotk learn suggest                   See pattern suggestions
   gotk --learn go test ./...           Passive observation`,
+
+		"daemon": `gotk daemon — Filtered shell session
+
+Usage:
+  gotk daemon [start]     Start a daemon session (spawns filtered shell)
+  gotk daemon status      Check if inside a daemon session
+  gotk daemon init        Print shell init code (for eval "$(gotk daemon init)")
+  gotk daemon stop        Instructions to exit the session
+
+How it works:
+  GoTK spawns your shell (bash or zsh) with hooks that intercept every
+  command. Non-trivial command output is automatically piped through gotk,
+  reducing noise while preserving errors, warnings, and important content.
+
+  Interactive programs (vim, less, top, ssh, etc.) and trivial commands
+  (cd, pwd, echo, etc.) are not intercepted.
+
+  A [gotk] prefix is added to your prompt so you know filtering is active.
+  Type "gotk exit" to leave and see a session summary with tokens saved.
+
+  Measurement is automatically enabled during daemon sessions.
+
+Manual init (advanced):
+  eval "$(gotk daemon init)"          # Inject into current shell
+  eval "$(gotk daemon init --zsh)"    # Force zsh init
+  eval "$(gotk daemon init --bash)"   # Force bash init
+
+Examples:
+  gotk daemon                         # Start filtered shell
+  gotk daemon status                  # Check if active
+  # Inside session: all commands auto-filtered
+  grep -rn "pattern" .                # Output is filtered
+  vim file.go                         # Opens normally (interactive)
+  gotk exit                           # Leave session, see summary`,
+
+		"install": `gotk install — Configure GoTK integrations
+
+Usage:
+  gotk install claude [flags]
+
+Targets:
+  claude    Install GoTK as a Claude Code PreToolUse hook
+
+Flags:
+  --global      Install in ~/.claude/settings.json (all projects)
+  --project     Install in .claude/settings.json (default, current project)
+  --uninstall   Remove GoTK hook configuration
+  --status      Check if GoTK hook is installed
+
+How it works:
+  GoTK registers as a PreToolUse hook for the Bash tool. When Claude Code
+  runs a shell command, the hook wraps it with "| gotk" so the output is
+  filtered before Claude sees it. This reduces token usage by ~80%.
+
+  Trivial commands (cd, pwd, echo, etc.) are not wrapped.
+  Commands already piped through gotk are not double-wrapped.
+
+Examples:
+  gotk install claude                  Install for current project
+  gotk install claude --global         Install for all projects
+  gotk install claude --status         Check installation status
+  gotk install claude --uninstall      Remove hook`,
+
+		"hook": `gotk hook — Claude Code hook handler (internal)
+
+Usage:
+  gotk hook
+
+This subcommand is called automatically by Claude Code when configured as
+a PreToolUse hook. It reads a JSON payload from stdin, wraps Bash commands
+with "| gotk" for output filtering, and writes the response to stdout.
+
+You normally don't call this directly. Use "gotk install claude" to set up
+the hook configuration automatically.
+
+JSON input format (from Claude Code):
+  {
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {"command": "grep -rn pattern ."}
+  }
+
+JSON output format (to Claude Code):
+  {
+    "updatedInput": {"command": "set -o pipefail; (grep -rn pattern .) | /path/to/gotk"}
+  }`,
 
 		"mcp": `gotk --mcp — MCP Server Mode (Model Context Protocol)
 

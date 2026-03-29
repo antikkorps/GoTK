@@ -292,6 +292,138 @@
 
 ---
 
+## Sprint 9 — Claude Code Hook Integration
+
+> Native Claude Code hooks integration via PreToolUse event.
+> Auto-install command for zero-config setup.
+
+### Build — Hook protocol handler
+
+- [x] `internal/hook/` package — Parse Claude Code hook JSON, wrap Bash commands with `| gotk`
+- [x] `gotk hook` subcommand — Called by Claude Code PreToolUse event
+- [x] Smart command wrapping: skip trivial commands (cd, pwd, echo, etc.)
+- [x] Double-wrap prevention: detect existing `| gotk` in command
+- [x] Self-invocation prevention: don't wrap `gotk` commands
+- [x] Exit code preservation via `set -o pipefail`
+- [x] Env var prefix handling (`LANG=C sort` correctly wrapped)
+
+### Build — Install command
+
+- [x] `gotk install claude` — Auto-configure PreToolUse hook in settings.json
+- [x] `--global` flag: install in `~/.claude/settings.json`
+- [x] `--project` flag: install in `.claude/settings.json` (default)
+- [x] `--uninstall` flag: remove GoTK hook from settings
+- [x] `--status` flag: check installation status
+- [x] Preserves existing settings.json content (permissions, other hooks)
+- [x] Idempotent: detects if hook already installed
+
+### Build — Daemon mode
+
+- [x] `gotk daemon` subcommand — spawn filtered shell session
+- [x] Zsh integration via `accept-line` ZLE widget override
+- [x] Bash integration via `shopt -s extdebug` + DEBUG trap
+- [x] Interactive command detection (vim, ssh, less, tmux, fzf, etc.)
+- [x] Trivial command skip (reuse `hook.TrivialCommands`)
+- [x] Self-invocation prevention (skip gotk commands)
+- [x] Double-wrap prevention (skip already-piped commands)
+- [x] Prompt modification (`[gotk]` prefix)
+- [x] Nested daemon prevention (`GOTK_DAEMON=1` check)
+- [x] Session summary on exit (commands filtered, tokens saved)
+- [x] `gotk daemon status` — check if inside a daemon session
+- [x] `gotk daemon init` — print shell init code for manual eval
+- [x] `gotk daemon summary` — print session stats (called on exit)
+- [x] Signal forwarding to child shell (SIGINT, SIGTERM)
+- [x] Auto-enable measurement during daemon sessions
+
+### Deliver
+
+- [x] Unit tests for hook protocol (12 tests: JSON parse, wrapping, skip logic)
+- [x] Unit tests for install (7 tests: create, merge, uninstall, idempotency)
+- [x] Unit tests for daemon (14 tests: skip logic, script generation, init files)
+- [x] Updated `examples/claude-code-hook.sh` to new PreToolUse format
+- [x] Help text for `gotk help install`, `gotk help hook`, `gotk help daemon`
+- [ ] Tag v1.3.0
+
+---
+
+## Sprint 10 — Security Hardening + Quality (from audit 2026-03-29)
+
+> Full security audit + quality audit identified 15 security findings and 30 quality improvements.
+> This sprint addresses critical/high security issues and P1 quality issues.
+
+### Build — Security fixes (Critical + High)
+
+- [ ] Fix temp file permissions: `0600` instead of `0644` in `daemon/daemon.go`
+- [ ] MCP `gotk_read`: validate path is under project root, block traversal (`../../etc/passwd`)
+- [ ] MCP `gotk_grep`: same path validation as `gotk_read`
+- [ ] MCP `gotk_ctx`: skip symlinks in `ctx/walk.go` to prevent symlink-based exfiltration
+- [ ] Validate `GOTK_BIN` path in daemon shell scripts (check absolute path, file exists)
+- [ ] Audit log: validate path is not a symlink, parent dir not world-writable
+
+### Build — Security fixes (Medium)
+
+- [ ] Secret redaction: add patterns for short JWTs, `bearer` tokens, OPENSSH keys
+- [ ] Logger rotation: use atomic file ops (temp file + rename) instead of read-truncate-write
+- [ ] Learn store rotation: same atomic file ops fix
+- [ ] Settings file permissions: `0600` instead of `0644` in `install/claude.go`
+
+### Build — Security fixes (Low)
+
+- [ ] MCP denylist: add `curl|bash`, `wget|sh`, `truncate`, `iptables`, `ufw`
+- [ ] ReDoS: limit repetition in private key regex pattern (`[A-Z ]{0,20}`)
+- [ ] Rate limiting: log violations to audit log
+
+### Build — Quality fixes (P1)
+
+- [ ] Fix hardcoded version `v0.1.0` → use `-ldflags "-X main.Version=$(git describe --tags)"`
+- [ ] Add `go vet` + `golangci-lint` + `gofmt` check to CI pipeline
+- [ ] Add test coverage reporting to CI (fail if < 70%)
+- [ ] Increase daemon test coverage (33% → 70%+): test shell scripts, edge cases
+- [ ] Increase install test coverage (44% → 70%+): JSON merge edge cases, error paths
+- [ ] Update BACKLOG.md tag status to match actual git tags
+
+### Build — Quality fixes (P2)
+
+- [ ] Extract `cmd/gotk/main.go` (1244 lines) into separate files: subcommands.go, usage.go
+- [ ] Unify command classification: move `TrivialCommands` + `InteractiveCommands` to shared package
+- [ ] Replace custom `itoa()` in `detect/detect.go` with `strconv.Itoa()`
+- [ ] Fix swallowed errors in install/measure paths — return errors instead of logging warnings
+- [ ] Add `Filter` interface with `Name()` method for chain introspection
+- [ ] Command registry pattern: unify `Identify()` + `FiltersFor()` into single registry
+- [ ] Pre-compile regex patterns in `filter/rules.go` (currently compiled per-call)
+- [ ] Add `gotk config show` subcommand (show loaded config files + effective config)
+- [ ] Add `--quiet` and `--debug` flags
+- [ ] Improve error messages: include recovery steps
+
+### Build — CI/CD (P2)
+
+- [ ] Add release automation with goreleaser (multi-platform binaries on tag push)
+- [ ] Add benchmark regression detection (compare results to baseline)
+- [ ] Build with `-ldflags="-s -w"` to reduce binary size (4.7MB → ~3MB)
+
+### Build — Documentation (P2)
+
+- [ ] Update CLAUDE.md to reflect current architecture (18 filters, hook, daemon, install)
+- [ ] Document config merging rules (3-level precedence, nested map behavior)
+- [ ] Add godoc comments to all public functions in ctx/, measure/, daemon/
+- [ ] Add architecture.md sections: config merging, filter extensibility, performance characteristics
+- [ ] Document `GOTK_PASSTHROUGH=1` in README and help text
+
+### Build — Testing (P2)
+
+- [ ] Add E2E tests: complex filter interactions, large output, signal handling
+- [ ] Add golden file edge cases: filter combinations, empty lines, binary data, rule conflicts
+- [ ] Add config precedence integration tests (global/project/local merge)
+- [ ] Increase MCP test coverage (65% → 80%+): rate limiting, sandbox edge cases
+
+### Deliver
+
+- [ ] All security fixes applied and tested
+- [ ] CI green with linting + coverage gates
+- [ ] Tag v1.3.0
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
@@ -305,7 +437,7 @@
 
 ## Icebox (Ideas to Explore)
 
-- [ ] Daemon mode to intercept all shell commands
+- [x] Daemon mode to intercept all shell commands (Sprint 9)
 - [ ] Windows support (PowerShell output patterns)
 - [ ] HTTP API for remote integration
 - [ ] VSCode plugin to visualize raw vs cleaned

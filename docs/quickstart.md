@@ -26,31 +26,23 @@ echo "test output with noise" | gotk --stats
 
 ## Claude Code
 
-Add to your project's `CLAUDE.md`:
+One command to set up 100% automatic filtering:
 
-```markdown
-## Token Optimization
-
-Always use gotk to execute shell commands that produce verbose output:
-  gotk grep -rn "pattern" .
-  gotk go test ./...
-  gotk git log --oneline -20
-  gotk find . -name "*.go"
-
-Use gotk ctx for codebase search (optimized for LLM consumption):
-  gotk ctx pattern -t go             # scan mode
-  gotk ctx pattern --def -t go       # definition search
-
-Never run grep, find, git, go test, make, or other verbose commands without
-the gotk prefix. This reduces token consumption by ~80%.
+```bash
+gotk install claude
 ```
 
-Claude reads this file on every conversation and follows the instructions.
+This registers GoTK as a Claude Code hook. Every Bash command Claude runs
+is automatically filtered — no CLAUDE.md instructions needed, no MCP overhead.
 
-A ready-to-copy template is available at `examples/CLAUDE.md.gotk-template`.
+```bash
+gotk install claude --global     # All projects (~/. claude/settings.json)
+gotk install claude --status     # Check if installed
+gotk install claude --uninstall  # Remove
+```
 
-> **Note:** For 100% automatic filtering, use MCP mode instead:
-> `claude mcp add --transport stdio gotk -- gotk --mcp`
+> **Alternatives:** CLAUDE.md instructions (~95% reliable) or MCP mode (higher
+> token overhead). See [integrations.md](integrations.md) for all options.
 
 ## Aider
 
@@ -114,6 +106,26 @@ your-command | gotk
 ```bash
 gotk your-command args...
 ```
+
+---
+
+## Daemon Mode (Filtered Shell)
+
+Start a shell session where all output is automatically filtered:
+
+```bash
+gotk daemon
+```
+
+Your prompt changes to `[gotk] $` so you know filtering is active. Interactive
+programs (vim, ssh, less) and trivial commands (cd, pwd) pass through normally.
+
+```bash
+gotk daemon status          # Check if inside a session
+eval "$(gotk daemon init)"  # Inject into current shell (advanced)
+```
+
+Type `gotk exit` to leave — a session summary shows total commands filtered and tokens saved.
 
 ---
 

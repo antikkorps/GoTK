@@ -39,30 +39,29 @@ CLI mode gives you GoTK's full filtering benefits with zero token cost for the i
 
 ## When to Use CLI Mode
 
+- **Claude Code** — `gotk install claude` (100% automatic via PreToolUse hook)
 - **Aider** — `SHELL=gotk` (100% automatic, true proxy)
 - **Cursor** — `SHELL=gotk` or terminal profile (100% automatic)
 - **Continue.dev** — Terminal context provider (100% automatic)
 - **Any tool** that respects `$SHELL` (100% automatic)
-- **Claude Code** — CLAUDE.md instructions (~95% reliable, CLI-only option)
 - When you want **maximum token savings**
 
 ### How CLI automation works per tool
 
 | Tool | Mechanism | Automation |
 |------|-----------|------------|
+| Claude Code | `gotk install claude` — PreToolUse hook wraps commands | 100% automatic |
 | Aider | `SHELL=gotk` — Aider calls `$SHELL -c "cmd"` | 100% automatic |
 | Cursor | `SHELL=gotk` or terminal profile | 100% automatic |
 | Continue.dev | `shell: gotk -c` in config | 100% automatic |
-| Claude Code | CLAUDE.md instructions | ~95% (Claude follows instructions) |
 
 > Claude Code's Bash tool does not use `$SHELL` — it executes commands directly.
-> This is why `SHELL=gotk` does not work for Claude Code. The CLAUDE.md approach
-> is the best CLI option; for 100% guaranteed filtering, use MCP mode.
+> GoTK solves this with a PreToolUse hook that wraps Bash commands with `| gotk`
+> before execution. Run `gotk install claude` to set it up.
 
 ## When to Use MCP Mode
 
-- **Claude Code** when you need 100% guaranteed filtering (not ~95%)
-- When the AI tool doesn't support `$SHELL` replacement
+- When the AI tool doesn't support hooks or `$SHELL` replacement
 - When you want the AI to **explicitly choose** when to use filtered output
 - When you need `gotk_read` or `gotk_grep` specialized tools
 - For **experimentation and debugging** (explicit tool calls are more visible)
@@ -84,21 +83,16 @@ only cleaned output. Zero overhead, zero awareness.
 
 ### Claude Code
 
-**CLI (CLAUDE.md instructions):**
+**Hook (recommended):**
 
-Add to your project's `CLAUDE.md`:
-
-```markdown
-## Token Optimization
-Always use gotk to execute shell commands that produce verbose output:
-  gotk grep -rn "pattern" .
-  gotk go test ./...
-Never run verbose commands without the gotk prefix.
+```bash
+gotk install claude
 ```
 
-Result: Claude prefixes its commands with `gotk`. ~95% compliance.
+Result: PreToolUse hook wraps every Bash command with `| gotk`. 100% automatic,
+zero token overhead. Trivial commands (cd, pwd) are skipped.
 
-**MCP (100% automatic):**
+**MCP (alternative):**
 
 ```bash
 claude mcp add --transport stdio gotk -- gotk --mcp
