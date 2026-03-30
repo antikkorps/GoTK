@@ -95,9 +95,9 @@ func generateGitDiffFixture() string {
 		lines = append(lines,
 			fmt.Sprintf("diff --git a/%s b/%s", file, file),
 			fmt.Sprintf("index %07x..%07x 100644", i*1111, i*2222+3333),
-			fmt.Sprintf("old mode 100644"),
-			fmt.Sprintf("new mode 100755"),
-			fmt.Sprintf("similarity index 95%%"),
+			"old mode 100644",
+			"new mode 100755",
+			"similarity index 95%",
 			fmt.Sprintf("--- a/%s", file),
 			fmt.Sprintf("+++ b/%s", file),
 		)
@@ -138,16 +138,16 @@ func generateGoTestFixture() string {
 	failPkgs := []string{"github.com/myproject/pkg/auth", "github.com/myproject/pkg/db", "github.com/myproject/pkg/api"}
 	for _, pkg := range failPkgs {
 		lines = append(lines,
-			fmt.Sprintf("=== RUN   TestMain"),
-			fmt.Sprintf("=== RUN   TestMain/SubTest1"),
-			fmt.Sprintf("    handler_test.go:45: expected 200, got 500"),
-			fmt.Sprintf("    handler_test.go:46: response body: {\"error\": \"internal server error\"}"),
-			fmt.Sprintf("--- FAIL: TestMain/SubTest1 (0.02s)"),
-			fmt.Sprintf("=== RUN   TestMain/SubTest2"),
-			fmt.Sprintf("    handler_test.go:60: context deadline exceeded"),
-			fmt.Sprintf("--- FAIL: TestMain/SubTest2 (5.00s)"),
-			fmt.Sprintf("--- FAIL: TestMain (5.02s)"),
-			fmt.Sprintf("FAIL"),
+			"=== RUN   TestMain",
+			"=== RUN   TestMain/SubTest1",
+			"    handler_test.go:45: expected 200, got 500",
+			"    handler_test.go:46: response body: {\"error\": \"internal server error\"}",
+			"--- FAIL: TestMain/SubTest1 (0.02s)",
+			"=== RUN   TestMain/SubTest2",
+			"    handler_test.go:60: context deadline exceeded",
+			"--- FAIL: TestMain/SubTest2 (5.00s)",
+			"--- FAIL: TestMain (5.02s)",
+			"FAIL",
 			fmt.Sprintf("FAIL\t%s\t5.031s", pkg),
 		)
 	}
@@ -540,7 +540,7 @@ func generateCtxScanFixture() string {
 	var b strings.Builder
 	for i, file := range files {
 		matchCount := 3 + i%8
-		b.WriteString(fmt.Sprintf("%dx %s\n", matchCount, file))
+		fmt.Fprintf(&b, "%dx %s\n", matchCount, file)
 		for j := 0; j < matchCount; j++ {
 			lineNum := 10 + j*15 + i*3
 			line := matchLines[(i+j)%len(matchLines)]
@@ -594,7 +594,7 @@ func generateCtxDetailFixture() string {
 	for _, file := range files {
 		for window := 0; window < 2+len(file)%3; window++ {
 			startLine := 10 + window*25
-			b.WriteString(fmt.Sprintf("--- %s:%d ---\n", file, startLine))
+			fmt.Fprintf(&b, "--- %s:%d ---\n", file, startLine)
 			for j := 0; j < 7; j++ {
 				lineNum := startLine + j
 				content := contextLines[(window*3+j)%len(contextLines)]
@@ -602,7 +602,7 @@ func generateCtxDetailFixture() string {
 				if j == 3 { // match line
 					prefix = "> "
 				}
-				b.WriteString(fmt.Sprintf("%s%d: %s\n", prefix, lineNum, content))
+				fmt.Fprintf(&b, "%s%d: %s\n", prefix, lineNum, content)
 			}
 			b.WriteString("  ...\n")
 		}

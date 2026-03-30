@@ -158,7 +158,7 @@ func TestWriteInitFile_Zsh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(filepath.Dir(path))
+	defer os.RemoveAll(filepath.Dir(path)) //nolint:errcheck
 
 	if filepath.Base(path) != ".zshrc" {
 		t.Errorf("zsh init file should be named .zshrc, got %s", filepath.Base(path))
@@ -178,7 +178,7 @@ func TestWriteInitFile_Bash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(path)
+	defer os.Remove(path) //nolint:errcheck
 
 	if !strings.Contains(path, "gotk-daemon") {
 		t.Errorf("bash init file should have gotk-daemon prefix, got %s", path)
@@ -204,29 +204,29 @@ func TestDetectShell_DefaultShell(t *testing.T) {
 	origShell := os.Getenv("SHELL")
 	origGotkShell := os.Getenv("GOTK_SHELL")
 	defer func() {
-		os.Setenv("SHELL", origShell)
+		os.Setenv("SHELL", origShell)       //nolint:errcheck
 		if origGotkShell != "" {
-			os.Setenv("GOTK_SHELL", origGotkShell)
+			os.Setenv("GOTK_SHELL", origGotkShell) //nolint:errcheck
 		} else {
-			os.Unsetenv("GOTK_SHELL")
+			os.Unsetenv("GOTK_SHELL") //nolint:errcheck
 		}
 	}()
 
 	// Test GOTK_SHELL takes priority
-	os.Setenv("GOTK_SHELL", "/bin/zsh")
+	os.Setenv("GOTK_SHELL", "/bin/zsh") //nolint:errcheck
 	if got := detectShell(); got != "/bin/zsh" {
 		t.Errorf("detectShell() with GOTK_SHELL=/bin/zsh = %q, want /bin/zsh", got)
 	}
 
 	// Test SHELL env var
-	os.Unsetenv("GOTK_SHELL")
-	os.Setenv("SHELL", "/usr/bin/bash")
+	os.Unsetenv("GOTK_SHELL")            //nolint:errcheck
+	os.Setenv("SHELL", "/usr/bin/bash") //nolint:errcheck
 	if got := detectShell(); got != "/usr/bin/bash" {
 		t.Errorf("detectShell() with SHELL=/usr/bin/bash = %q, want /usr/bin/bash", got)
 	}
 
 	// Test SHELL=gotk is skipped (avoid recursion)
-	os.Setenv("SHELL", "/usr/local/bin/gotk")
+	os.Setenv("SHELL", "/usr/local/bin/gotk") //nolint:errcheck
 	got := detectShell()
 	if filepath.Base(got) == "gotk" {
 		t.Errorf("detectShell() should not return gotk as shell, got %q", got)
@@ -260,7 +260,7 @@ func TestWriteInitFile_Permissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(filepath.Dir(path))
+	defer os.RemoveAll(filepath.Dir(path)) //nolint:errcheck
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -274,9 +274,9 @@ func TestWriteInitFile_Permissions(t *testing.T) {
 
 func TestStatus_NotActive(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
-	defer os.Setenv("GOTK_DAEMON", origDaemon)
+	defer os.Setenv("GOTK_DAEMON", origDaemon) //nolint:errcheck
 
-	os.Unsetenv("GOTK_DAEMON")
+	os.Unsetenv("GOTK_DAEMON") //nolint:errcheck
 	// Should not panic
 	Status()
 }
@@ -285,12 +285,12 @@ func TestStatus_Active(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
 	origSession := os.Getenv("GOTK_SESSION_ID")
 	defer func() {
-		os.Setenv("GOTK_DAEMON", origDaemon)
-		os.Setenv("GOTK_SESSION_ID", origSession)
+		os.Setenv("GOTK_DAEMON", origDaemon)       //nolint:errcheck
+		os.Setenv("GOTK_SESSION_ID", origSession) //nolint:errcheck
 	}()
 
-	os.Setenv("GOTK_DAEMON", "1")
-	os.Setenv("GOTK_SESSION_ID", "test-session")
+	os.Setenv("GOTK_DAEMON", "1")              //nolint:errcheck
+	os.Setenv("GOTK_SESSION_ID", "test-session") //nolint:errcheck
 	// Should not panic
 	Status()
 }
@@ -301,13 +301,13 @@ func TestPrintSummary_WithEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 
 	sessionID := "test-summary-session"
-	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:00:00Z","cmd":"grep -rn test .","raw_tokens":1000,"tokens_saved":800,"duration_us":5000}` + "\n")
-	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:01:00Z","cmd":"go test ./...","raw_tokens":2000,"tokens_saved":1500,"duration_us":3000}` + "\n")
-	tmpFile.WriteString(`{"session":"other-session","ts":"2026-03-30T10:02:00Z","cmd":"ls","raw_tokens":100,"tokens_saved":50,"duration_us":1000}` + "\n")
-	tmpFile.Close()
+	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:00:00Z","cmd":"grep -rn test .","raw_tokens":1000,"tokens_saved":800,"duration_us":5000}` + "\n") //nolint:errcheck
+	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:01:00Z","cmd":"go test ./...","raw_tokens":2000,"tokens_saved":1500,"duration_us":3000}` + "\n")  //nolint:errcheck
+	tmpFile.WriteString(`{"session":"other-session","ts":"2026-03-30T10:02:00Z","cmd":"ls","raw_tokens":100,"tokens_saved":50,"duration_us":1000}` + "\n")                       //nolint:errcheck
+	tmpFile.Close()                                                                                                                                                               //nolint:errcheck
 
 	var buf bytes.Buffer
 	PrintSummary(&buf, tmpFile.Name(), sessionID)
@@ -336,7 +336,7 @@ func TestInit_Zsh(t *testing.T) {
 
 	err := Init("zsh")
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = old
 
 	if err != nil {
@@ -344,7 +344,7 @@ func TestInit_Zsh(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	buf.ReadFrom(r) //nolint:errcheck
 	output := buf.String()
 
 	if !strings.Contains(output, "GOTK_DAEMON=1") {
@@ -362,7 +362,7 @@ func TestInit_Bash(t *testing.T) {
 
 	err := Init("bash")
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = old
 
 	if err != nil {
@@ -370,7 +370,7 @@ func TestInit_Bash(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	buf.ReadFrom(r) //nolint:errcheck
 	output := buf.String()
 
 	if !strings.Contains(output, "extdebug") {
@@ -382,16 +382,16 @@ func TestDetectShell_Fallback(t *testing.T) {
 	origShell := os.Getenv("SHELL")
 	origGotkShell := os.Getenv("GOTK_SHELL")
 	defer func() {
-		os.Setenv("SHELL", origShell)
+		os.Setenv("SHELL", origShell)       //nolint:errcheck
 		if origGotkShell != "" {
-			os.Setenv("GOTK_SHELL", origGotkShell)
+			os.Setenv("GOTK_SHELL", origGotkShell) //nolint:errcheck
 		} else {
-			os.Unsetenv("GOTK_SHELL")
+			os.Unsetenv("GOTK_SHELL") //nolint:errcheck
 		}
 	}()
 
-	os.Unsetenv("GOTK_SHELL")
-	os.Unsetenv("SHELL")
+	os.Unsetenv("GOTK_SHELL") //nolint:errcheck
+	os.Unsetenv("SHELL")      //nolint:errcheck
 
 	got := detectShell()
 	if got == "" {
@@ -408,9 +408,9 @@ func TestShouldSkip_OnlyEnvVars(t *testing.T) {
 
 func TestStart_NestedPrevention(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
-	defer os.Setenv("GOTK_DAEMON", origDaemon)
+	defer os.Setenv("GOTK_DAEMON", origDaemon) //nolint:errcheck
 
-	os.Setenv("GOTK_DAEMON", "1")
+	os.Setenv("GOTK_DAEMON", "1") //nolint:errcheck
 
 	cfg := &config.Config{}
 	err := Start(cfg)
@@ -424,8 +424,8 @@ func TestStart_NestedPrevention(t *testing.T) {
 
 func TestPrepareSession_Success(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
-	defer os.Setenv("GOTK_DAEMON", origDaemon)
-	os.Unsetenv("GOTK_DAEMON")
+	defer os.Setenv("GOTK_DAEMON", origDaemon) //nolint:errcheck
+	os.Unsetenv("GOTK_DAEMON")                //nolint:errcheck
 
 	setup, err := prepareSession()
 	if err != nil {
@@ -433,9 +433,9 @@ func TestPrepareSession_Success(t *testing.T) {
 	}
 	defer func() {
 		if setup.initFile != "" {
-			os.Remove(setup.initFile)
+			os.Remove(setup.initFile)                //nolint:errcheck
 			// Also try to remove parent dir (zsh case)
-			os.Remove(filepath.Dir(setup.initFile))
+			os.Remove(filepath.Dir(setup.initFile)) //nolint:errcheck
 		}
 	}()
 
@@ -467,9 +467,9 @@ func TestPrepareSession_Success(t *testing.T) {
 
 func TestPrepareSession_Nested(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
-	defer os.Setenv("GOTK_DAEMON", origDaemon)
+	defer os.Setenv("GOTK_DAEMON", origDaemon) //nolint:errcheck
 
-	os.Setenv("GOTK_DAEMON", "1")
+	os.Setenv("GOTK_DAEMON", "1") //nolint:errcheck
 
 	_, err := prepareSession()
 	if err == nil {
@@ -482,11 +482,11 @@ func TestPrintSummary_ZeroTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 
 	// Entry with zero raw tokens
-	tmpFile.WriteString(`{"session":"zero-session","ts":"2026-03-30T10:00:00Z","cmd":"echo","raw_tokens":0,"tokens_saved":0,"duration_us":100}` + "\n")
-	tmpFile.Close()
+	tmpFile.WriteString(`{"session":"zero-session","ts":"2026-03-30T10:00:00Z","cmd":"echo","raw_tokens":0,"tokens_saved":0,"duration_us":100}` + "\n") //nolint:errcheck
+	tmpFile.Close()                                                                                                                                      //nolint:errcheck
 
 	var buf bytes.Buffer
 	PrintSummary(&buf, tmpFile.Name(), "zero-session")
@@ -502,7 +502,7 @@ func TestWriteInitFile_BashPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(path)
+	defer os.Remove(path) //nolint:errcheck
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -518,18 +518,18 @@ func TestWriteInitFile_ZshOrigZdotdir(t *testing.T) {
 	origZdotdir := os.Getenv("ZDOTDIR")
 	defer func() {
 		if origZdotdir != "" {
-			os.Setenv("ZDOTDIR", origZdotdir)
+			os.Setenv("ZDOTDIR", origZdotdir) //nolint:errcheck
 		} else {
-			os.Unsetenv("ZDOTDIR")
+			os.Unsetenv("ZDOTDIR") //nolint:errcheck
 		}
 	}()
 
-	os.Setenv("ZDOTDIR", "/custom/zdotdir")
+	os.Setenv("ZDOTDIR", "/custom/zdotdir") //nolint:errcheck
 	path, err := writeInitFile("zsh", "/usr/local/bin/gotk", "session-zdot")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(filepath.Dir(path))
+	defer os.RemoveAll(filepath.Dir(path)) //nolint:errcheck
 
 	content, err := os.ReadFile(path)
 	if err != nil {

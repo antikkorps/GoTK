@@ -81,7 +81,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[gotk] warning: cannot init measure log: %v\n", err)
 		} else {
 			mlog = l
-			defer mlog.Close()
+			defer mlog.Close() //nolint:errcheck
 		}
 	}
 
@@ -345,14 +345,14 @@ func runStreaming(cmdArgs []string) int {
 
 		out, emit := sf.ProcessLine(r.Line)
 		if emit {
-			fmt.Fprintln(os.Stdout, out)
+			fmt.Fprintln(os.Stdout, out) //nolint:errcheck
 			cleanBytes += len(out) + 1
 		}
 	}
 
 	// Flush any pending buffered output (e.g., trailing dedup marker).
 	if flushed := sf.Flush(); flushed != "" {
-		fmt.Fprintln(os.Stdout, flushed)
+		fmt.Fprintln(os.Stdout, flushed) //nolint:errcheck
 		cleanBytes += len(flushed) + 1
 	}
 
@@ -785,9 +785,10 @@ func runDaemon(args []string) {
 			shell = "/bin/bash"
 		}
 		for _, a := range args[1:] {
-			if a == "--bash" {
+			switch a {
+			case "--bash":
 				shell = "bash"
-			} else if a == "--zsh" {
+			case "--zsh":
 				shell = "zsh"
 			}
 		}

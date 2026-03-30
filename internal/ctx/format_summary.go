@@ -46,14 +46,14 @@ func FormatSummary(results []FileResult, opts Options) string {
 	})
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Pattern: %s\n", opts.Pattern))
-	b.WriteString(fmt.Sprintf("Total: %d matches in %d files\n\n", totalMatches, totalFiles))
-	b.WriteString(fmt.Sprintf("%-40s %6s %8s\n", "Directory", "Files", "Matches"))
+	fmt.Fprintf(&b, "Pattern: %s\n", opts.Pattern)
+	fmt.Fprintf(&b, "Total: %d matches in %d files\n\n", totalMatches, totalFiles)
+	fmt.Fprintf(&b, "%-40s %6s %8s\n", "Directory", "Files", "Matches")
 	b.WriteString(strings.Repeat("-", 56) + "\n")
 
 	for _, dir := range order {
 		ds := dirs[dir]
-		b.WriteString(fmt.Sprintf("%-40s %6d %8d\n", truncDir(dir, 40), ds.files, ds.matches))
+		fmt.Fprintf(&b, "%-40s %6d %8d\n", truncDir(dir, 40), ds.files, ds.matches)
 	}
 
 	return b.String()

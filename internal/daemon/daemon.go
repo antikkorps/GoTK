@@ -138,7 +138,7 @@ func Start(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(setup.initFile)
+	defer os.Remove(setup.initFile) //nolint:errcheck
 
 	fmt.Fprintf(os.Stderr, "[gotk] starting daemon session (shell: %s)\n", setup.shellName)
 	fmt.Fprintf(os.Stderr, "[gotk] all command output will be filtered. type 'gotk exit' to stop.\n\n")
@@ -316,7 +316,7 @@ func writeInitFile(shellName, gotkBin, sessionID string) (string, error) {
 			return "", err
 		}
 		filename = f.Name()
-		f.Close()
+		f.Close() //nolint:errcheck
 	}
 
 	if err := os.WriteFile(filename, []byte(script), 0600); err != nil {

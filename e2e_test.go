@@ -346,7 +346,7 @@ func TestE2E_Ctx_NoMatch(t *testing.T) {
 	bin := binary(t)
 	// Search in a temp dir with no matching files to guarantee no matches
 	dir := t.TempDir()
-	os.WriteFile(dir+"/test.go", []byte("package main\nfunc main() {}\n"), 0644)
+	os.WriteFile(dir+"/test.go", []byte("package main\nfunc main() {}\n"), 0644) //nolint:errcheck
 	stdout, _, code := run(t, bin, "", "ctx", "xyzNeverMatchThis123", "-p", dir)
 	if code != 0 {
 		t.Errorf("ctx no-match exit code = %d, want 0", code)

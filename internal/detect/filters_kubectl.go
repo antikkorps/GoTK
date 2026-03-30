@@ -78,12 +78,13 @@ func compressKubectlOutput(input string) string {
 func leadingSpaces(s string) int {
 	count := 0
 	for _, ch := range s {
-		if ch == ' ' {
+		switch ch {
+		case ' ':
 			count++
-		} else if ch == '\t' {
+		case '\t':
 			count += 4
-		} else {
-			break
+		default:
+			return count
 		}
 	}
 	return count

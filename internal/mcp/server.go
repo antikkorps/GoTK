@@ -453,7 +453,7 @@ func Serve(cfg *config.Config) {
 				fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", auditPath, err)
 			} else {
 				auditFile = f
-				defer f.Close()
+				defer f.Close() //nolint:errcheck
 			}
 		}
 	}
@@ -465,7 +465,7 @@ func Serve(cfg *config.Config) {
 			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot init measure log: %v\n", err)
 		} else {
 			mcpMeasureLogger = ml
-			defer ml.Close()
+			defer ml.Close() //nolint:errcheck
 		}
 	}
 
@@ -1290,7 +1290,7 @@ func writeResponse(resp jsonRPCResponse) {
 		logErr("failed to marshal response: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stdout, "%s\n", data)
+	fmt.Fprintf(os.Stdout, "%s\n", data) //nolint:errcheck
 }
 
 // auditFile is the optional file-based audit log. Set by Serve() if configured.
@@ -1302,7 +1302,7 @@ func logErr(format string, args ...interface{}) {
 
 	if auditFile != nil {
 		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
-		fmt.Fprintf(auditFile, "%s %s\n", ts, msg)
+		fmt.Fprintf(auditFile, "%s %s\n", ts, msg) //nolint:errcheck
 	}
 }
 
@@ -1311,7 +1311,7 @@ func logErr(format string, args ...interface{}) {
 func auditLog(event, detail string) {
 	if auditFile != nil {
 		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
-		fmt.Fprintf(auditFile, "%s [SECURITY] %s: %s\n", ts, event, detail)
+		fmt.Fprintf(auditFile, "%s [SECURITY] %s: %s\n", ts, event, detail) //nolint:errcheck
 	}
 }
 

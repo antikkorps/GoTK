@@ -97,11 +97,11 @@ func Run(ctx context.Context, cfg Config) error {
 // filters its output, and prints a waiting message.
 func runCommand(ctx context.Context, cfg Config) {
 	// Clear screen.
-	fmt.Fprint(os.Stdout, "\033[2J\033[H")
+	fmt.Fprint(os.Stdout, "\033[2J\033[H") //nolint:errcheck
 
 	cmdStr := strings.Join(cfg.Command, " ")
 	now := time.Now().Format("15:04:05")
-	fmt.Fprintf(os.Stdout, "[gotk watch] %s — running: %s\n\n", now, cmdStr)
+	fmt.Fprintf(os.Stdout, "[gotk watch] %s — running: %s\n\n", now, cmdStr) //nolint:errcheck
 
 	// Execute command with timeout from config.
 	timeout := time.Duration(cfg.GoTKConfig.Security.CommandTimeout) * time.Second
@@ -114,7 +114,7 @@ func runCommand(ctx context.Context, cfg Config) {
 	result, err := exec.RunWithTimeout(cmdCtx, cfg.Command[0], cfg.Command[1:]...)
 	if err != nil && result == nil {
 		fmt.Fprintf(os.Stderr, "[gotk watch] error: %v\n", err)
-		fmt.Fprintln(os.Stdout, "\n[gotk watch] waiting for changes...")
+		fmt.Fprintln(os.Stdout, "\n[gotk watch] waiting for changes...") //nolint:errcheck
 		return
 	}
 
@@ -126,7 +126,7 @@ func runCommand(ctx context.Context, cfg Config) {
 	chain := proxy.BuildChain(cfg.GoTKConfig, cmdType, cfg.MaxLines)
 	cleaned := chain.Apply(result.Stdout)
 
-	fmt.Fprint(os.Stdout, cleaned)
+	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 
 	// Pass through stderr unmodified.
 	if result.Stderr != "" {
@@ -143,10 +143,10 @@ func runCommand(ctx context.Context, cfg Config) {
 	}
 
 	if result.ExitCode != 0 {
-		fmt.Fprintf(os.Stdout, "\n[gotk watch] exit code: %d\n", result.ExitCode)
+		fmt.Fprintf(os.Stdout, "\n[gotk watch] exit code: %d\n", result.ExitCode) //nolint:errcheck
 	}
 
-	fmt.Fprintln(os.Stdout, "\n[gotk watch] waiting for changes...")
+	fmt.Fprintln(os.Stdout, "\n[gotk watch] waiting for changes...") //nolint:errcheck
 }
 
 // takeSnapshot walks the given paths and records modification times for files

@@ -42,14 +42,14 @@ func StoreWrite(storePath string, observations []Observation) error {
 	if err != nil {
 		return fmt.Errorf("learn: open %s: %w", storePath, err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	for _, obs := range observations {
 		data, err := json.Marshal(obs)
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(f, "%s\n", data)
+		fmt.Fprintf(f, "%s\n", data) //nolint:errcheck
 	}
 	return nil
 }

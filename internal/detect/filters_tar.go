@@ -92,18 +92,12 @@ func compressTarOutput(input string) string {
 func flushTarCounters(result *[]string, extractCount *int, fileList *[]string) {
 	if len(*fileList) > 0 {
 		if len(*fileList) <= 20 {
-			for _, f := range *fileList {
-				*result = append(*result, f)
-			}
+			*result = append(*result, *fileList...)
 		} else {
 			// Show first 10, last 5, and count
-			for _, f := range (*fileList)[:10] {
-				*result = append(*result, f)
-			}
+			*result = append(*result, (*fileList)[:10]...)
 			*result = append(*result, "... "+itoa(len(*fileList)-15)+" more files ...")
-			for _, f := range (*fileList)[len(*fileList)-5:] {
-				*result = append(*result, f)
-			}
+			*result = append(*result, (*fileList)[len(*fileList)-5:]...)
 		}
 		*fileList = nil
 	}

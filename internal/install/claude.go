@@ -16,17 +16,6 @@ const (
 	ScopeGlobal               // ~/.claude/settings.json
 )
 
-// hookEntry matches the Claude Code hook configuration schema.
-type hookEntry struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
-}
-
-type matcherGroup struct {
-	Matcher string      `json:"matcher"`
-	Hooks   []hookEntry `json:"hooks"`
-}
-
 // ClaudeInstall configures GoTK as a Claude Code PreToolUse hook.
 func ClaudeInstall(scope Scope) error {
 	gotkPath, err := findGotkPath()

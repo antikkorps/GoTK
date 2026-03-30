@@ -45,7 +45,7 @@ func TestClaudeInstall_ExistingSettings(t *testing.T) {
 		},
 	}
 	data, _ := json.MarshalIndent(existing, "", "  ")
-	os.WriteFile(settingsPath, data, 0644)
+	os.WriteFile(settingsPath, data, 0644) //nolint:errcheck
 
 	// Add hook
 	settings, err := readSettings(settingsPath)
@@ -173,7 +173,7 @@ func TestSettingsFilePath_InvalidScope(t *testing.T) {
 func TestReadSettings_InvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
-	os.WriteFile(path, []byte("not json"), 0644)
+	os.WriteFile(path, []byte("not json"), 0644) //nolint:errcheck
 
 	_, err := readSettings(path)
 	if err == nil {
@@ -342,7 +342,7 @@ func TestClaudeUninstallAt_FullFlow(t *testing.T) {
 	gotkPath := "/usr/local/bin/gotk"
 
 	// Install first
-	claudeInstallAt(settingsPath, gotkPath)
+	claudeInstallAt(settingsPath, gotkPath) //nolint:errcheck
 
 	// Uninstall
 	if err := claudeUninstallAt(settingsPath, gotkPath); err != nil {
@@ -366,7 +366,7 @@ func TestClaudeStatusAt_Installed(t *testing.T) {
 	settingsPath := filepath.Join(dir, ".claude", "settings.json")
 	gotkPath := "/usr/local/bin/gotk"
 
-	claudeInstallAt(settingsPath, gotkPath)
+	claudeInstallAt(settingsPath, gotkPath) //nolint:errcheck
 
 	if err := claudeStatusAt(settingsPath, gotkPath); err != nil {
 		t.Fatalf("claudeStatusAt error: %v", err)

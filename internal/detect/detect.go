@@ -81,42 +81,42 @@ func Identify(command string) CmdType {
 	base := filepath.Base(command)
 	base = strings.TrimSuffix(base, ".exe")
 
-	switch {
-	case base == "grep" || base == "rg" || base == "ag" || base == "ack":
+	switch base {
+	case "grep", "rg", "ag", "ack":
 		return CmdGrep
-	case base == "find" || base == "fd":
+	case "find", "fd":
 		return CmdFind
-	case base == "git" || base == "gh":
+	case "git", "gh":
 		return CmdGit
-	case base == "go":
+	case "go":
 		return CmdGoTool
-	case base == "ls" || base == "exa" || base == "eza" || base == "lsd":
+	case "ls", "exa", "eza", "lsd":
 		return CmdLs
-	case base == "docker" || base == "docker-compose" || base == "podman":
+	case "docker", "docker-compose", "podman":
 		return CmdDocker
-	case base == "npm" || base == "yarn" || base == "pnpm" || base == "bun":
+	case "npm", "yarn", "pnpm", "bun":
 		return CmdNpm
-	case base == "node" || base == "npx" || base == "tsx" || base == "ts-node" || base == "deno":
+	case "node", "npx", "tsx", "ts-node", "deno":
 		return CmdNode
-	case base == "cargo" || base == "rustc":
+	case "cargo", "rustc":
 		return CmdCargo
-	case base == "make" || base == "cmake" || base == "ninja":
+	case "make", "cmake", "ninja":
 		return CmdMake
-	case base == "curl" || base == "wget" || base == "http" || base == "httpie":
+	case "curl", "wget", "http", "httpie":
 		return CmdCurl
-	case base == "python" || base == "python3" || base == "python2" || base == "pip" || base == "pip3":
+	case "python", "python3", "python2", "pip", "pip3":
 		return CmdPython
-	case base == "tree":
+	case "tree":
 		return CmdTree
-	case base == "terraform" || base == "tofu" || base == "tf":
+	case "terraform", "tofu", "tf":
 		return CmdTerraform
-	case base == "kubectl" || base == "helm" || base == "k9s" || base == "oc":
+	case "kubectl", "helm", "k9s", "oc":
 		return CmdKubectl
-	case base == "jq" || base == "yq" || base == "gojq":
+	case "jq", "yq", "gojq":
 		return CmdJq
-	case base == "tar" || base == "zip" || base == "unzip" || base == "gzip" || base == "7z":
+	case "tar", "zip", "unzip", "gzip", "7z":
 		return CmdTar
-	case base == "ssh" || base == "scp" || base == "sftp" || base == "rsync":
+	case "ssh", "scp", "sftp", "rsync":
 		return CmdSSH
 	default:
 		return CmdGeneric
@@ -271,9 +271,7 @@ func compressFindOutput(input string) string {
 	var result []string
 	result = append(result, "[base: "+prefix+"/]")
 	for _, dir := range order {
-		for _, f := range groups[dir] {
-			result = append(result, f)
-		}
+		result = append(result, groups[dir]...)
 	}
 
 	return strings.Join(result, "\n") + "\n"
