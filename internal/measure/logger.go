@@ -29,7 +29,7 @@ func NewLogger(path, sessionID string, maxSize ...int) (*Logger, error) {
 		return nil, fmt.Errorf("measure: create dir %s: %w", dir, err)
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("measure: open %s: %w", path, err)
 	}
@@ -77,15 +77,16 @@ func (l *Logger) Log(e Entry) error {
 }
 
 // rotate keeps the most recent half of the log file.
+// Uses atomic file ops (write to temp file + rename) to prevent data loss.
 // Must be called with l.mu held.
 func (l *Logger) rotate() {
-	// Close current file, read contents, keep second half, rewrite
+	// Close current file, read contents, keep second half, rewrite atomically
 	_ = l.file.Close()
 
 	data, err := os.ReadFile(l.path)
 	if err != nil {
 		// Reopen in append mode and continue
-		l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 		return
 	}
 
@@ -99,9 +100,13 @@ func (l *Logger) rotate() {
 	half := len(lines) / 2
 	kept := strings.Join(lines[half:], "\n") + "\n"
 
-	_ = os.WriteFile(l.path, []byte(kept), 0644)
+	// Atomic write: temp file + rename to prevent corruption
+	tmpPath := l.path + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(kept), 0600); err == nil {
+		_ = os.Rename(tmpPath, l.path)
+	}
 
-	l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 }
 
 // Close closes the underlying log file.

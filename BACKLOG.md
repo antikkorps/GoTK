@@ -362,10 +362,10 @@
 
 ### Build — Security fixes (Medium)
 
-- [ ] Secret redaction: add patterns for short JWTs, `bearer` tokens, OPENSSH keys
-- [ ] Logger rotation: use atomic file ops (temp file + rename) instead of read-truncate-write
-- [ ] Learn store rotation: same atomic file ops fix
-- [ ] Settings file permissions: `0600` instead of `0644` in `install/claude.go`
+- [x] Secret redaction: add patterns for short JWTs, `bearer` tokens, OPENSSH keys
+- [x] Logger rotation: use atomic file ops (temp file + rename) instead of read-truncate-write
+- [x] Learn store rotation: same atomic file ops fix
+- [x] Settings file permissions: `0600` instead of `0644` in `install/claude.go`
 
 ### Build — Security fixes (Low)
 

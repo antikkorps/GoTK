@@ -180,7 +180,7 @@ func writeSettings(path string, settings map[string]interface{}) error {
 	}
 	data = append(data, '\n')
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	return nil

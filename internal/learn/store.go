@@ -38,7 +38,7 @@ func StoreWrite(storePath string, observations []Observation) error {
 		rotateStore(storePath)
 	}
 
-	f, err := os.OpenFile(storePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(storePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("learn: open %s: %w", storePath, err)
 	}
@@ -173,6 +173,7 @@ func NewSessionID() string {
 }
 
 // rotateStore keeps the most recent half of entries.
+// Uses atomic file ops (write to temp file + rename) to prevent data loss.
 func rotateStore(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -184,5 +185,10 @@ func rotateStore(path string) {
 	}
 	half := len(lines) / 2
 	kept := strings.Join(lines[half:], "\n") + "\n"
-	_ = os.WriteFile(path, []byte(kept), 0644)
+
+	// Atomic write: temp file + rename to prevent corruption
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(kept), 0600); err == nil {
+		_ = os.Rename(tmpPath, path)
+	}
 }
