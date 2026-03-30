@@ -28,6 +28,17 @@ var dangerousBaseCommands = map[string]bool{
 	"halt":     true,
 	"wipefs":   true,
 	"format":   true,
+	"truncate": true,
+	"iptables": true,
+	"ufw":      true,
+}
+
+// dangerousPipePatterns detects remote code execution patterns like curl|bash.
+var dangerousPipePatterns = []string{
+	"curl|bash", "curl |bash", "curl | bash",
+	"curl|sh", "curl |sh", "curl | sh",
+	"wget|bash", "wget |bash", "wget | bash",
+	"wget|sh", "wget |sh", "wget | sh",
 }
 
 // dangerousArgPattern describes a command with specific dangerous argument combinations.
@@ -235,6 +246,14 @@ func validateCommand(command string) string {
 	// Check if the base command itself is dangerous (exact match or mkfs.* prefix)
 	if dangerousBaseCommands[cmdName] || strings.HasPrefix(cmdName, "mkfs.") {
 		return fmt.Sprintf("command blocked: dangerous command %q", cmdName)
+	}
+
+	// Check dangerous pipe patterns (remote code execution)
+	normalizedLower := strings.ToLower(normalized)
+	for _, pattern := range dangerousPipePatterns {
+		if strings.Contains(normalizedLower, pattern) {
+			return "command blocked: remote code execution pattern detected"
+		}
 	}
 
 	// Check fork bomb pattern
@@ -519,6 +538,7 @@ func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, re
 	case "tools/call":
 		if !limiter.Allow() {
 			logErr("RATE LIMITED: tools/call rejected")
+			auditLog("RATE_LIMIT", "tools/call rejected — rate limit exceeded")
 			sendError(req.ID, -32000, "Rate limit exceeded: too many requests per minute")
 			return
 		}
@@ -654,6 +674,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	// Command validation: check against denylist
 	if reason := validateCommand(args.Command); reason != "" {
 		logErr("BLOCKED command: %q - %s", args.Command, reason)
+		auditLog("CMD_BLOCKED", fmt.Sprintf("%q — %s", args.Command, reason))
 		sendError(id, -32602, reason)
 		return
 	}
@@ -662,6 +683,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	if cfg.Security.SandboxMode {
 		if reason := validateSandbox(args.Command); reason != "" {
 			logErr("SANDBOX BLOCKED: %q - %s", args.Command, reason)
+			auditLog("SANDBOX_BLOCKED", fmt.Sprintf("%q — %s", args.Command, reason))
 			sendError(id, -32602, reason)
 			return
 		}
@@ -1278,6 +1300,15 @@ func logErr(format string, args ...interface{}) {
 	if auditFile != nil {
 		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
 		fmt.Fprintf(auditFile, "%s %s\n", ts, msg)
+	}
+}
+
+// auditLog writes a security event to the audit log file (if configured).
+// Used for security-relevant events like rate limiting, command blocking, etc.
+func auditLog(event, detail string) {
+	if auditFile != nil {
+		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
+		fmt.Fprintf(auditFile, "%s [SECURITY] %s: %s\n", ts, event, detail)
 	}
 }
 

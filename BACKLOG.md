@@ -369,9 +369,9 @@
 
 ### Build — Security fixes (Low)
 
-- [ ] MCP denylist: add `curl|bash`, `wget|sh`, `truncate`, `iptables`, `ufw`
-- [ ] ReDoS: limit repetition in private key regex pattern (`[A-Z ]{0,20}`)
-- [ ] Rate limiting: log violations to audit log
+- [x] MCP denylist: add `curl|bash`, `wget|sh`, `truncate`, `iptables`, `ufw`
+- [x] ReDoS: limit repetition in private key regex pattern (`[A-Z0-9 ]{0,20}`)
+- [x] Rate limiting: log violations to audit log
 
 ### Build — Quality fixes (P1)
 
