@@ -33,12 +33,15 @@ func ClaudeInstall(scope Scope) error {
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeInstallAt(settingsPath, gotkPath)
+}
 
+// claudeInstallAt is the core install logic, testable with arbitrary paths.
+func claudeInstallAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return err
@@ -71,12 +74,15 @@ func ClaudeUninstall(scope Scope) error {
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeUninstallAt(settingsPath, gotkPath)
+}
 
+// claudeUninstallAt is the core uninstall logic, testable with arbitrary paths.
+func claudeUninstallAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return err
@@ -101,12 +107,15 @@ func ClaudeStatus(scope Scope) error {
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeStatusAt(settingsPath, gotkPath)
+}
 
+// claudeStatusAt is the core status logic, testable with arbitrary paths.
+func claudeStatusAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Settings file: %s (not found)\n", settingsPath)

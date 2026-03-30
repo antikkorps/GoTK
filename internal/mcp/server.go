@@ -20,6 +20,9 @@ import (
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
+// Version is set by the CLI entrypoint before calling Serve.
+var Version = "dev"
+
 // dangerousBaseCommands is a denylist of base command names that are always blocked.
 var dangerousBaseCommands = map[string]bool{
 	"mkfs":     true,
@@ -525,7 +528,7 @@ func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, re
 		result := initializeResult{
 			ProtocolVersion: "2024-11-05",
 			Capabilities:    capObject{Tools: map[string]interface{}{}},
-			ServerInfo:      serverInfo{Name: "gotk", Version: "0.2.0"},
+			ServerInfo:      serverInfo{Name: "gotk", Version: Version},
 		}
 		sendResult(req.ID, result)
 

@@ -78,7 +78,7 @@
 ### Deliver
 
 - [x] Documented integration examples
-- [ ] Tag v0.2.0
+- [x] Tag v0.2.0
 
 ---
 
@@ -109,7 +109,7 @@
 
 ### Deliver
 
-- [ ] Tag v0.3.0
+- [x] Tag v0.3.0
 
 ---
 
@@ -149,7 +149,7 @@
 
 - [x] Security documentation (docs/security.md)
 - [x] Full audit + all fixes applied
-- [ ] Tag v0.4.0
+- [x] Tag v0.4.0
 
 ---
 
@@ -375,12 +375,12 @@
 
 ### Build — Quality fixes (P1)
 
-- [ ] Fix hardcoded version `v0.1.0` → use `-ldflags "-X main.Version=$(git describe --tags)"`
-- [ ] Add `go vet` + `golangci-lint` + `gofmt` check to CI pipeline
-- [ ] Add test coverage reporting to CI (fail if < 70%)
-- [ ] Increase daemon test coverage (33% → 70%+): test shell scripts, edge cases
-- [ ] Increase install test coverage (44% → 70%+): JSON merge edge cases, error paths
-- [ ] Update BACKLOG.md tag status to match actual git tags
+- [x] Fix hardcoded version `v0.1.0` → use `-ldflags "-X main.Version=$(git describe --tags)"`
+- [x] Add `go vet` + `golangci-lint` + `gofmt` check to CI pipeline
+- [x] Add test coverage reporting to CI (fail if < 70%)
+- [x] Increase daemon test coverage (33% → 70%+): test shell scripts, edge cases
+- [x] Increase install test coverage (44% → 70%+): JSON merge edge cases, error paths
+- [x] Update BACKLOG.md tag status to match actual git tags
 
 ### Build — Quality fixes (P2)
 

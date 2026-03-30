@@ -27,6 +27,9 @@ import (
 	"github.com/antikkorps/GoTK/internal/watch"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=..."
+var Version = "dev"
+
 var (
 	showStats       bool
 	shellMode       bool
@@ -166,13 +169,14 @@ func main() {
 			cmdArgs = args[1:]
 		}
 	case "--mcp":
+		mcp.Version = Version
 		mcp.Serve(cfg)
 		os.Exit(0)
 	case "--help", "-h":
 		printUsage()
 		os.Exit(0)
 	case "--version", "-v":
-		fmt.Println("gotk v0.1.0")
+		fmt.Printf("gotk %s\n", Version)
 		os.Exit(0)
 	default:
 		cmdArgs = args
