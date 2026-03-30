@@ -115,11 +115,11 @@ func TestFindShell_RespectsGOTK_SHELL(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)
-		os.Setenv("SHELL", origSHELL)
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Setenv("GOTK_SHELL", "/usr/local/bin/custom-shell")
+	os.Setenv("GOTK_SHELL", "/usr/local/bin/custom-shell") //nolint:errcheck
 	got := findShell()
 	if got != "/usr/local/bin/custom-shell" {
 		t.Errorf("findShell() = %q, want /usr/local/bin/custom-shell", got)
@@ -130,12 +130,12 @@ func TestFindShell_AvoidsGotkRecursion(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)
-		os.Setenv("SHELL", origSHELL)
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")
-	os.Setenv("SHELL", "/usr/local/bin/gotk")
+	os.Unsetenv("GOTK_SHELL")                 //nolint:errcheck
+	os.Setenv("SHELL", "/usr/local/bin/gotk") //nolint:errcheck
 
 	got := findShell()
 	if got == "/usr/local/bin/gotk" {
@@ -151,12 +151,12 @@ func TestFindShell_UsesSHELL(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)
-		os.Setenv("SHELL", origSHELL)
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")
-	os.Setenv("SHELL", "/bin/bash")
+	os.Unsetenv("GOTK_SHELL")       //nolint:errcheck
+	os.Setenv("SHELL", "/bin/bash") //nolint:errcheck
 
 	got := findShell()
 	if got != "/bin/bash" {
@@ -211,19 +211,19 @@ func TestRunCommand_NonZeroExit(t *testing.T) {
 
 func TestPassthrough(t *testing.T) {
 	orig := os.Getenv("GOTK_PASSTHROUGH")
-	defer os.Setenv("GOTK_PASSTHROUGH", orig)
+	defer os.Setenv("GOTK_PASSTHROUGH", orig) //nolint:errcheck
 
-	os.Setenv("GOTK_PASSTHROUGH", "1")
+	os.Setenv("GOTK_PASSTHROUGH", "1") //nolint:errcheck
 	if !passthrough() {
 		t.Error("passthrough() should return true when GOTK_PASSTHROUGH=1")
 	}
 
-	os.Setenv("GOTK_PASSTHROUGH", "0")
+	os.Setenv("GOTK_PASSTHROUGH", "0") //nolint:errcheck
 	if passthrough() {
 		t.Error("passthrough() should return false when GOTK_PASSTHROUGH=0")
 	}
 
-	os.Unsetenv("GOTK_PASSTHROUGH")
+	os.Unsetenv("GOTK_PASSTHROUGH") //nolint:errcheck
 	if passthrough() {
 		t.Error("passthrough() should return false when GOTK_PASSTHROUGH is unset")
 	}

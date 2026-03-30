@@ -17,7 +17,7 @@ func FormatScan(results []FileResult, opts Options) string {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(fmt.Sprintf("%dx %s\n", len(fr.Matches), fr.Path))
+		fmt.Fprintf(&b, "%dx %s\n", len(fr.Matches), fr.Path)
 		for _, m := range fr.Matches {
 			line := fmt.Sprintf("  %d: %s", m.LineNum, strings.TrimSpace(m.Line))
 			if opts.MaxLine > 0 && len(line) > opts.MaxLine {

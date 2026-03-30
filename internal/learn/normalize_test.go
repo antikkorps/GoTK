@@ -80,8 +80,8 @@ func TestNormalize(t *testing.T) {
 
 func TestToRegex(t *testing.T) {
 	tests := []struct {
-		name       string
-		normalized string
+		name        string
+		normalized  string
 		shouldMatch []string
 		shouldNot   []string
 	}{

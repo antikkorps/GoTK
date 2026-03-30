@@ -107,8 +107,8 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 	}
 
 	result, err := gotkexec.RunWithTimeout(ctx, shell, "-c", command)
-	if err != nil {
-		// Still process any output we got
+	if err != nil && result == nil {
+		return exitCode(err)
 	}
 
 	raw := result.Stdout
@@ -134,7 +134,7 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 
 	chain := BuildChainWithKeep(cfg, cmdType, maxLines, raw)
 	cleaned := chain.Apply(raw)
-	fmt.Fprint(os.Stdout, cleaned)
+	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 
 	return exitCodeFromResult(result, err)
 }

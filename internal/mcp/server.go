@@ -20,6 +20,9 @@ import (
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
+// Version is set by the CLI entrypoint before calling Serve.
+var Version = "dev"
+
 // dangerousBaseCommands is a denylist of base command names that are always blocked.
 var dangerousBaseCommands = map[string]bool{
 	"mkfs":     true,
@@ -28,6 +31,17 @@ var dangerousBaseCommands = map[string]bool{
 	"halt":     true,
 	"wipefs":   true,
 	"format":   true,
+	"truncate": true,
+	"iptables": true,
+	"ufw":      true,
+}
+
+// dangerousPipePatterns detects remote code execution patterns like curl|bash.
+var dangerousPipePatterns = []string{
+	"curl|bash", "curl |bash", "curl | bash",
+	"curl|sh", "curl |sh", "curl | sh",
+	"wget|bash", "wget |bash", "wget | bash",
+	"wget|sh", "wget |sh", "wget | sh",
 }
 
 // dangerousArgPattern describes a command with specific dangerous argument combinations.
@@ -119,6 +133,79 @@ func validateSandbox(command string) string {
 	return ""
 }
 
+// validatePath checks that a path resolves to a location under the project root.
+// It prevents directory traversal attacks (../../etc/passwd) and symlink escapes.
+// Returns the cleaned absolute path or an error message.
+func validatePath(requestedPath string) (string, string) {
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return "", "cannot determine project root"
+	}
+
+	// Resolve to absolute path
+	absPath := requestedPath
+	if !filepath.IsAbs(absPath) {
+		absPath = filepath.Join(projectRoot, absPath)
+	}
+
+	// Clean the path to resolve .. components
+	absPath = filepath.Clean(absPath)
+
+	// Resolve symlinks to get the real path
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		// File may not exist yet (for writes), check the parent
+		parentResolved, parentErr := filepath.EvalSymlinks(filepath.Dir(absPath))
+		if parentErr != nil {
+			return "", fmt.Sprintf("path validation failed: %v", err)
+		}
+		resolved = filepath.Join(parentResolved, filepath.Base(absPath))
+	}
+
+	// Ensure the resolved path is under the project root
+	resolvedRoot, err := filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		resolvedRoot = projectRoot
+	}
+
+	if !strings.HasPrefix(resolved, resolvedRoot+string(filepath.Separator)) && resolved != resolvedRoot {
+		return "", fmt.Sprintf("path %q is outside project root", requestedPath)
+	}
+
+	return resolved, ""
+}
+
+// validateAuditLogPath checks that the audit log path is not a symlink
+// and that its parent directory is not world-writable.
+func validateAuditLogPath(path string) string {
+	absPath := path
+	if !filepath.IsAbs(absPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "cannot determine working directory"
+		}
+		absPath = filepath.Join(cwd, absPath)
+	}
+	absPath = filepath.Clean(absPath)
+
+	// Check if path itself is a symlink (if it exists)
+	if info, err := os.Lstat(absPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Sprintf("audit log path %q is a symlink", path)
+		}
+	}
+
+	// Check parent directory is not world-writable
+	parentDir := filepath.Dir(absPath)
+	if parentInfo, err := os.Stat(parentDir); err == nil {
+		if parentInfo.Mode().Perm()&0002 != 0 {
+			return fmt.Sprintf("audit log parent directory %q is world-writable", parentDir)
+		}
+	}
+
+	return ""
+}
+
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
 const maxInputSize = 10 * 1024 * 1024
 
@@ -162,6 +249,14 @@ func validateCommand(command string) string {
 	// Check if the base command itself is dangerous (exact match or mkfs.* prefix)
 	if dangerousBaseCommands[cmdName] || strings.HasPrefix(cmdName, "mkfs.") {
 		return fmt.Sprintf("command blocked: dangerous command %q", cmdName)
+	}
+
+	// Check dangerous pipe patterns (remote code execution)
+	normalizedLower := strings.ToLower(normalized)
+	for _, pattern := range dangerousPipePatterns {
+		if strings.Contains(normalizedLower, pattern) {
+			return "command blocked: remote code execution pattern detected"
+		}
 	}
 
 	// Check fork bomb pattern
@@ -301,12 +396,12 @@ type readArgs struct {
 }
 
 type grepArgs struct {
-	Pattern   string `json:"pattern"`
-	Path      string `json:"path"`
-	MaxLines  int    `json:"max_lines"`
-	Recursive bool   `json:"recursive"`
-	IgnoreCase bool  `json:"ignore_case"`
-	LineNumber bool  `json:"line_number"`
+	Pattern    string `json:"pattern"`
+	Path       string `json:"path"`
+	MaxLines   int    `json:"max_lines"`
+	Recursive  bool   `json:"recursive"`
+	IgnoreCase bool   `json:"ignore_case"`
+	LineNumber bool   `json:"line_number"`
 }
 
 type ctxArgs struct {
@@ -347,12 +442,19 @@ var reReqTracker *ReRequestTracker
 func Serve(cfg *config.Config) {
 	// Initialize file-based audit log if configured
 	if cfg.Security.AuditLog != "" {
-		f, err := os.OpenFile(cfg.Security.AuditLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", cfg.Security.AuditLog, err)
+		auditPath := cfg.Security.AuditLog
+
+		// Validate audit log path: reject symlinks and world-writable parent dirs
+		if auditPathErr := validateAuditLogPath(auditPath); auditPathErr != "" {
+			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: audit log path rejected: %s\n", auditPathErr)
 		} else {
-			auditFile = f
-			defer f.Close()
+			f, err := os.OpenFile(auditPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", auditPath, err)
+			} else {
+				auditFile = f
+				defer f.Close() //nolint:errcheck
+			}
 		}
 	}
 
@@ -363,7 +465,7 @@ func Serve(cfg *config.Config) {
 			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot init measure log: %v\n", err)
 		} else {
 			mcpMeasureLogger = ml
-			defer ml.Close()
+			defer ml.Close() //nolint:errcheck
 		}
 	}
 
@@ -426,7 +528,7 @@ func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, re
 		result := initializeResult{
 			ProtocolVersion: "2024-11-05",
 			Capabilities:    capObject{Tools: map[string]interface{}{}},
-			ServerInfo:      serverInfo{Name: "gotk", Version: "0.2.0"},
+			ServerInfo:      serverInfo{Name: "gotk", Version: Version},
 		}
 		sendResult(req.ID, result)
 
@@ -439,6 +541,7 @@ func handleRequest(cfg *config.Config, limiter *rateLimiter, fc *cache.Cache, re
 	case "tools/call":
 		if !limiter.Allow() {
 			logErr("RATE LIMITED: tools/call rejected")
+			auditLog("RATE_LIMIT", "tools/call rejected — rate limit exceeded")
 			sendError(req.ID, -32000, "Rate limit exceeded: too many requests per minute")
 			return
 		}
@@ -574,6 +677,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	// Command validation: check against denylist
 	if reason := validateCommand(args.Command); reason != "" {
 		logErr("BLOCKED command: %q - %s", args.Command, reason)
+		auditLog("CMD_BLOCKED", fmt.Sprintf("%q — %s", args.Command, reason))
 		sendError(id, -32602, reason)
 		return
 	}
@@ -582,6 +686,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	if cfg.Security.SandboxMode {
 		if reason := validateSandbox(args.Command); reason != "" {
 			logErr("SANDBOX BLOCKED: %q - %s", args.Command, reason)
+			auditLog("SANDBOX_BLOCKED", fmt.Sprintf("%q — %s", args.Command, reason))
 			sendError(id, -32602, reason)
 			return
 		}
@@ -768,10 +873,17 @@ func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		return
 	}
 
-	logErr("READ: %s", args.Path)
+	// Validate path is under project root (prevent traversal)
+	safePath, pathErr := validatePath(args.Path)
+	if pathErr != "" {
+		sendError(id, -32602, pathErr)
+		return
+	}
+
+	logErr("READ: %s", safePath)
 
 	// Read the file
-	data, err := os.ReadFile(args.Path)
+	data, err := os.ReadFile(safePath)
 	if err != nil {
 		sendError(id, -32603, "read failed: "+err.Error())
 		return
@@ -876,6 +988,15 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	if path == "" {
 		path = "."
 	}
+
+	// Validate path is under project root (prevent traversal)
+	safePath, pathErr := validatePath(path)
+	if pathErr != "" {
+		sendError(id, -32602, pathErr)
+		return
+	}
+	path = safePath
+
 	grepArgs = append(grepArgs, path)
 
 	command := strings.Join(grepArgs, " ")
@@ -997,7 +1118,13 @@ func handleCtx(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) 
 		ctxCLIArgs = append(ctxCLIArgs, "-m", fmt.Sprintf("%d", args.MaxFiles))
 	}
 	if args.Path != "" {
-		ctxCLIArgs = append(ctxCLIArgs, "-p", args.Path)
+		// Validate path is under project root (prevent traversal)
+		safePath, pathErr := validatePath(args.Path)
+		if pathErr != "" {
+			sendError(id, -32602, pathErr)
+			return
+		}
+		ctxCLIArgs = append(ctxCLIArgs, "-p", safePath)
 	}
 
 	ctxCLIArgs = append(ctxCLIArgs, args.Pattern)
@@ -1163,7 +1290,7 @@ func writeResponse(resp jsonRPCResponse) {
 		logErr("failed to marshal response: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stdout, "%s\n", data)
+	fmt.Fprintf(os.Stdout, "%s\n", data) //nolint:errcheck
 }
 
 // auditFile is the optional file-based audit log. Set by Serve() if configured.
@@ -1175,7 +1302,16 @@ func logErr(format string, args ...interface{}) {
 
 	if auditFile != nil {
 		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
-		fmt.Fprintf(auditFile, "%s %s\n", ts, msg)
+		fmt.Fprintf(auditFile, "%s %s\n", ts, msg) //nolint:errcheck
+	}
+}
+
+// auditLog writes a security event to the audit log file (if configured).
+// Used for security-relevant events like rate limiting, command blocking, etc.
+func auditLog(event, detail string) {
+	if auditFile != nil {
+		ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
+		fmt.Fprintf(auditFile, "%s [SECURITY] %s: %s\n", ts, event, detail) //nolint:errcheck
 	}
 }
 

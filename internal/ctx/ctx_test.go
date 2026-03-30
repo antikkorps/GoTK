@@ -46,7 +46,7 @@ def main():
 
 	// Create nested file
 	subdir := filepath.Join(dir, "sub")
-	os.MkdirAll(subdir, 0755)
+	os.MkdirAll(subdir, 0755) //nolint:errcheck
 	writeTestFile(t, subdir, "util.go", `package sub
 
 func Helper() string {
@@ -56,7 +56,7 @@ func Helper() string {
 
 	// Create a node_modules dir that should be excluded
 	nm := filepath.Join(dir, "node_modules")
-	os.MkdirAll(nm, 0755)
+	os.MkdirAll(nm, 0755) //nolint:errcheck
 	writeTestFile(t, nm, "junk.js", `function junk() { return "hello"; }`)
 
 	return dir
@@ -113,8 +113,8 @@ func TestParseFlags(t *testing.T) {
 			want: Options{Pattern: "pattern", Dir: ".", Mode: ModeScan, Context: 3, MaxLine: 120, MaxResults: 5},
 		},
 		{
-			name: "unknown flag",
-			args: []string{"--unknown"},
+			name:    "unknown flag",
+			args:    []string{"--unknown"},
 			wantErr: true,
 		},
 	}

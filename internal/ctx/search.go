@@ -55,7 +55,7 @@ func searchFile(path string, re *regexp.Regexp) (FileResult, error) {
 	if err != nil {
 		return FileResult{}, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	fr := FileResult{Path: path}
 	scanner := bufio.NewScanner(f)

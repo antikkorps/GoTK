@@ -40,11 +40,11 @@ type Candidate struct {
 
 // AnalysisResult holds the output of Analyze.
 type AnalysisResult struct {
-	TotalLines   int
-	Sessions     int
-	Candidates   []Candidate
-	NotReady     bool   // true if not enough data yet
-	NotReadyMsg  string // explanation if not ready
+	TotalLines  int
+	Sessions    int
+	Candidates  []Candidate
+	NotReady    bool   // true if not enough data yet
+	NotReadyMsg string // explanation if not ready
 }
 
 // Analyze examines collected observations and produces pattern candidates.

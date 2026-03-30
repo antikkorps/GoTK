@@ -91,9 +91,9 @@ func TestCacheKey(t *testing.T) {
 
 	k1 := c.Key("hello", 1, 50)
 	k2 := c.Key("hello", 1, 50)
-	k3 := c.Key("hello", 2, 50)   // different cmdType
-	k4 := c.Key("hello", 1, 100)  // different maxLines
-	k5 := c.Key("world", 1, 50)   // different content
+	k3 := c.Key("hello", 2, 50)  // different cmdType
+	k4 := c.Key("hello", 1, 100) // different maxLines
+	k5 := c.Key("world", 1, 50)  // different content
 
 	if k1 != k2 {
 		t.Fatal("same inputs should produce same key")

@@ -18,15 +18,15 @@ type entry struct {
 // Cache is a thread-safe LRU cache for filtered output.
 // It maps a content hash (derived from raw input + filter parameters) to the filtered result.
 type Cache struct {
-	mu       sync.Mutex
-	items    map[string]*entry
-	head     *entry // most recently used
-	tail     *entry // least recently used
-	size     int
-	maxSize  int
-	hits     int
-	misses   int
-	cfgHash  string // precomputed config fingerprint
+	mu      sync.Mutex
+	items   map[string]*entry
+	head    *entry // most recently used
+	tail    *entry // least recently used
+	size    int
+	maxSize int
+	hits    int
+	misses  int
+	cfgHash string // precomputed config fingerprint
 }
 
 // New creates a new LRU cache with the given maximum number of entries.
@@ -46,7 +46,7 @@ func (c *Cache) Key(raw string, cmdType int, maxLines int) string {
 	h := sha256.New()
 	h.Write([]byte(c.cfgHash))
 	h.Write([]byte{0})
-	fmt.Fprintf(h, "%d:%d:", cmdType, maxLines)
+	fmt.Fprintf(h, "%d:%d:", cmdType, maxLines) //nolint:errcheck
 	h.Write([]byte(raw))
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -151,6 +151,6 @@ func (c *Cache) evict() {
 // ConfigHash computes a fingerprint from config fields that affect filtering.
 func ConfigHash(filtersStr, rulesStr, mode string, redactSecrets bool) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s|%s|%s|%v", filtersStr, rulesStr, mode, redactSecrets)
-	return hex.EncodeToString(h.Sum(nil)[:16]) // 128 bits is enough for fingerprint
+	fmt.Fprintf(h, "%s|%s|%s|%v", filtersStr, rulesStr, mode, redactSecrets) //nolint:errcheck
+	return hex.EncodeToString(h.Sum(nil)[:16])                               // 128 bits is enough for fingerprint
 }

@@ -14,7 +14,7 @@ const DefaultReRequestWindow = 2 * time.Minute
 // ReRequestResult describes whether a request was a re-request.
 type ReRequestResult struct {
 	IsReRequest   bool
-	Type          string        // "exact", "similar", "escalation"
+	Type          string // "exact", "similar", "escalation"
 	TimeSincePrev time.Duration
 }
 

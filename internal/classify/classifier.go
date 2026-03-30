@@ -74,7 +74,6 @@ var (
 	jsonUnexpected = regexp.MustCompile(`(?i)unexpected (token|end|character).*json`)
 	yamlScanError  = regexp.MustCompile(`(?i)yaml:\s*(line \d+|did not find|could not find|mapping values)`)
 
-
 	// Debug patterns
 	timestampOnly = regexp.MustCompile(`^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}`)
 	verbosePrefix = regexp.MustCompile(`(?i)^\[?(debug|trace|verbose)\]?:?\s`)

@@ -78,7 +78,7 @@ func FormatTree(results []FileResult, opts Options) string {
 		ext := strings.ToLower(filepath.Ext(fr.Path))
 		patterns := skeletonPatterns[ext]
 
-		b.WriteString(fmt.Sprintf("== %s ==\n", fr.Path))
+		fmt.Fprintf(&b, "== %s ==\n", fr.Path)
 
 		lines, err := readFileLinesForTree(fr.Path)
 		if err != nil {
@@ -97,7 +97,7 @@ func FormatTree(results []FileResult, opts Options) string {
 			if opts.MaxLine > 0 && len(line)+8 > opts.MaxLine {
 				line = line[:opts.MaxLine-11] + "..."
 			}
-			b.WriteString(fmt.Sprintf("  %d: %s\n", sl.num, line))
+			fmt.Fprintf(&b, "  %d: %s\n", sl.num, line)
 		}
 	}
 	return b.String()
@@ -138,7 +138,7 @@ func readFileLinesForTree(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var lines []string
 	scanner := bufio.NewScanner(f)

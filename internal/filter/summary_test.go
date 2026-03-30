@@ -34,7 +34,7 @@ func TestSummarize(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          string
-		wantSummary    bool   // whether [gotk summary] header should be present
+		wantSummary    bool // whether [gotk summary] header should be present
 		wantContains   []string
 		wantNotContain []string
 	}{
@@ -161,8 +161,8 @@ func TestSummarize(t *testing.T) {
 			},
 		},
 		{
-			name: "comma formatting for large numbers",
-			input: genLines(1500, "line of output"),
+			name:        "comma formatting for large numbers",
+			input:       genLines(1500, "line of output"),
 			wantSummary: true,
 			wantContains: []string{
 				"1,500 lines",

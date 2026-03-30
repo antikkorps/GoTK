@@ -349,11 +349,11 @@ func TestHandleRequest_Initialize(t *testing.T) {
 	}
 	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -390,11 +390,11 @@ func TestHandleRequest_Ping(t *testing.T) {
 	}
 	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -419,11 +419,11 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 	}
 	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -456,11 +456,11 @@ func TestHandleRequest_UnknownMethod(t *testing.T) {
 	}
 	handleRequest(cfg, newRateLimiter(0, 0), cache.New(0, ""), req)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -508,11 +508,11 @@ func TestHandleRequest_RateLimited(t *testing.T) {
 		Method:  "ping",
 	})
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) != 4 {
@@ -547,15 +547,15 @@ func TestHandleRequest_RateLimited(t *testing.T) {
 // --- gotk_read tests ---
 
 func TestHandleRead_Success(t *testing.T) {
-	// Create a temp file to read
-	tmpFile, err := os.CreateTemp("", "gotk_read_test_*.txt")
+	// Create temp file under project root (validatePath requires this)
+	tmpFile, err := os.CreateTemp(".", "gotk_read_test_*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 	content := "line1\nline2\nline3\nline4\nline5\n"
-	tmpFile.WriteString(content)
-	tmpFile.Close()
+	tmpFile.WriteString(content) //nolint:errcheck
+	tmpFile.Close()              //nolint:errcheck
 
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
@@ -566,11 +566,11 @@ func TestHandleRead_Success(t *testing.T) {
 	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), MaxLines: 100})
 	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -598,17 +598,18 @@ func TestHandleRead_FileNotFound(t *testing.T) {
 
 	cfg := config.Default()
 	fc := cache.New(0, "")
-	argsJSON, _ := json.Marshal(readArgs{Path: "/nonexistent/file.txt"})
+	// Use a path under project root that doesn't exist
+	argsJSON, _ := json.Marshal(readArgs{Path: "nonexistent_file_for_test.txt"})
 	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck //nolint:errcheck
 
 	var resp jsonRPCResponse
-	json.Unmarshal(buf.Bytes(), &resp)
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck //nolint:errcheck
 	if resp.Error == nil {
 		t.Fatal("should return error for nonexistent file")
 	}
@@ -618,13 +619,13 @@ func TestHandleRead_FileNotFound(t *testing.T) {
 }
 
 func TestHandleRead_OffsetAndLimit(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "gotk_read_offset_*.txt")
+	tmpFile, err := os.CreateTemp(".", "gotk_read_offset_*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.WriteString("line1\nline2\nline3\nline4\nline5\n")
-	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())                            //nolint:errcheck
+	tmpFile.WriteString("line1\nline2\nline3\nline4\nline5\n") //nolint:errcheck
+	tmpFile.Close()                                            //nolint:errcheck
 
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
@@ -635,14 +636,14 @@ func TestHandleRead_OffsetAndLimit(t *testing.T) {
 	argsJSON, _ := json.Marshal(readArgs{Path: tmpFile.Name(), Offset: 2, Limit: 2})
 	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck //nolint:errcheck
 
 	var resp jsonRPCResponse
-	json.Unmarshal(buf.Bytes(), &resp)
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck //nolint:errcheck
 	if resp.Error != nil {
 		t.Fatalf("unexpected error: %s", resp.Error.Message)
 	}
@@ -668,14 +669,14 @@ func TestHandleRead_EmptyPath(t *testing.T) {
 	argsJSON, _ := json.Marshal(readArgs{Path: ""})
 	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck //nolint:errcheck
 
 	var resp jsonRPCResponse
-	json.Unmarshal(buf.Bytes(), &resp)
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck //nolint:errcheck
 	if resp.Error == nil {
 		t.Fatal("should return error for empty path")
 	}
@@ -684,13 +685,13 @@ func TestHandleRead_EmptyPath(t *testing.T) {
 // --- gotk_grep tests ---
 
 func TestHandleGrep_Success(t *testing.T) {
-	// Create temp dir with a file to grep
-	tmpDir, err := os.MkdirTemp("", "gotk_grep_test_*")
+	// Create temp dir under project root with a file to grep
+	tmpDir, err := os.MkdirTemp(".", "gotk_grep_test_*")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
-	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\nfoo bar\nhello again\n"), 0644)
+	defer os.RemoveAll(tmpDir)                                                            //nolint:errcheck
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\nfoo bar\nhello again\n"), 0644) //nolint:errcheck
 
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
@@ -701,11 +702,11 @@ func TestHandleGrep_Success(t *testing.T) {
 	argsJSON, _ := json.Marshal(grepArgs{Pattern: "hello", Path: tmpDir})
 	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
@@ -723,12 +724,12 @@ func TestHandleGrep_Success(t *testing.T) {
 }
 
 func TestHandleGrep_NoMatches(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "gotk_grep_nomatch_*")
+	tmpDir, err := os.MkdirTemp(".", "gotk_grep_nomatch_*")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
-	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\n"), 0644)
+	defer os.RemoveAll(tmpDir)                                      //nolint:errcheck
+	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\n"), 0644) //nolint:errcheck
 
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
@@ -739,14 +740,14 @@ func TestHandleGrep_NoMatches(t *testing.T) {
 	argsJSON, _ := json.Marshal(grepArgs{Pattern: "zzzznotfound", Path: tmpDir})
 	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
-	json.Unmarshal(buf.Bytes(), &resp)
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
 	if resp.Error != nil {
 		t.Fatalf("no matches should not be an error, got: %s", resp.Error.Message)
 	}
@@ -767,16 +768,126 @@ func TestHandleGrep_EmptyPattern(t *testing.T) {
 	argsJSON, _ := json.Marshal(grepArgs{Pattern: ""})
 	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	io.Copy(&buf, r) //nolint:errcheck
 
 	var resp jsonRPCResponse
-	json.Unmarshal(buf.Bytes(), &resp)
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
 	if resp.Error == nil {
 		t.Fatal("should return error for empty pattern")
+	}
+}
+
+// --- path validation tests ---
+
+func TestValidatePath_BlocksTraversal(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"absolute outside", "/etc/passwd"},
+		{"absolute tmp", "/tmp/secret"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, errMsg := validatePath(tt.path)
+			if errMsg == "" {
+				t.Errorf("validatePath(%q) should have returned an error", tt.path)
+			}
+		})
+	}
+}
+
+func TestValidatePath_AllowsProjectPaths(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"current dir", "."},
+		{"relative file in cwd", "server.go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved, errMsg := validatePath(tt.path)
+			if errMsg != "" {
+				t.Errorf("validatePath(%q) unexpected error: %s", tt.path, errMsg)
+			}
+			if resolved == "" {
+				t.Errorf("validatePath(%q) returned empty resolved path", tt.path)
+			}
+		})
+	}
+}
+
+func TestHandleRead_BlocksTraversal(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: "/etc/passwd"})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("should block path traversal")
+	}
+	if !strings.Contains(resp.Error.Message, "outside project root") {
+		t.Errorf("error should mention 'outside project root', got: %s", resp.Error.Message)
+	}
+}
+
+func TestHandleGrep_BlocksTraversal(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "test", Path: "/etc"})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("should block path traversal")
+	}
+	if !strings.Contains(resp.Error.Message, "outside project root") {
+		t.Errorf("error should mention 'outside project root', got: %s", resp.Error.Message)
+	}
+}
+
+func TestValidateAuditLogPath_RejectsWorldWritable(t *testing.T) {
+	// Create a world-writable temp dir
+	tmpDir, err := os.MkdirTemp(".", "gotk_audit_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
+	os.Chmod(tmpDir, 0777)     //nolint:errcheck
+
+	errMsg := validateAuditLogPath(tmpDir + "/audit.log")
+	if errMsg == "" {
+		t.Error("should reject audit log in world-writable directory")
 	}
 }
 
@@ -788,7 +899,7 @@ func TestAuditLogFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 	defer os.Remove(tmpFile.Name())
 
 	// Set audit file
@@ -799,14 +910,14 @@ func TestAuditLogFile(t *testing.T) {
 	oldAuditFile := auditFile
 	auditFile = f
 	defer func() {
-		f.Close()
+		f.Close() //nolint:errcheck
 		auditFile = oldAuditFile
 	}()
 
 	// Log something
 	logErr("EXEC: %s", "test command")
 
-	f.Sync()
+	f.Sync() //nolint:errcheck
 
 	// Read the audit log
 	data, err := os.ReadFile(tmpFile.Name())
@@ -914,8 +1025,8 @@ func TestServe_FullFlow(t *testing.T) {
 
 	// Write input and close
 	go func() {
-		stdinW.WriteString(input)
-		stdinW.Close()
+		stdinW.WriteString(input) //nolint:errcheck
+		stdinW.Close()            //nolint:errcheck
 	}()
 
 	cfg := config.Default()
@@ -924,13 +1035,13 @@ func TestServe_FullFlow(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		Serve(cfg)
-		stdoutW.Close()
+		stdoutW.Close() //nolint:errcheck
 		close(done)
 	}()
 
 	// Read all output
 	var output bytes.Buffer
-	io.Copy(&output, stdoutR)
+	io.Copy(&output, stdoutR) //nolint:errcheck
 	<-done
 
 	// Restore
@@ -1005,11 +1116,11 @@ func TestFindShell_RespectsGOTK_SHELL(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)
-		os.Setenv("SHELL", origSHELL)
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Setenv("GOTK_SHELL", "/usr/local/bin/test-shell")
+	os.Setenv("GOTK_SHELL", "/usr/local/bin/test-shell") //nolint:errcheck
 	got := findShell()
 	if got != "/usr/local/bin/test-shell" {
 		t.Errorf("findShell() = %q, want /usr/local/bin/test-shell", got)
@@ -1020,12 +1131,12 @@ func TestFindShell_AvoidsRecursion(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)
-		os.Setenv("SHELL", origSHELL)
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")
-	os.Setenv("SHELL", "/usr/bin/gotk")
+	os.Unsetenv("GOTK_SHELL")           //nolint:errcheck
+	os.Setenv("SHELL", "/usr/bin/gotk") //nolint:errcheck
 
 	got := findShell()
 	if got == "/usr/bin/gotk" {

@@ -20,29 +20,29 @@ import (
 // InteractiveCommands are programs that need direct terminal access
 // and should not have their output piped through gotk.
 var InteractiveCommands = map[string]bool{
-	"vim":         true,
-	"vi":          true,
-	"nvim":        true,
-	"nano":        true,
-	"emacs":       true,
-	"less":        true,
-	"more":        true,
-	"man":         true,
-	"top":         true,
-	"htop":        true,
-	"btop":        true,
-	"watch":       true,
-	"ssh":         true,
-	"mosh":        true,
-	"tmux":        true,
-	"screen":      true,
-	"fzf":         true,
-	"nnn":         true,
-	"ranger":      true,
-	"mc":          true,
-	"lazygit":     true,
-	"lazydocker":  true,
-	"k9s":         true,
+	"vim":        true,
+	"vi":         true,
+	"nvim":       true,
+	"nano":       true,
+	"emacs":      true,
+	"less":       true,
+	"more":       true,
+	"man":        true,
+	"top":        true,
+	"htop":       true,
+	"btop":       true,
+	"watch":      true,
+	"ssh":        true,
+	"mosh":       true,
+	"tmux":       true,
+	"screen":     true,
+	"fzf":        true,
+	"nnn":        true,
+	"ranger":     true,
+	"mc":         true,
+	"lazygit":    true,
+	"lazydocker": true,
+	"k9s":        true,
 }
 
 // ShouldSkip returns true if the command should not be wrapped by the daemon.
@@ -90,12 +90,21 @@ func extractFirstWord(cmd string) string {
 	return ""
 }
 
-// Start launches a daemon shell session. It spawns the user's shell with
-// custom init scripts that intercept commands and pipe them through gotk.
-func Start(cfg *config.Config) error {
+// sessionSetup holds the prepared state for a daemon session.
+type sessionSetup struct {
+	shell     string
+	shellName string
+	gotkBin   string
+	sessionID string
+	initFile  string
+}
+
+// prepareSession validates and prepares everything needed for a daemon session
+// without actually spawning the shell.
+func prepareSession() (*sessionSetup, error) {
 	// Prevent nesting
 	if os.Getenv("GOTK_DAEMON") == "1" {
-		return fmt.Errorf("already inside a gotk daemon session (GOTK_DAEMON=1)")
+		return nil, fmt.Errorf("already inside a gotk daemon session (GOTK_DAEMON=1)")
 	}
 
 	shell := detectShell()
@@ -103,19 +112,35 @@ func Start(cfg *config.Config) error {
 
 	gotkBin, err := findGotkBin()
 	if err != nil {
-		return fmt.Errorf("cannot locate gotk binary: %w", err)
+		return nil, fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
 
 	sessionID := fmt.Sprintf("%d-%d", time.Now().UnixMilli(), os.Getpid())
 
-	// Create temp init file
 	initFile, err := writeInitFile(shellName, gotkBin, sessionID)
 	if err != nil {
-		return fmt.Errorf("cannot create init file: %w", err)
+		return nil, fmt.Errorf("cannot create init file: %w", err)
 	}
-	defer os.Remove(initFile)
 
-	fmt.Fprintf(os.Stderr, "[gotk] starting daemon session (shell: %s)\n", shellName)
+	return &sessionSetup{
+		shell:     shell,
+		shellName: shellName,
+		gotkBin:   gotkBin,
+		sessionID: sessionID,
+		initFile:  initFile,
+	}, nil
+}
+
+// Start launches a daemon shell session. It spawns the user's shell with
+// custom init scripts that intercept commands and pipe them through gotk.
+func Start(cfg *config.Config) error {
+	setup, err := prepareSession()
+	if err != nil {
+		return err
+	}
+	defer os.Remove(setup.initFile) //nolint:errcheck
+
+	fmt.Fprintf(os.Stderr, "[gotk] starting daemon session (shell: %s)\n", setup.shellName)
 	fmt.Fprintf(os.Stderr, "[gotk] all command output will be filtered. type 'gotk exit' to stop.\n\n")
 
 	// Enable measurement for the session
@@ -123,26 +148,26 @@ func Start(cfg *config.Config) error {
 
 	// Build the shell command with custom init
 	var cmd *exec.Cmd
-	switch shellName {
+	switch setup.shellName {
 	case "zsh":
 		// ZDOTDIR trick: zsh reads $ZDOTDIR/.zshrc on startup
-		tmpDir := filepath.Dir(initFile)
-		cmd = exec.Command(shell)
+		tmpDir := filepath.Dir(setup.initFile)
+		cmd = exec.Command(setup.shell)
 		cmd.Env = append(os.Environ(),
 			"ZDOTDIR="+tmpDir,
 			"GOTK_DAEMON=1",
-			"GOTK_SESSION_ID="+sessionID,
-			"GOTK_BIN="+gotkBin,
+			"GOTK_SESSION_ID="+setup.sessionID,
+			"GOTK_BIN="+setup.gotkBin,
 		)
 	case "bash":
-		cmd = exec.Command(shell, "--rcfile", initFile, "-i")
+		cmd = exec.Command(setup.shell, "--rcfile", setup.initFile, "-i")
 		cmd.Env = append(os.Environ(),
 			"GOTK_DAEMON=1",
-			"GOTK_SESSION_ID="+sessionID,
-			"GOTK_BIN="+gotkBin,
+			"GOTK_SESSION_ID="+setup.sessionID,
+			"GOTK_BIN="+setup.gotkBin,
 		)
 	default:
-		return fmt.Errorf("unsupported shell: %s (supported: bash, zsh)", shellName)
+		return fmt.Errorf("unsupported shell: %s (supported: bash, zsh)", setup.shellName)
 	}
 
 	cmd.Stdin = os.Stdin
@@ -228,8 +253,23 @@ func findGotkBin() (string, error) {
 	}
 	resolved, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		return exe, nil
+		return "", fmt.Errorf("cannot resolve symlinks for %q: %w", exe, err)
 	}
+
+	// Ensure the path is absolute
+	if !filepath.IsAbs(resolved) {
+		return "", fmt.Errorf("gotk binary path %q is not absolute", resolved)
+	}
+
+	// Verify the file exists and is a regular file (not a directory or device)
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("gotk binary not found at %q: %w", resolved, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("gotk binary path %q is not a regular file", resolved)
+	}
+
 	return resolved, nil
 }
 
@@ -276,10 +316,10 @@ func writeInitFile(shellName, gotkBin, sessionID string) (string, error) {
 			return "", err
 		}
 		filename = f.Name()
-		f.Close()
+		f.Close() //nolint:errcheck
 	}
 
-	if err := os.WriteFile(filename, []byte(script), 0644); err != nil {
+	if err := os.WriteFile(filename, []byte(script), 0600); err != nil {
 		return "", err
 	}
 	return filename, nil

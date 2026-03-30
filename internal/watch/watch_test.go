@@ -85,7 +85,7 @@ func TestSnapshotChanged(t *testing.T) {
 		writeFile(t, extra, "temp")
 		snapWithExtra := takeSnapshot([]string{dir}, []string{".go"})
 
-		os.Remove(extra)
+		os.Remove(extra) //nolint:errcheck
 		snapWithout := takeSnapshot([]string{dir}, []string{".go"})
 		if !snapshotChanged(snapWithExtra, snapWithout) {
 			t.Error("expected change after file removal, but none detected")
@@ -128,15 +128,15 @@ func TestIgnoredDirectories(t *testing.T) {
 
 	// Create files in ignored directories.
 	gitDir := filepath.Join(dir, ".git")
-	os.MkdirAll(gitDir, 0o755)
+	os.MkdirAll(gitDir, 0o755) //nolint:errcheck
 	writeFile(t, filepath.Join(gitDir, "config"), "git config")
 
 	nodeDir := filepath.Join(dir, "node_modules")
-	os.MkdirAll(nodeDir, 0o755)
+	os.MkdirAll(nodeDir, 0o755) //nolint:errcheck
 	writeFile(t, filepath.Join(nodeDir, "pkg.js"), "module.exports = {}")
 
 	pycacheDir := filepath.Join(dir, "__pycache__")
-	os.MkdirAll(pycacheDir, 0o755)
+	os.MkdirAll(pycacheDir, 0o755) //nolint:errcheck
 	writeFile(t, filepath.Join(pycacheDir, "mod.pyc"), "bytecode")
 
 	// Create a normal file.

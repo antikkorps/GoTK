@@ -137,25 +137,25 @@ func FormatReport(report Report) string {
 	var sb strings.Builder
 	sb.WriteString("GoTK Benchmark Report\n")
 	sb.WriteString("=====================\n\n")
-	sb.WriteString(fmt.Sprintf("%-24s %10s %10s %10s %10s\n", "Name", "Raw", "Clean", "Reduction", "Time"))
+	fmt.Fprintf(&sb, "%-24s %10s %10s %10s %10s\n", "Name", "Raw", "Clean", "Reduction", "Time")
 
 	for _, r := range report.Results {
-		sb.WriteString(fmt.Sprintf("%-24s %10s %10s %9.1f%% %10s\n",
+		fmt.Fprintf(&sb, "%-24s %10s %10s %9.1f%% %10s\n",
 			r.Name,
 			formatBytes(r.RawBytes),
 			formatBytes(r.CleanBytes),
 			-r.Reduction,
 			formatDuration(r.Duration),
-		))
+		)
 	}
 
-	sb.WriteString(fmt.Sprintf("\n%-24s %10s %10s %9.1f%% %10s\n",
+	fmt.Fprintf(&sb, "\n%-24s %10s %10s %9.1f%% %10s\n",
 		"Total",
 		formatBytes(report.TotalRaw),
 		formatBytes(report.TotalClean),
 		-report.AvgReduction,
 		formatDuration(report.TotalDuration),
-	))
+	)
 
 	return sb.String()
 }

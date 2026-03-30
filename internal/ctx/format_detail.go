@@ -28,7 +28,7 @@ func FormatDetail(results []FileResult, opts Options) string {
 		// Read full file into memory for context extraction
 		lines, err := readFileLines(fr.Path)
 		if err != nil {
-			b.WriteString(fmt.Sprintf("--- %s (read error) ---\n", fr.Path))
+			fmt.Fprintf(&b, "--- %s (read error) ---\n", fr.Path)
 			continue
 		}
 
@@ -39,13 +39,13 @@ func FormatDetail(results []FileResult, opts Options) string {
 			if wi > 0 {
 				b.WriteString("  ...\n")
 			}
-			b.WriteString(fmt.Sprintf("--- %s:%d ---\n", fr.Path, w.start+1))
+			fmt.Fprintf(&b, "--- %s:%d ---\n", fr.Path, w.start+1)
 			for ln := w.start; ln < w.end; ln++ {
 				prefix := "  "
 				if isMatchLine(fr.Matches, ln+1) {
 					prefix = "> "
 				}
-				b.WriteString(fmt.Sprintf("%s%d: %s\n", prefix, ln+1, lines[ln]))
+				fmt.Fprintf(&b, "%s%d: %s\n", prefix, ln+1, lines[ln])
 			}
 		}
 	}
@@ -105,7 +105,7 @@ func readFileLines(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var lines []string
 	scanner := bufio.NewScanner(f)

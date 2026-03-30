@@ -16,29 +16,21 @@ const (
 	ScopeGlobal               // ~/.claude/settings.json
 )
 
-// hookEntry matches the Claude Code hook configuration schema.
-type hookEntry struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
-}
-
-type matcherGroup struct {
-	Matcher string      `json:"matcher"`
-	Hooks   []hookEntry `json:"hooks"`
-}
-
 // ClaudeInstall configures GoTK as a Claude Code PreToolUse hook.
 func ClaudeInstall(scope Scope) error {
 	gotkPath, err := findGotkPath()
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeInstallAt(settingsPath, gotkPath)
+}
 
+// claudeInstallAt is the core install logic, testable with arbitrary paths.
+func claudeInstallAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return err
@@ -71,12 +63,15 @@ func ClaudeUninstall(scope Scope) error {
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeUninstallAt(settingsPath, gotkPath)
+}
 
+// claudeUninstallAt is the core uninstall logic, testable with arbitrary paths.
+func claudeUninstallAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return err
@@ -101,12 +96,15 @@ func ClaudeStatus(scope Scope) error {
 	if err != nil {
 		return fmt.Errorf("cannot locate gotk binary: %w", err)
 	}
-
 	settingsPath, err := settingsFilePath(scope)
 	if err != nil {
 		return err
 	}
+	return claudeStatusAt(settingsPath, gotkPath)
+}
 
+// claudeStatusAt is the core status logic, testable with arbitrary paths.
+func claudeStatusAt(settingsPath, gotkPath string) error {
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Settings file: %s (not found)\n", settingsPath)
@@ -180,7 +178,7 @@ func writeSettings(path string, settings map[string]interface{}) error {
 	}
 	data = append(data, '\n')
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	return nil

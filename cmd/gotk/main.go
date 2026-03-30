@@ -27,17 +27,20 @@ import (
 	"github.com/antikkorps/GoTK/internal/watch"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=..."
+var Version = "dev"
+
 var (
-	showStats       bool
-	shellMode       bool
-	shellCmd        string // -c "command"
-	streamMode      bool
-	measureFlag     bool   // --measure flag
-	learnFlag       bool   // --learn flag for passive observation
-	maxLines        int
+	showStats        bool
+	shellMode        bool
+	shellCmd         string // -c "command"
+	streamMode       bool
+	measureFlag      bool // --measure flag
+	learnFlag        bool // --learn flag for passive observation
+	maxLines         int
 	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
-	cfg             *config.Config
-	mlog            *measure.Logger // nil if measurement disabled
+	cfg              *config.Config
+	mlog             *measure.Logger // nil if measurement disabled
 )
 
 func main() {
@@ -78,7 +81,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[gotk] warning: cannot init measure log: %v\n", err)
 		} else {
 			mlog = l
-			defer mlog.Close()
+			defer mlog.Close() //nolint:errcheck
 		}
 	}
 
@@ -166,13 +169,14 @@ func main() {
 			cmdArgs = args[1:]
 		}
 	case "--mcp":
+		mcp.Version = Version
 		mcp.Serve(cfg)
 		os.Exit(0)
 	case "--help", "-h":
 		printUsage()
 		os.Exit(0)
 	case "--version", "-v":
-		fmt.Println("gotk v0.1.0")
+		fmt.Printf("gotk %s\n", Version)
 		os.Exit(0)
 	default:
 		cmdArgs = args
@@ -341,14 +345,14 @@ func runStreaming(cmdArgs []string) int {
 
 		out, emit := sf.ProcessLine(r.Line)
 		if emit {
-			fmt.Fprintln(os.Stdout, out)
+			fmt.Fprintln(os.Stdout, out) //nolint:errcheck
 			cleanBytes += len(out) + 1
 		}
 	}
 
 	// Flush any pending buffered output (e.g., trailing dedup marker).
 	if flushed := sf.Flush(); flushed != "" {
-		fmt.Fprintln(os.Stdout, flushed)
+		fmt.Fprintln(os.Stdout, flushed) //nolint:errcheck
 		cleanBytes += len(flushed) + 1
 	}
 
@@ -781,9 +785,10 @@ func runDaemon(args []string) {
 			shell = "/bin/bash"
 		}
 		for _, a := range args[1:] {
-			if a == "--bash" {
+			switch a {
+			case "--bash":
 				shell = "bash"
-			} else if a == "--zsh" {
+			case "--zsh":
 				shell = "zsh"
 			}
 		}

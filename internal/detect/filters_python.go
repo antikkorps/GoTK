@@ -21,7 +21,6 @@ var (
 	pyDeprecationWarning = regexp.MustCompile(`^\S+:\d+:\s*(DeprecationWarning|PendingDeprecationWarning|FutureWarning):`)
 	// Python import-related errors (preserve full chain for these)
 	pyImportError = regexp.MustCompile(`^(ImportError|ModuleNotFoundError|ModuleNotFound):`)
-
 )
 
 // compressPythonOutput compresses python/pip output.

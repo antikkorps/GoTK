@@ -9,9 +9,9 @@ var (
 	// Docker build step prefix: "Step N/M :" or "STEP N/M:"
 	dockerStepPattern = regexp.MustCompile(`^Step \d+/\d+ :`)
 	// Intermediate container hash lines
-	dockerRunningIn  = regexp.MustCompile(`^---> Running in [0-9a-f]+`)
-	dockerArrowHash  = regexp.MustCompile(`^---> [0-9a-f]{12}$`)
-	dockerRemoving   = regexp.MustCompile(`^Removing intermediate container [0-9a-f]+`)
+	dockerRunningIn = regexp.MustCompile(`^---> Running in [0-9a-f]+`)
+	dockerArrowHash = regexp.MustCompile(`^---> [0-9a-f]{12}$`)
+	dockerRemoving  = regexp.MustCompile(`^Removing intermediate container [0-9a-f]+`)
 	// Docker pull layer progress lines (e.g., "abc123: Pulling fs layer", "abc123: Downloading  [==>  ]")
 	dockerLayerProgress = regexp.MustCompile(`^[0-9a-f]{12}: (Waiting|Pulling fs layer|Downloading|Extracting|Verifying Checksum|Download complete|Pull complete)`)
 	// ANSI spinner/progress (common in docker compose)

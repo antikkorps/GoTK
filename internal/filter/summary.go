@@ -116,9 +116,9 @@ func Summarize(input string) string {
 	// Build the summary header
 	var sb strings.Builder
 	sb.WriteString("[gotk summary]\n")
-	sb.WriteString(fmt.Sprintf("  total: %s lines (%s bytes)\n",
-		formatNumber(len(lines)), formatNumber(totalBytes)))
-	sb.WriteString(fmt.Sprintf("  errors: %s\n", formatNumber(errorCount)))
+	fmt.Fprintf(&sb, "  total: %s lines (%s bytes)\n",
+		formatNumber(len(lines)), formatNumber(totalBytes))
+	fmt.Fprintf(&sb, "  errors: %s\n", formatNumber(errorCount))
 
 	// Show key error lines
 	for _, el := range errorLines {
@@ -126,25 +126,25 @@ func Summarize(input string) string {
 		if len(el) > 120 {
 			el = el[:120]
 		}
-		sb.WriteString(fmt.Sprintf("   → %s\n", el))
+		fmt.Fprintf(&sb, "   → %s\n", el)
 	}
 
-	sb.WriteString(fmt.Sprintf("  warnings: %s\n", formatNumber(warningCount)))
+	fmt.Fprintf(&sb, "  warnings: %s\n", formatNumber(warningCount))
 
 	// Show key warning lines
 	for _, wl := range warningLines {
 		if len(wl) > 120 {
 			wl = wl[:120]
 		}
-		sb.WriteString(fmt.Sprintf("   → %s\n", wl))
+		fmt.Fprintf(&sb, "   → %s\n", wl)
 	}
 
 	if len(uniqueFiles) > 0 {
-		sb.WriteString(fmt.Sprintf("  files: %s unique paths mentioned\n",
-			formatNumber(len(uniqueFiles))))
+		fmt.Fprintf(&sb, "  files: %s unique paths mentioned\n",
+			formatNumber(len(uniqueFiles)))
 	}
 
-	sb.WriteString(fmt.Sprintf("  result: %s\n", result))
+	fmt.Fprintf(&sb, "  result: %s\n", result)
 	sb.WriteString("[/gotk summary]\n\n")
 
 	return sb.String() + input

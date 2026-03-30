@@ -176,9 +176,9 @@ func TestApplyTOML_BooleanValues(t *testing.T) {
 
 func TestApplyTOML_IntegerValues(t *testing.T) {
 	tests := []struct {
-		name     string
-		toml     string
-		wantMax  int
+		name    string
+		toml    string
+		wantMax int
 	}{
 		{"positive", "[general]\nmax_lines = 200", 200},
 		{"zero", "[general]\nmax_lines = 0", 0},
@@ -295,7 +295,7 @@ func TestLoad_MissingFileReturnsDefaults(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	cfg := Load()
 
@@ -313,7 +313,7 @@ func TestLoad_LocalConfigFile(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	content := `[general]
 max_lines = 200
@@ -368,7 +368,7 @@ func TestLoad_LocalOverridesGlobal(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	localContent := `[general]
 max_lines = 999
@@ -544,7 +544,7 @@ func TestFindProjectConfig(t *testing.T) {
 	if err := os.Chdir(nested); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	found := findProjectConfig()
 	if found != configPath {
@@ -558,7 +558,7 @@ func TestFindProjectConfig_NotFound(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	found := findProjectConfig()
 	if found != "" {
@@ -758,7 +758,7 @@ func TestLoad_ProjectConfigPrecedence(t *testing.T) {
 	if err := os.Chdir(subdir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer os.Chdir(orig) //nolint:errcheck
 
 	cfg := Load()
 	if cfg.General.MaxLines != 300 {

@@ -9,22 +9,26 @@ import (
 var secretPatterns = []*regexp.Regexp{
 	// API keys and tokens with known prefixes
 	regexp.MustCompile(`\bsk-[A-Za-z0-9]{20,}\b`),      // OpenAI / Stripe secret keys
-	regexp.MustCompile(`\bghp_[A-Za-z0-9]{36,}\b`),      // GitHub personal access tokens
-	regexp.MustCompile(`\bghu_[A-Za-z0-9]{36,}\b`),      // GitHub user-to-server tokens
-	regexp.MustCompile(`\bghs_[A-Za-z0-9]{36,}\b`),      // GitHub server-to-server tokens
-	regexp.MustCompile(`\bglpat-[A-Za-z0-9\-]{20,}\b`),  // GitLab personal access tokens
-	regexp.MustCompile(`\bxoxb-[A-Za-z0-9\-]{10,}\b`),   // Slack bot tokens
-	regexp.MustCompile(`\bxoxp-[A-Za-z0-9\-]{10,}\b`),   // Slack user tokens
+	regexp.MustCompile(`\bghp_[A-Za-z0-9]{36,}\b`),     // GitHub personal access tokens
+	regexp.MustCompile(`\bghu_[A-Za-z0-9]{36,}\b`),     // GitHub user-to-server tokens
+	regexp.MustCompile(`\bghs_[A-Za-z0-9]{36,}\b`),     // GitHub server-to-server tokens
+	regexp.MustCompile(`\bglpat-[A-Za-z0-9\-]{20,}\b`), // GitLab personal access tokens
+	regexp.MustCompile(`\bxoxb-[A-Za-z0-9\-]{10,}\b`),  // Slack bot tokens
+	regexp.MustCompile(`\bxoxp-[A-Za-z0-9\-]{10,}\b`),  // Slack user tokens
 
 	// AWS access key IDs (start with AKIA, 20 uppercase alphanumeric chars)
 	regexp.MustCompile(`\bAKIA[A-Z0-9]{16}\b`),
+
+	// Bearer tokens in HTTP headers (Authorization: Bearer <token>)
+	regexp.MustCompile(`(?i)(Bearer\s+)[A-Za-z0-9_\-\.]{10,}`),
 }
 
 // jwtPattern matches JWT tokens (three base64url segments separated by dots).
-var jwtPattern = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
+// Covers both long and short JWTs (minimum 5 chars per segment).
+var jwtPattern = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b`)
 
-// privateKeyPattern matches PEM private key blocks.
-var privateKeyPattern = regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
+// privateKeyPattern matches PEM private key blocks (RSA, EC, DSA, ED25519, OPENSSH, etc.).
+var privateKeyPattern = regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]{0,20}PRIVATE KEY-----.*?-----END [A-Z0-9 ]{0,20}PRIVATE KEY-----`)
 
 // connectionStringPattern matches passwords in connection strings like
 // scheme://user:password@host
