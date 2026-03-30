@@ -204,7 +204,7 @@ func TestDetectShell_DefaultShell(t *testing.T) {
 	origShell := os.Getenv("SHELL")
 	origGotkShell := os.Getenv("GOTK_SHELL")
 	defer func() {
-		os.Setenv("SHELL", origShell)       //nolint:errcheck
+		os.Setenv("SHELL", origShell) //nolint:errcheck
 		if origGotkShell != "" {
 			os.Setenv("GOTK_SHELL", origGotkShell) //nolint:errcheck
 		} else {
@@ -219,7 +219,7 @@ func TestDetectShell_DefaultShell(t *testing.T) {
 	}
 
 	// Test SHELL env var
-	os.Unsetenv("GOTK_SHELL")            //nolint:errcheck
+	os.Unsetenv("GOTK_SHELL")           //nolint:errcheck
 	os.Setenv("SHELL", "/usr/bin/bash") //nolint:errcheck
 	if got := detectShell(); got != "/usr/bin/bash" {
 		t.Errorf("detectShell() with SHELL=/usr/bin/bash = %q, want /usr/bin/bash", got)
@@ -285,11 +285,11 @@ func TestStatus_Active(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
 	origSession := os.Getenv("GOTK_SESSION_ID")
 	defer func() {
-		os.Setenv("GOTK_DAEMON", origDaemon)       //nolint:errcheck
+		os.Setenv("GOTK_DAEMON", origDaemon)      //nolint:errcheck
 		os.Setenv("GOTK_SESSION_ID", origSession) //nolint:errcheck
 	}()
 
-	os.Setenv("GOTK_DAEMON", "1")              //nolint:errcheck
+	os.Setenv("GOTK_DAEMON", "1")                //nolint:errcheck
 	os.Setenv("GOTK_SESSION_ID", "test-session") //nolint:errcheck
 	// Should not panic
 	Status()
@@ -307,7 +307,7 @@ func TestPrintSummary_WithEntries(t *testing.T) {
 	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:00:00Z","cmd":"grep -rn test .","raw_tokens":1000,"tokens_saved":800,"duration_us":5000}` + "\n") //nolint:errcheck
 	tmpFile.WriteString(`{"session":"test-summary-session","ts":"2026-03-30T10:01:00Z","cmd":"go test ./...","raw_tokens":2000,"tokens_saved":1500,"duration_us":3000}` + "\n")  //nolint:errcheck
 	tmpFile.WriteString(`{"session":"other-session","ts":"2026-03-30T10:02:00Z","cmd":"ls","raw_tokens":100,"tokens_saved":50,"duration_us":1000}` + "\n")                       //nolint:errcheck
-	tmpFile.Close()                                                                                                                                                               //nolint:errcheck
+	tmpFile.Close()                                                                                                                                                              //nolint:errcheck
 
 	var buf bytes.Buffer
 	PrintSummary(&buf, tmpFile.Name(), sessionID)
@@ -382,7 +382,7 @@ func TestDetectShell_Fallback(t *testing.T) {
 	origShell := os.Getenv("SHELL")
 	origGotkShell := os.Getenv("GOTK_SHELL")
 	defer func() {
-		os.Setenv("SHELL", origShell)       //nolint:errcheck
+		os.Setenv("SHELL", origShell) //nolint:errcheck
 		if origGotkShell != "" {
 			os.Setenv("GOTK_SHELL", origGotkShell) //nolint:errcheck
 		} else {
@@ -425,7 +425,7 @@ func TestStart_NestedPrevention(t *testing.T) {
 func TestPrepareSession_Success(t *testing.T) {
 	origDaemon := os.Getenv("GOTK_DAEMON")
 	defer os.Setenv("GOTK_DAEMON", origDaemon) //nolint:errcheck
-	os.Unsetenv("GOTK_DAEMON")                //nolint:errcheck
+	os.Unsetenv("GOTK_DAEMON")                 //nolint:errcheck
 
 	setup, err := prepareSession()
 	if err != nil {
@@ -433,7 +433,7 @@ func TestPrepareSession_Success(t *testing.T) {
 	}
 	defer func() {
 		if setup.initFile != "" {
-			os.Remove(setup.initFile)                //nolint:errcheck
+			os.Remove(setup.initFile) //nolint:errcheck
 			// Also try to remove parent dir (zsh case)
 			os.Remove(filepath.Dir(setup.initFile)) //nolint:errcheck
 		}
@@ -486,7 +486,7 @@ func TestPrintSummary_ZeroTokens(t *testing.T) {
 
 	// Entry with zero raw tokens
 	tmpFile.WriteString(`{"session":"zero-session","ts":"2026-03-30T10:00:00Z","cmd":"echo","raw_tokens":0,"tokens_saved":0,"duration_us":100}` + "\n") //nolint:errcheck
-	tmpFile.Close()                                                                                                                                      //nolint:errcheck
+	tmpFile.Close()                                                                                                                                     //nolint:errcheck
 
 	var buf bytes.Buffer
 	PrintSummary(&buf, tmpFile.Name(), "zero-session")

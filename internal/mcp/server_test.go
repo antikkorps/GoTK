@@ -623,7 +623,7 @@ func TestHandleRead_OffsetAndLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())                          //nolint:errcheck
+	defer os.Remove(tmpFile.Name())                            //nolint:errcheck
 	tmpFile.WriteString("line1\nline2\nline3\nline4\nline5\n") //nolint:errcheck
 	tmpFile.Close()                                            //nolint:errcheck
 
@@ -690,7 +690,7 @@ func TestHandleGrep_Success(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir) //nolint:errcheck
+	defer os.RemoveAll(tmpDir)                                                            //nolint:errcheck
 	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\nfoo bar\nhello again\n"), 0644) //nolint:errcheck
 
 	r, w, _ := os.Pipe()
@@ -728,7 +728,7 @@ func TestHandleGrep_NoMatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir) //nolint:errcheck
+	defer os.RemoveAll(tmpDir)                                      //nolint:errcheck
 	os.WriteFile(tmpDir+"/test.txt", []byte("hello world\n"), 0644) //nolint:errcheck
 
 	r, w, _ := os.Pipe()
@@ -883,7 +883,7 @@ func TestValidateAuditLogPath_RejectsWorldWritable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir) //nolint:errcheck
-	os.Chmod(tmpDir, 0777) //nolint:errcheck
+	os.Chmod(tmpDir, 0777)     //nolint:errcheck
 
 	errMsg := validateAuditLogPath(tmpDir + "/audit.log")
 	if errMsg == "" {
@@ -1135,7 +1135,7 @@ func TestFindShell_AvoidsRecursion(t *testing.T) {
 		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")             //nolint:errcheck
+	os.Unsetenv("GOTK_SHELL")           //nolint:errcheck
 	os.Setenv("SHELL", "/usr/bin/gotk") //nolint:errcheck
 
 	got := findShell()

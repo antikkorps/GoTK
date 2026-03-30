@@ -116,7 +116,7 @@ func TestFindShell_RespectsGOTK_SHELL(t *testing.T) {
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
 		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
 	os.Setenv("GOTK_SHELL", "/usr/local/bin/custom-shell") //nolint:errcheck
@@ -130,11 +130,11 @@ func TestFindShell_AvoidsGotkRecursion(t *testing.T) {
 	origGOTK := os.Getenv("GOTK_SHELL")
 	origSHELL := os.Getenv("SHELL")
 	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK)          //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)              //nolint:errcheck
+		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
+		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")                     //nolint:errcheck
+	os.Unsetenv("GOTK_SHELL")                 //nolint:errcheck
 	os.Setenv("SHELL", "/usr/local/bin/gotk") //nolint:errcheck
 
 	got := findShell()
@@ -155,7 +155,7 @@ func TestFindShell_UsesSHELL(t *testing.T) {
 		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
 	}()
 
-	os.Unsetenv("GOTK_SHELL")          //nolint:errcheck
+	os.Unsetenv("GOTK_SHELL")       //nolint:errcheck
 	os.Setenv("SHELL", "/bin/bash") //nolint:errcheck
 
 	got := findShell()

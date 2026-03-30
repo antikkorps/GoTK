@@ -42,9 +42,9 @@ func PrintSummary(w io.Writer, logPath, sessionID string) {
 		pct = savedTokens * 100 / rawTokens
 	}
 
-	fmt.Fprintf(w, "\n[gotk] session summary\n")       //nolint:errcheck
-	fmt.Fprintf(w, "  commands filtered: %d\n", count) //nolint:errcheck
+	fmt.Fprintf(w, "\n[gotk] session summary\n")                                  //nolint:errcheck
+	fmt.Fprintf(w, "  commands filtered: %d\n", count)                            //nolint:errcheck
 	fmt.Fprintf(w, "  tokens processed:  %d\n", rawTokens)                        //nolint:errcheck
-	fmt.Fprintf(w, "  tokens saved:      %d (-%d%%)\n", savedTokens, pct)        //nolint:errcheck
+	fmt.Fprintf(w, "  tokens saved:      %d (-%d%%)\n", savedTokens, pct)         //nolint:errcheck
 	fmt.Fprintf(w, "  filter time:       %s\n", totalDur.Round(time.Millisecond)) //nolint:errcheck
 }

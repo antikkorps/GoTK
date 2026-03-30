@@ -152,5 +152,5 @@ func (c *Cache) evict() {
 func ConfigHash(filtersStr, rulesStr, mode string, redactSecrets bool) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%s|%v", filtersStr, rulesStr, mode, redactSecrets) //nolint:errcheck
-	return hex.EncodeToString(h.Sum(nil)[:16]) // 128 bits is enough for fingerprint
+	return hex.EncodeToString(h.Sum(nil)[:16])                               // 128 bits is enough for fingerprint
 }
