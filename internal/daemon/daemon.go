@@ -228,8 +228,23 @@ func findGotkBin() (string, error) {
 	}
 	resolved, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		return exe, nil
+		return "", fmt.Errorf("cannot resolve symlinks for %q: %w", exe, err)
 	}
+
+	// Ensure the path is absolute
+	if !filepath.IsAbs(resolved) {
+		return "", fmt.Errorf("gotk binary path %q is not absolute", resolved)
+	}
+
+	// Verify the file exists and is a regular file (not a directory or device)
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("gotk binary not found at %q: %w", resolved, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("gotk binary path %q is not a regular file", resolved)
+	}
+
 	return resolved, nil
 }
 
@@ -279,7 +294,7 @@ func writeInitFile(shellName, gotkBin, sessionID string) (string, error) {
 		f.Close()
 	}
 
-	if err := os.WriteFile(filename, []byte(script), 0644); err != nil {
+	if err := os.WriteFile(filename, []byte(script), 0600); err != nil {
 		return "", err
 	}
 	return filename, nil

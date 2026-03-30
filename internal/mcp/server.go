@@ -119,6 +119,79 @@ func validateSandbox(command string) string {
 	return ""
 }
 
+// validatePath checks that a path resolves to a location under the project root.
+// It prevents directory traversal attacks (../../etc/passwd) and symlink escapes.
+// Returns the cleaned absolute path or an error message.
+func validatePath(requestedPath string) (string, string) {
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return "", "cannot determine project root"
+	}
+
+	// Resolve to absolute path
+	absPath := requestedPath
+	if !filepath.IsAbs(absPath) {
+		absPath = filepath.Join(projectRoot, absPath)
+	}
+
+	// Clean the path to resolve .. components
+	absPath = filepath.Clean(absPath)
+
+	// Resolve symlinks to get the real path
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		// File may not exist yet (for writes), check the parent
+		parentResolved, parentErr := filepath.EvalSymlinks(filepath.Dir(absPath))
+		if parentErr != nil {
+			return "", fmt.Sprintf("path validation failed: %v", err)
+		}
+		resolved = filepath.Join(parentResolved, filepath.Base(absPath))
+	}
+
+	// Ensure the resolved path is under the project root
+	resolvedRoot, err := filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		resolvedRoot = projectRoot
+	}
+
+	if !strings.HasPrefix(resolved, resolvedRoot+string(filepath.Separator)) && resolved != resolvedRoot {
+		return "", fmt.Sprintf("path %q is outside project root", requestedPath)
+	}
+
+	return resolved, ""
+}
+
+// validateAuditLogPath checks that the audit log path is not a symlink
+// and that its parent directory is not world-writable.
+func validateAuditLogPath(path string) string {
+	absPath := path
+	if !filepath.IsAbs(absPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "cannot determine working directory"
+		}
+		absPath = filepath.Join(cwd, absPath)
+	}
+	absPath = filepath.Clean(absPath)
+
+	// Check if path itself is a symlink (if it exists)
+	if info, err := os.Lstat(absPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Sprintf("audit log path %q is a symlink", path)
+		}
+	}
+
+	// Check parent directory is not world-writable
+	parentDir := filepath.Dir(absPath)
+	if parentInfo, err := os.Stat(parentDir); err == nil {
+		if parentInfo.Mode().Perm()&0002 != 0 {
+			return fmt.Sprintf("audit log parent directory %q is world-writable", parentDir)
+		}
+	}
+
+	return ""
+}
+
 // maxInputSize is the maximum allowed input size for MCP requests (10MB).
 const maxInputSize = 10 * 1024 * 1024
 
@@ -347,12 +420,19 @@ var reReqTracker *ReRequestTracker
 func Serve(cfg *config.Config) {
 	// Initialize file-based audit log if configured
 	if cfg.Security.AuditLog != "" {
-		f, err := os.OpenFile(cfg.Security.AuditLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", cfg.Security.AuditLog, err)
+		auditPath := cfg.Security.AuditLog
+
+		// Validate audit log path: reject symlinks and world-writable parent dirs
+		if auditPathErr := validateAuditLogPath(auditPath); auditPathErr != "" {
+			fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: audit log path rejected: %s\n", auditPathErr)
 		} else {
-			auditFile = f
-			defer f.Close()
+			f, err := os.OpenFile(auditPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[gotk-mcp] WARNING: cannot open audit log %q: %v\n", auditPath, err)
+			} else {
+				auditFile = f
+				defer f.Close()
+			}
 		}
 	}
 
@@ -768,10 +848,17 @@ func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		return
 	}
 
-	logErr("READ: %s", args.Path)
+	// Validate path is under project root (prevent traversal)
+	safePath, pathErr := validatePath(args.Path)
+	if pathErr != "" {
+		sendError(id, -32602, pathErr)
+		return
+	}
+
+	logErr("READ: %s", safePath)
 
 	// Read the file
-	data, err := os.ReadFile(args.Path)
+	data, err := os.ReadFile(safePath)
 	if err != nil {
 		sendError(id, -32603, "read failed: "+err.Error())
 		return
@@ -876,6 +963,15 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	if path == "" {
 		path = "."
 	}
+
+	// Validate path is under project root (prevent traversal)
+	safePath, pathErr := validatePath(path)
+	if pathErr != "" {
+		sendError(id, -32602, pathErr)
+		return
+	}
+	path = safePath
+
 	grepArgs = append(grepArgs, path)
 
 	command := strings.Join(grepArgs, " ")
@@ -997,7 +1093,13 @@ func handleCtx(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) 
 		ctxCLIArgs = append(ctxCLIArgs, "-m", fmt.Sprintf("%d", args.MaxFiles))
 	}
 	if args.Path != "" {
-		ctxCLIArgs = append(ctxCLIArgs, "-p", args.Path)
+		// Validate path is under project root (prevent traversal)
+		safePath, pathErr := validatePath(args.Path)
+		if pathErr != "" {
+			sendError(id, -32602, pathErr)
+			return
+		}
+		ctxCLIArgs = append(ctxCLIArgs, "-p", safePath)
 	}
 
 	ctxCLIArgs = append(ctxCLIArgs, args.Pattern)

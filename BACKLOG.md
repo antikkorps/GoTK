@@ -353,12 +353,12 @@
 
 ### Build — Security fixes (Critical + High)
 
-- [ ] Fix temp file permissions: `0600` instead of `0644` in `daemon/daemon.go`
-- [ ] MCP `gotk_read`: validate path is under project root, block traversal (`../../etc/passwd`)
-- [ ] MCP `gotk_grep`: same path validation as `gotk_read`
-- [ ] MCP `gotk_ctx`: skip symlinks in `ctx/walk.go` to prevent symlink-based exfiltration
-- [ ] Validate `GOTK_BIN` path in daemon shell scripts (check absolute path, file exists)
-- [ ] Audit log: validate path is not a symlink, parent dir not world-writable
+- [x] Fix temp file permissions: `0600` instead of `0644` in `daemon/daemon.go`
+- [x] MCP `gotk_read`: validate path is under project root, block traversal (`../../etc/passwd`)
+- [x] MCP `gotk_grep`: same path validation as `gotk_read`
+- [x] MCP `gotk_ctx`: skip symlinks in `ctx/walk.go` to prevent symlink-based exfiltration
+- [x] Validate `GOTK_BIN` path in daemon shell scripts (check absolute path, file exists)
+- [x] Audit log: validate path is not a symlink, parent dir not world-writable
 
 ### Build — Security fixes (Medium)
 

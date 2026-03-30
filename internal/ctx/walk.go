@@ -61,6 +61,11 @@ func WalkFiles(opts Options) ([]string, error) {
 			return nil // skip inaccessible paths
 		}
 
+		// Skip symlinks to prevent symlink-based directory escape
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
 		name := d.Name()
 
 		// Skip excluded directories

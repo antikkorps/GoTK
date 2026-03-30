@@ -547,8 +547,8 @@ func TestHandleRequest_RateLimited(t *testing.T) {
 // --- gotk_read tests ---
 
 func TestHandleRead_Success(t *testing.T) {
-	// Create a temp file to read
-	tmpFile, err := os.CreateTemp("", "gotk_read_test_*.txt")
+	// Create temp file under project root (validatePath requires this)
+	tmpFile, err := os.CreateTemp(".", "gotk_read_test_*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -598,7 +598,8 @@ func TestHandleRead_FileNotFound(t *testing.T) {
 
 	cfg := config.Default()
 	fc := cache.New(0, "")
-	argsJSON, _ := json.Marshal(readArgs{Path: "/nonexistent/file.txt"})
+	// Use a path under project root that doesn't exist
+	argsJSON, _ := json.Marshal(readArgs{Path: "nonexistent_file_for_test.txt"})
 	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
 
 	w.Close()
@@ -618,7 +619,7 @@ func TestHandleRead_FileNotFound(t *testing.T) {
 }
 
 func TestHandleRead_OffsetAndLimit(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "gotk_read_offset_*.txt")
+	tmpFile, err := os.CreateTemp(".", "gotk_read_offset_*.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,8 +685,8 @@ func TestHandleRead_EmptyPath(t *testing.T) {
 // --- gotk_grep tests ---
 
 func TestHandleGrep_Success(t *testing.T) {
-	// Create temp dir with a file to grep
-	tmpDir, err := os.MkdirTemp("", "gotk_grep_test_*")
+	// Create temp dir under project root with a file to grep
+	tmpDir, err := os.MkdirTemp(".", "gotk_grep_test_*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -723,7 +724,7 @@ func TestHandleGrep_Success(t *testing.T) {
 }
 
 func TestHandleGrep_NoMatches(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "gotk_grep_nomatch_*")
+	tmpDir, err := os.MkdirTemp(".", "gotk_grep_nomatch_*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -777,6 +778,116 @@ func TestHandleGrep_EmptyPattern(t *testing.T) {
 	json.Unmarshal(buf.Bytes(), &resp)
 	if resp.Error == nil {
 		t.Fatal("should return error for empty pattern")
+	}
+}
+
+// --- path validation tests ---
+
+func TestValidatePath_BlocksTraversal(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"absolute outside", "/etc/passwd"},
+		{"absolute tmp", "/tmp/secret"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, errMsg := validatePath(tt.path)
+			if errMsg == "" {
+				t.Errorf("validatePath(%q) should have returned an error", tt.path)
+			}
+		})
+	}
+}
+
+func TestValidatePath_AllowsProjectPaths(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"current dir", "."},
+		{"relative file in cwd", "server.go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved, errMsg := validatePath(tt.path)
+			if errMsg != "" {
+				t.Errorf("validatePath(%q) unexpected error: %s", tt.path, errMsg)
+			}
+			if resolved == "" {
+				t.Errorf("validatePath(%q) returned empty resolved path", tt.path)
+			}
+		})
+	}
+}
+
+func TestHandleRead_BlocksTraversal(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(readArgs{Path: "/etc/passwd"})
+	handleRead(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should block path traversal")
+	}
+	if !strings.Contains(resp.Error.Message, "outside project root") {
+		t.Errorf("error should mention 'outside project root', got: %s", resp.Error.Message)
+	}
+}
+
+func TestHandleGrep_BlocksTraversal(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(grepArgs{Pattern: "test", Path: "/etc"})
+	handleGrep(cfg, fc, json.RawMessage(`1`), argsJSON)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp)
+	if resp.Error == nil {
+		t.Fatal("should block path traversal")
+	}
+	if !strings.Contains(resp.Error.Message, "outside project root") {
+		t.Errorf("error should mention 'outside project root', got: %s", resp.Error.Message)
+	}
+}
+
+func TestValidateAuditLogPath_RejectsWorldWritable(t *testing.T) {
+	// Create a world-writable temp dir
+	tmpDir, err := os.MkdirTemp(".", "gotk_audit_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	os.Chmod(tmpDir, 0777)
+
+	errMsg := validateAuditLogPath(tmpDir + "/audit.log")
+	if errMsg == "" {
+		t.Error("should reject audit log in world-writable directory")
 	}
 }
 
