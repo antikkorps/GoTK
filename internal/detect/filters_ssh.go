@@ -7,14 +7,14 @@ import (
 
 var (
 	// SSH connection banners and info
-	sshBanner       = regexp.MustCompile(`^(Warning: Permanently added|Pseudo-terminal|Connection to .+ closed|Authenticated to)`)
-	sshDebug        = regexp.MustCompile(`^debug\d+:`)
-	sshHostKey      = regexp.MustCompile(`^(ECDSA|RSA|ED25519) key fingerprint is`)
+	sshBanner  = regexp.MustCompile(`^(Warning: Permanently added|Pseudo-terminal|Connection to .+ closed|Authenticated to)`)
+	sshDebug   = regexp.MustCompile(`^debug\d+:`)
+	sshHostKey = regexp.MustCompile(`^(ECDSA|RSA|ED25519) key fingerprint is`)
 	// SCP progress: "file.txt    100%   50KB   1.2MB/s   00:00"
-	scpProgress     = regexp.MustCompile(`\d+%\s+[\d.]+[kKMG]?B\s+[\d.]+[kKMG]?B/s`)
+	scpProgress = regexp.MustCompile(`\d+%\s+[\d.]+[kKMG]?B\s+[\d.]+[kKMG]?B/s`)
 	// rsync progress and stats
-	rsyncProgress   = regexp.MustCompile(`^\s*[\d,]+\s+\d+%\s+[\d.]+[kKMG]?B/s`)
-	rsyncStats      = regexp.MustCompile(`^(sent|total size|speedup is)`)
+	rsyncProgress = regexp.MustCompile(`^\s*[\d,]+\s+\d+%\s+[\d.]+[kKMG]?B/s`)
+	rsyncStats    = regexp.MustCompile(`^(sent|total size|speedup is)`)
 	// SSH remote MOTD banners (multi-line, often decorative)
 	// Matches lines that start AND end with 3+ of the same decoration character
 	sshMOTDLine = regexp.MustCompile(`^(#{3,}|^\*{3,}|^={3,})`)

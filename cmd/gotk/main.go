@@ -31,16 +31,16 @@ import (
 var Version = "dev"
 
 var (
-	showStats       bool
-	shellMode       bool
-	shellCmd        string // -c "command"
-	streamMode      bool
-	measureFlag     bool   // --measure flag
-	learnFlag       bool   // --learn flag for passive observation
-	maxLines        int
+	showStats        bool
+	shellMode        bool
+	shellCmd         string // -c "command"
+	streamMode       bool
+	measureFlag      bool // --measure flag
+	learnFlag        bool // --learn flag for passive observation
+	maxLines         int
 	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
-	cfg             *config.Config
-	mlog            *measure.Logger // nil if measurement disabled
+	cfg              *config.Config
+	mlog             *measure.Logger // nil if measurement disabled
 )
 
 func main() {

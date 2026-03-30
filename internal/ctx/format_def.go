@@ -11,9 +11,9 @@ import (
 var defPatterns = map[string][]*regexp.Regexp{
 	".go": {
 		regexp.MustCompile(`^func\s+(\([^)]*\)\s+)?\w+`),       // func or method
-		regexp.MustCompile(`^type\s+\w+\s+(struct|interface)`),   // type decl
-		regexp.MustCompile(`^var\s+\w+`),                         // package-level var
-		regexp.MustCompile(`^const\s+`),                          // const block
+		regexp.MustCompile(`^type\s+\w+\s+(struct|interface)`), // type decl
+		regexp.MustCompile(`^var\s+\w+`),                       // package-level var
+		regexp.MustCompile(`^const\s+`),                        // const block
 	},
 	".py": {
 		regexp.MustCompile(`^(class|def)\s+\w+`),
@@ -47,7 +47,7 @@ var defPatterns = map[string][]*regexp.Regexp{
 		regexp.MustCompile(`^(class|module|def)\s+\w+`),
 	},
 	".c": {
-		regexp.MustCompile(`^[\w*]+\s+\w+\s*\(`),               // function definition
+		regexp.MustCompile(`^[\w*]+\s+\w+\s*\(`), // function definition
 		regexp.MustCompile(`^(typedef|struct|enum|union)\s+`),
 	},
 	".h": {
@@ -60,7 +60,7 @@ var defPatterns = map[string][]*regexp.Regexp{
 		regexp.MustCompile(`^(class|struct|enum|namespace|template)\s+`),
 	},
 	".sh": {
-		regexp.MustCompile(`^\w+\s*\(\)\s*\{`),                 // function def
+		regexp.MustCompile(`^\w+\s*\(\)\s*\{`), // function def
 		regexp.MustCompile(`^function\s+\w+`),
 	},
 }

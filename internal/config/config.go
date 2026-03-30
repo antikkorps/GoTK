@@ -27,10 +27,10 @@ type MeasureConfig struct {
 type LLMProfile string
 
 const (
-	ProfileNone   LLMProfile = ""           // no profile, use defaults
-	ProfileClaude LLMProfile = "claude"     // Anthropic Claude (200k context)
-	ProfileGPT    LLMProfile = "gpt"        // OpenAI GPT (128k context)
-	ProfileGemini LLMProfile = "gemini"     // Google Gemini (1M+ context)
+	ProfileNone   LLMProfile = ""       // no profile, use defaults
+	ProfileClaude LLMProfile = "claude" // Anthropic Claude (200k context)
+	ProfileGPT    LLMProfile = "gpt"    // OpenAI GPT (128k context)
+	ProfileGemini LLMProfile = "gemini" // Google Gemini (1M+ context)
 )
 
 // LearnConfig controls the pattern learning subsystem.
@@ -47,17 +47,17 @@ type Config struct {
 	Security   SecurityConfig
 	Measure    MeasureConfig
 	Learn      LearnConfig
-	Profile    LLMProfile            // target LLM profile
-	Commands   map[string]string     // custom command-type mappings
-	Rules      RulesConfig           // whitelist/blacklist patterns
-	Truncation map[string]int        // per-command max_lines overrides
+	Profile    LLMProfile        // target LLM profile
+	Commands   map[string]string // custom command-type mappings
+	Rules      RulesConfig       // whitelist/blacklist patterns
+	Truncation map[string]int    // per-command max_lines overrides
 }
 
 // SecurityConfig controls security-related settings.
 type SecurityConfig struct {
-	CommandTimeout int  // seconds, 0 means no timeout
-	MaxOutputBytes int  // max bytes captured per stream (stdout/stderr)
-	RedactSecrets  bool // whether to redact secrets from output
+	CommandTimeout int    // seconds, 0 means no timeout
+	MaxOutputBytes int    // max bytes captured per stream (stdout/stderr)
+	RedactSecrets  bool   // whether to redact secrets from output
 	RateLimit      int    // max requests per minute for MCP tools/call, 0 = disabled
 	RateBurst      int    // max burst size for rate limiter
 	SandboxMode    bool   // restrict MCP exec to read-only commands
@@ -66,10 +66,10 @@ type SecurityConfig struct {
 
 // GeneralConfig holds general settings.
 type GeneralConfig struct {
-	MaxLines int
-	Stats    bool
+	MaxLines  int
+	Stats     bool
 	ShellMode bool
-	Mode     FilterMode
+	Mode      FilterMode
 }
 
 // RulesConfig holds whitelist/blacklist regex patterns.

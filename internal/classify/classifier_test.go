@@ -7,9 +7,9 @@ import (
 
 func TestClassify(t *testing.T) {
 	tests := []struct {
-		name  string
-		line  string
-		want  Level
+		name string
+		line string
+		want Level
 	}{
 		// Noise
 		{"empty line", "", Noise},

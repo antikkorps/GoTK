@@ -12,11 +12,11 @@ import (
 
 // Logger writes measurement entries as JSONL to a file.
 type Logger struct {
-	mu         sync.Mutex
-	file       *os.File
-	path       string
-	sessionID  string
-	maxSize    int // max file size in bytes, 0 = unlimited
+	mu        sync.Mutex
+	file      *os.File
+	path      string
+	sessionID string
+	maxSize   int // max file size in bytes, 0 = unlimited
 }
 
 // NewLogger creates a Logger that appends entries to the given path.

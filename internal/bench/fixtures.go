@@ -27,7 +27,7 @@ func generateGrepFixture() string {
 	for i := 0; i < 500; i++ {
 		file := files[i%len(files)]
 		pattern := patterns[i%len(patterns)]
-		lineNum := 10 + (i * 3) % 200
+		lineNum := 10 + (i*3)%200
 		lines = append(lines, fmt.Sprintf("%s:%d:\t%s%s // line content %d",
 			file, lineNum, pattern, "SomeValue", i))
 	}

@@ -176,9 +176,9 @@ func TestApplyTOML_BooleanValues(t *testing.T) {
 
 func TestApplyTOML_IntegerValues(t *testing.T) {
 	tests := []struct {
-		name     string
-		toml     string
-		wantMax  int
+		name    string
+		toml    string
+		wantMax int
 	}{
 		{"positive", "[general]\nmax_lines = 200", 200},
 		{"zero", "[general]\nmax_lines = 0", 0},

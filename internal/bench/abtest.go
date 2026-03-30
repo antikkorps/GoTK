@@ -38,7 +38,7 @@ type ABReport struct {
 
 // ABModeSummary holds aggregated stats for a single mode across all fixtures.
 type ABModeSummary struct {
-	Mode           string
+	Mode             string
 	TotalRawTokens   int
 	TotalCleanTokens int
 	TotalSaved       int

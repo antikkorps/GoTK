@@ -14,8 +14,8 @@ var (
 	tfReadComplete = regexp.MustCompile(`^(\S+\.\S+): Read complete after`)
 	// terraform apply progress
 
-	tfStillCreating  = regexp.MustCompile(`^(\S+\.\S+): Still creating\.\.\.`)
-	tfStillModifying = regexp.MustCompile(`^(\S+\.\S+): Still modifying\.\.\.`)
+	tfStillCreating   = regexp.MustCompile(`^(\S+\.\S+): Still creating\.\.\.`)
+	tfStillModifying  = regexp.MustCompile(`^(\S+\.\S+): Still modifying\.\.\.`)
 	tfStillDestroying = regexp.MustCompile(`^(\S+\.\S+): Still destroying\.\.\.`)
 )
 

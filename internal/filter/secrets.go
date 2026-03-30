@@ -9,12 +9,12 @@ import (
 var secretPatterns = []*regexp.Regexp{
 	// API keys and tokens with known prefixes
 	regexp.MustCompile(`\bsk-[A-Za-z0-9]{20,}\b`),      // OpenAI / Stripe secret keys
-	regexp.MustCompile(`\bghp_[A-Za-z0-9]{36,}\b`),      // GitHub personal access tokens
-	regexp.MustCompile(`\bghu_[A-Za-z0-9]{36,}\b`),      // GitHub user-to-server tokens
-	regexp.MustCompile(`\bghs_[A-Za-z0-9]{36,}\b`),      // GitHub server-to-server tokens
-	regexp.MustCompile(`\bglpat-[A-Za-z0-9\-]{20,}\b`),  // GitLab personal access tokens
-	regexp.MustCompile(`\bxoxb-[A-Za-z0-9\-]{10,}\b`),   // Slack bot tokens
-	regexp.MustCompile(`\bxoxp-[A-Za-z0-9\-]{10,}\b`),   // Slack user tokens
+	regexp.MustCompile(`\bghp_[A-Za-z0-9]{36,}\b`),     // GitHub personal access tokens
+	regexp.MustCompile(`\bghu_[A-Za-z0-9]{36,}\b`),     // GitHub user-to-server tokens
+	regexp.MustCompile(`\bghs_[A-Za-z0-9]{36,}\b`),     // GitHub server-to-server tokens
+	regexp.MustCompile(`\bglpat-[A-Za-z0-9\-]{20,}\b`), // GitLab personal access tokens
+	regexp.MustCompile(`\bxoxb-[A-Za-z0-9\-]{10,}\b`),  // Slack bot tokens
+	regexp.MustCompile(`\bxoxp-[A-Za-z0-9\-]{10,}\b`),  // Slack user tokens
 
 	// AWS access key IDs (start with AKIA, 20 uppercase alphanumeric chars)
 	regexp.MustCompile(`\bAKIA[A-Z0-9]{16}\b`),

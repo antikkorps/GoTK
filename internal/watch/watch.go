@@ -28,12 +28,12 @@ type Config struct {
 
 // ignoredDirs contains directory names that should be skipped during file walking.
 var ignoredDirs = map[string]bool{
-	".git":        true,
-	".hg":         true,
-	".svn":        true,
+	".git":         true,
+	".hg":          true,
+	".svn":         true,
 	"node_modules": true,
-	"vendor":      true,
-	"__pycache__": true,
+	"vendor":       true,
+	"__pycache__":  true,
 }
 
 // snapshot maps file paths to their modification times.

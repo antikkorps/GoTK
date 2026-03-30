@@ -18,15 +18,15 @@ type entry struct {
 // Cache is a thread-safe LRU cache for filtered output.
 // It maps a content hash (derived from raw input + filter parameters) to the filtered result.
 type Cache struct {
-	mu       sync.Mutex
-	items    map[string]*entry
-	head     *entry // most recently used
-	tail     *entry // least recently used
-	size     int
-	maxSize  int
-	hits     int
-	misses   int
-	cfgHash  string // precomputed config fingerprint
+	mu      sync.Mutex
+	items   map[string]*entry
+	head    *entry // most recently used
+	tail    *entry // least recently used
+	size    int
+	maxSize int
+	hits    int
+	misses  int
+	cfgHash string // precomputed config fingerprint
 }
 
 // New creates a new LRU cache with the given maximum number of entries.

@@ -6,12 +6,12 @@ import (
 )
 
 var (
-	makeEnteringPattern   = regexp.MustCompile(`^make\[\d+\]: Entering directory`)
-	makeLeavingPattern    = regexp.MustCompile(`^make\[\d+\]: Leaving directory`)
-	makeNothingPattern    = regexp.MustCompile(`^make\[\d+\]: Nothing to be done for`)
-	makeErrorPattern      = regexp.MustCompile(`^make(\[\d+\])?: \*\*\*`)
+	makeEnteringPattern = regexp.MustCompile(`^make\[\d+\]: Entering directory`)
+	makeLeavingPattern  = regexp.MustCompile(`^make\[\d+\]: Leaving directory`)
+	makeNothingPattern  = regexp.MustCompile(`^make\[\d+\]: Nothing to be done for`)
+	makeErrorPattern    = regexp.MustCompile(`^make(\[\d+\])?: \*\*\*`)
 	// Matches gcc/g++/cc compilation command lines with flags
-	compilerCmdPattern    = regexp.MustCompile(`^\s*(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)\s+`)
+	compilerCmdPattern = regexp.MustCompile(`^\s*(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)\s+`)
 	// Extract -o output or source file from compiler command
 	compilerSourcePattern = regexp.MustCompile(`\s(\S+\.(c|cc|cpp|cxx|m|mm|s|S))\b`)
 	compilerOutputPattern = regexp.MustCompile(`-o\s+(\S+)`)

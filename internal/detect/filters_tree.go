@@ -9,7 +9,7 @@ var (
 	// tree summary line: "N directories, M files"
 	treeSummaryLine = regexp.MustCompile(`^\d+ director(y|ies), \d+ files?`)
 	// tree branch characters
-	treeBranchChars = regexp.MustCompile(`^[│├└─┬┤┼╠╚═╔╗╝╬║\s|+\\`+"`"+`\-]+`)
+	treeBranchChars = regexp.MustCompile(`^[│├└─┬┤┼╠╚═╔╗╝╬║\s|+\\` + "`" + `\-]+`)
 )
 
 // compressTreeOutput compresses tree command output by collapsing deep empty directories.

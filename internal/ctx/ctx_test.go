@@ -113,8 +113,8 @@ func TestParseFlags(t *testing.T) {
 			want: Options{Pattern: "pattern", Dir: ".", Mode: ModeScan, Context: 3, MaxLine: 120, MaxResults: 5},
 		},
 		{
-			name: "unknown flag",
-			args: []string{"--unknown"},
+			name:    "unknown flag",
+			args:    []string{"--unknown"},
 			wantErr: true,
 		},
 	}

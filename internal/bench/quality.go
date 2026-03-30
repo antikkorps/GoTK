@@ -150,4 +150,3 @@ func extractCoreContent(line string) string {
 func normalizeLine(line string) string {
 	return strings.TrimSpace(filter.StripANSI(line))
 }
-

@@ -10,18 +10,18 @@ import (
 
 // Report holds aggregated measurement data.
 type Report struct {
-	Period           string                     `json:"period"`
-	TotalInvocations int                        `json:"total_invocations"`
-	TotalRawTokens   int                        `json:"total_raw_tokens"`
-	TotalCleanTokens int                        `json:"total_clean_tokens"`
-	TotalTokensSaved int                        `json:"total_tokens_saved"`
-	AvgReduction     float64                    `json:"avg_reduction"`
-	AvgQualityScore  float64                    `json:"avg_quality_score"`
-	TotalReRequests  int                        `json:"total_rerequests"`
-	ReRequestRate    float64                    `json:"rerequest_rate"`
+	Period           string                       `json:"period"`
+	TotalInvocations int                          `json:"total_invocations"`
+	TotalRawTokens   int                          `json:"total_raw_tokens"`
+	TotalCleanTokens int                          `json:"total_clean_tokens"`
+	TotalTokensSaved int                          `json:"total_tokens_saved"`
+	AvgReduction     float64                      `json:"avg_reduction"`
+	AvgQualityScore  float64                      `json:"avg_quality_score"`
+	TotalReRequests  int                          `json:"total_rerequests"`
+	ReRequestRate    float64                      `json:"rerequest_rate"`
 	ByCommandType    map[string]*CommandTypeStats `json:"by_command_type"`
-	BySessions       []SessionStats             `json:"by_sessions"`
-	Insights         []Insight                  `json:"insights,omitempty"`
+	BySessions       []SessionStats               `json:"by_sessions"`
+	Insights         []Insight                    `json:"insights,omitempty"`
 }
 
 // CommandTypeStats holds stats for a single command type.

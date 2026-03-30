@@ -396,12 +396,12 @@ type readArgs struct {
 }
 
 type grepArgs struct {
-	Pattern   string `json:"pattern"`
-	Path      string `json:"path"`
-	MaxLines  int    `json:"max_lines"`
-	Recursive bool   `json:"recursive"`
-	IgnoreCase bool  `json:"ignore_case"`
-	LineNumber bool  `json:"line_number"`
+	Pattern    string `json:"pattern"`
+	Path       string `json:"path"`
+	MaxLines   int    `json:"max_lines"`
+	Recursive  bool   `json:"recursive"`
+	IgnoreCase bool   `json:"ignore_case"`
+	LineNumber bool   `json:"line_number"`
 }
 
 type ctxArgs struct {

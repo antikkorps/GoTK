@@ -16,10 +16,10 @@ func PrintSummary(w io.Writer, logPath, sessionID string) {
 	}
 
 	var (
-		count      int
-		rawTokens  int
+		count       int
+		rawTokens   int
 		savedTokens int
-		totalDur   time.Duration
+		totalDur    time.Duration
 	)
 
 	for _, e := range entries {
