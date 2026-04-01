@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -76,7 +77,7 @@ func compressDockerOutput(input string) string {
 		// Flush pull summary before a non-pull line
 		if pullFrom != "" {
 			if layerCount > 0 {
-				result = append(result, pullFrom+" ("+itoa(layerCount)+" layers)")
+				result = append(result, pullFrom+" ("+strconv.Itoa(layerCount)+" layers)")
 			} else {
 				result = append(result, pullFrom)
 			}
@@ -97,7 +98,7 @@ func compressDockerOutput(input string) string {
 	// Flush trailing pull summary
 	if pullFrom != "" {
 		if layerCount > 0 {
-			result = append(result, pullFrom+" ("+itoa(layerCount)+" layers)")
+			result = append(result, pullFrom+" ("+strconv.Itoa(layerCount)+" layers)")
 		} else {
 			result = append(result, pullFrom)
 		}

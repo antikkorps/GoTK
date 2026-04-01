@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -60,7 +61,7 @@ func compressNpmOutput(input string) string {
 		if warnCount > 0 {
 			result = append(result, firstWarn)
 			if warnCount > 1 {
-				result = append(result, "... and "+itoa(warnCount-1)+" more npm warnings")
+				result = append(result, "... and "+strconv.Itoa(warnCount-1)+" more npm warnings")
 			}
 			warnCount = 0
 			firstWarn = ""
@@ -109,7 +110,7 @@ func compressNpmOutput(input string) string {
 	if warnCount > 0 {
 		result = append(result, firstWarn)
 		if warnCount > 1 {
-			result = append(result, "... and "+itoa(warnCount-1)+" more npm warnings")
+			result = append(result, "... and "+strconv.Itoa(warnCount-1)+" more npm warnings")
 		}
 	}
 

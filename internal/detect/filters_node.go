@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -113,27 +114,27 @@ func compressNodeOutput(input string) string {
 func flushNodeCounters(result *[]string, experimentalCount, deprecationCount *int, firstDeprecation *string,
 	webpackProgressCount, webpackModuleCount, internalFrameCount *int) {
 	if *experimentalCount > 0 {
-		*result = append(*result, "("+itoa(*experimentalCount)+" experimental warnings)")
+		*result = append(*result, "("+strconv.Itoa(*experimentalCount)+" experimental warnings)")
 		*experimentalCount = 0
 	}
 	if *deprecationCount > 0 {
 		*result = append(*result, *firstDeprecation)
 		if *deprecationCount > 1 {
-			*result = append(*result, "... and "+itoa(*deprecationCount-1)+" more deprecation warnings")
+			*result = append(*result, "... and "+strconv.Itoa(*deprecationCount-1)+" more deprecation warnings")
 		}
 		*deprecationCount = 0
 		*firstDeprecation = ""
 	}
 	if *webpackProgressCount > 0 {
-		*result = append(*result, "("+itoa(*webpackProgressCount)+" build progress updates)")
+		*result = append(*result, "("+strconv.Itoa(*webpackProgressCount)+" build progress updates)")
 		*webpackProgressCount = 0
 	}
 	if *webpackModuleCount > 0 {
-		*result = append(*result, "("+itoa(*webpackModuleCount)+" module/asset details)")
+		*result = append(*result, "("+strconv.Itoa(*webpackModuleCount)+" module/asset details)")
 		*webpackModuleCount = 0
 	}
 	if *internalFrameCount > 0 {
-		*result = append(*result, "    [... "+itoa(*internalFrameCount)+" node internal frames]")
+		*result = append(*result, "    [... "+strconv.Itoa(*internalFrameCount)+" node internal frames]")
 		*internalFrameCount = 0
 	}
 }

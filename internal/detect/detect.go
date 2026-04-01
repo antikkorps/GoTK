@@ -2,6 +2,7 @@ package detect
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/antikkorps/GoTK/internal/filter"
@@ -326,7 +327,7 @@ func compressGoOutput(input string) string {
 
 		// Flush pass summary before non-ok line
 		if len(passedPkgs) > 0 {
-			result = append(result, "ok "+itoa(len(passedPkgs))+" packages: "+strings.Join(passedPkgs, ", "))
+			result = append(result, "ok "+strconv.Itoa(len(passedPkgs))+" packages: "+strings.Join(passedPkgs, ", "))
 			passedPkgs = nil
 		}
 
@@ -344,22 +345,10 @@ func compressGoOutput(input string) string {
 	}
 
 	if len(passedPkgs) > 0 {
-		result = append(result, "ok "+itoa(len(passedPkgs))+" packages: "+strings.Join(passedPkgs, ", "))
+		result = append(result, "ok "+strconv.Itoa(len(passedPkgs))+" packages: "+strings.Join(passedPkgs, ", "))
 	}
 
 	return strings.Join(result, "\n")
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	digits := []byte{}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
 }
 
 // compressLsOutput strips verbose metadata from ls -la style output.

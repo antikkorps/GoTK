@@ -13,37 +13,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/antikkorps/GoTK/internal/cmdclass"
 	"github.com/antikkorps/GoTK/internal/config"
-	"github.com/antikkorps/GoTK/internal/hook"
 )
 
-// InteractiveCommands are programs that need direct terminal access
-// and should not have their output piped through gotk.
-var InteractiveCommands = map[string]bool{
-	"vim":        true,
-	"vi":         true,
-	"nvim":       true,
-	"nano":       true,
-	"emacs":      true,
-	"less":       true,
-	"more":       true,
-	"man":        true,
-	"top":        true,
-	"htop":       true,
-	"btop":       true,
-	"watch":      true,
-	"ssh":        true,
-	"mosh":       true,
-	"tmux":       true,
-	"screen":     true,
-	"fzf":        true,
-	"nnn":        true,
-	"ranger":     true,
-	"mc":         true,
-	"lazygit":    true,
-	"lazydocker": true,
-	"k9s":        true,
-}
+// InteractiveCommands is an alias for backward compatibility.
+// Use cmdclass.InteractiveCommands for new code.
+var InteractiveCommands = cmdclass.InteractiveCommands
 
 // ShouldSkip returns true if the command should not be wrapped by the daemon.
 func ShouldSkip(cmd string) bool {
@@ -63,7 +39,7 @@ func ShouldSkip(cmd string) bool {
 	}
 
 	// Skip trivial and interactive commands
-	if hook.TrivialCommands[firstWord] {
+	if cmdclass.TrivialCommands[firstWord] {
 		return true
 	}
 	if InteractiveCommands[firstWord] {

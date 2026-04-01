@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/antikkorps/GoTK/internal/cmdclass"
 )
 
 // Input represents the JSON payload received from Claude Code on stdin.
@@ -32,28 +34,9 @@ type Output struct {
 	UpdatedInput *ToolInput `json:"updatedInput,omitempty"`
 }
 
-// TrivialCommands are commands that produce no meaningful output to filter,
-// or that would break if wrapped in a pipe.
-var TrivialCommands = map[string]bool{
-	"cd":     true,
-	"pwd":    true,
-	"echo":   true,
-	"export": true,
-	"source": true,
-	"which":  true,
-	"type":   true,
-	"true":   true,
-	"false":  true,
-	"set":    true,
-	"unset":  true,
-	"alias":  true,
-	"hash":   true,
-	"read":   true,
-	"return": true,
-	"exit":   true,
-	"logout": true,
-	"exec":   true,
-}
+// TrivialCommands is an alias for backward compatibility.
+// Use cmdclass.TrivialCommands for new code.
+var TrivialCommands = cmdclass.TrivialCommands
 
 // Run reads a Claude Code hook payload from r, processes it, and writes
 // the response to w. It returns an error only for I/O or JSON parse failures.

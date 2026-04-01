@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -71,11 +72,11 @@ func compressSSHOutput(input string) string {
 
 		// Flush counters
 		if scpFileCount > 0 {
-			result = append(result, "scp: "+itoa(scpFileCount)+" files transferred")
+			result = append(result, "scp: "+strconv.Itoa(scpFileCount)+" files transferred")
 			scpFileCount = 0
 		}
 		if rsyncProgressCount > 0 {
-			result = append(result, "("+itoa(rsyncProgressCount)+" progress updates)")
+			result = append(result, "("+strconv.Itoa(rsyncProgressCount)+" progress updates)")
 			rsyncProgressCount = 0
 		}
 
@@ -91,10 +92,10 @@ func compressSSHOutput(input string) string {
 
 	// Flush trailing
 	if scpFileCount > 0 {
-		result = append(result, "scp: "+itoa(scpFileCount)+" files transferred")
+		result = append(result, "scp: "+strconv.Itoa(scpFileCount)+" files transferred")
 	}
 	if rsyncProgressCount > 0 {
-		result = append(result, "("+itoa(rsyncProgressCount)+" progress updates)")
+		result = append(result, "("+strconv.Itoa(rsyncProgressCount)+" progress updates)")
 	}
 
 	return strings.Join(result, "\n")

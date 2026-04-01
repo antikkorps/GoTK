@@ -3,6 +3,7 @@ package testutil
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -123,7 +124,7 @@ func lineDiff(want, got string) string {
 		}
 
 		if w != g {
-			diff = append(diff, "  line "+itoa(i+1)+":")
+			diff = append(diff, "  line "+strconv.Itoa(i+1)+":")
 			diff = append(diff, "    want: "+repr(w))
 			diff = append(diff, "    got:  "+repr(g))
 		}
@@ -142,22 +143,3 @@ func repr(s string) string {
 	return "\"" + s + "\""
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := false
-	if n < 0 {
-		neg = true
-		n = -n
-	}
-	digits := []byte{}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		digits = append([]byte{'-'}, digits...)
-	}
-	return string(digits)
-}

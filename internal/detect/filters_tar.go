@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -96,13 +97,13 @@ func flushTarCounters(result *[]string, extractCount *int, fileList *[]string) {
 		} else {
 			// Show first 10, last 5, and count
 			*result = append(*result, (*fileList)[:10]...)
-			*result = append(*result, "... "+itoa(len(*fileList)-15)+" more files ...")
+			*result = append(*result, "... "+strconv.Itoa(len(*fileList)-15)+" more files ...")
 			*result = append(*result, (*fileList)[len(*fileList)-5:]...)
 		}
 		*fileList = nil
 	}
 	if *extractCount > 0 {
-		*result = append(*result, "Extracted "+itoa(*extractCount)+" files")
+		*result = append(*result, "Extracted "+strconv.Itoa(*extractCount)+" files")
 		*extractCount = 0
 	}
 }

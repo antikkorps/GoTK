@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -70,15 +71,15 @@ func compressTerraformOutput(input string) string {
 
 func flushTfCounters(result *[]string, refreshCount, readCount, stillCount *int) {
 	if *refreshCount > 0 {
-		*result = append(*result, "Refreshed "+itoa(*refreshCount)+" resources")
+		*result = append(*result, "Refreshed "+strconv.Itoa(*refreshCount)+" resources")
 		*refreshCount = 0
 	}
 	if *readCount > 0 {
-		*result = append(*result, "Read "+itoa(*readCount)+" data sources")
+		*result = append(*result, "Read "+strconv.Itoa(*readCount)+" data sources")
 		*readCount = 0
 	}
 	if *stillCount > 0 {
-		*result = append(*result, "("+itoa(*stillCount)+" progress updates)")
+		*result = append(*result, "("+strconv.Itoa(*stillCount)+" progress updates)")
 		*stillCount = 0
 	}
 }

@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -143,7 +144,7 @@ func TestCompressNpmOutput(t *testing.T) {
 	lines = append(lines, "npm warn deprecated npmlog@6.0.2: This package is no longer supported")
 	lines = append(lines, "npm warn deprecated are-we-there-yet@3.0.1: This package is no longer supported")
 	for i := 0; i < 43; i++ {
-		lines = append(lines, "npm warn deprecated somepackage@"+itoa(i)+".0.0: deprecated")
+		lines = append(lines, "npm warn deprecated somepackage@"+strconv.Itoa(i)+".0.0: deprecated")
 	}
 	lines = append(lines, "")
 	lines = append(lines, "added 523 packages, and audited 524 packages in 12s")
@@ -217,7 +218,7 @@ func TestCompressCargoOutput(t *testing.T) {
 	lines = append(lines, "   Downloaded axum v0.6.20")
 	lines = append(lines, "   Downloaded hyper v0.14.27")
 	for i := 0; i < 15; i++ {
-		lines = append(lines, "   Downloaded somecrate v0."+itoa(i)+".0")
+		lines = append(lines, "   Downloaded somecrate v0."+strconv.Itoa(i)+".0")
 	}
 	lines = append(lines, "   Compiling proc-macro2 v1.0.67")
 	lines = append(lines, "   Compiling unicode-ident v1.0.12")
@@ -229,7 +230,7 @@ func TestCompressCargoOutput(t *testing.T) {
 	lines = append(lines, "   Compiling axum v0.6.20")
 	lines = append(lines, "   Compiling hyper v0.14.27")
 	for i := 0; i < 11; i++ {
-		lines = append(lines, "   Compiling crate"+itoa(i)+" v0.1.0")
+		lines = append(lines, "   Compiling crate"+strconv.Itoa(i)+" v0.1.0")
 	}
 	lines = append(lines, "   Compiling myproject v0.1.0 (/home/user/project)")
 	lines = append(lines, "    Finished dev [unoptimized + debuginfo] target(s) in 45.23s")

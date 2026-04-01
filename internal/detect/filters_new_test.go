@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -106,7 +107,7 @@ func TestCompressCurlErrors(t *testing.T) {
 func TestCompressPythonPipInstall(t *testing.T) {
 	var lines []string
 	for i := 0; i < 20; i++ {
-		lines = append(lines, "Requirement already satisfied: package"+itoa(i)+" in /usr/lib/python3/dist-packages (1.0.0)")
+		lines = append(lines, "Requirement already satisfied: package"+strconv.Itoa(i)+" in /usr/lib/python3/dist-packages (1.0.0)")
 	}
 	lines = append(lines, "Collecting newpackage==2.0.0")
 	lines = append(lines, "Downloading newpackage-2.0.0.tar.gz (50 kB)")
@@ -202,9 +203,9 @@ func TestCompressTreeLargeOutput(t *testing.T) {
 	lines = append(lines, ".")
 	// Create a large tree with deep nesting
 	for i := 0; i < 25; i++ {
-		lines = append(lines, "├── dir"+itoa(i))
-		lines = append(lines, "│   ├── file"+itoa(i)+".go")
-		lines = append(lines, "│   └── file"+itoa(i)+"_test.go")
+		lines = append(lines, "├── dir"+strconv.Itoa(i))
+		lines = append(lines, "│   ├── file"+strconv.Itoa(i)+".go")
+		lines = append(lines, "│   └── file"+strconv.Itoa(i)+"_test.go")
 	}
 	lines = append(lines, "")
 	lines = append(lines, "25 directories, 50 files")
@@ -224,7 +225,7 @@ func TestCompressTerraformPlan(t *testing.T) {
 	var lines []string
 	// Add many refresh lines
 	for i := 0; i < 30; i++ {
-		lines = append(lines, "aws_instance.web["+itoa(i)+"]: Refreshing state... [id=i-abc"+itoa(i)+"]")
+		lines = append(lines, "aws_instance.web["+strconv.Itoa(i)+"]: Refreshing state... [id=i-abc"+strconv.Itoa(i)+"]")
 	}
 	lines = append(lines, "")
 	lines = append(lines, "Terraform used the selected providers to generate the following execution plan.")
@@ -501,16 +502,16 @@ func TestCompressNpmAuditKeepsCritical(t *testing.T) {
 	lines = append(lines, "")
 	for i := 0; i < 15; i++ {
 		lines = append(lines, "  Severity: critical")
-		lines = append(lines, "  Vulnerable: package-crit-"+itoa(i)+" <2.0.0")
+		lines = append(lines, "  Vulnerable: package-crit-"+strconv.Itoa(i)+" <2.0.0")
 		lines = append(lines, "  Patched: >=2.0.0")
-		lines = append(lines, "  Path: myapp > package-crit-"+itoa(i))
-		lines = append(lines, "  More info: https://npmjs.com/advisories/"+itoa(i))
+		lines = append(lines, "  Path: myapp > package-crit-"+strconv.Itoa(i))
+		lines = append(lines, "  More info: https://npmjs.com/advisories/"+strconv.Itoa(i))
 		lines = append(lines, "")
 	}
 	// Add low severity details
 	for i := 0; i < 20; i++ {
 		lines = append(lines, "  Severity: low")
-		lines = append(lines, "  Vulnerable: package-low-"+itoa(i)+" <1.0.0")
+		lines = append(lines, "  Vulnerable: package-low-"+strconv.Itoa(i)+" <1.0.0")
 		lines = append(lines, "  Patched: >=1.0.0")
 		lines = append(lines, "")
 	}
@@ -521,7 +522,7 @@ func TestCompressNpmAuditKeepsCritical(t *testing.T) {
 
 	// All 15 critical packages should be kept
 	for i := 0; i < 15; i++ {
-		if !strings.Contains(got, "package-crit-"+itoa(i)) {
+		if !strings.Contains(got, "package-crit-"+strconv.Itoa(i)) {
 			t.Errorf("should keep critical vulnerability package-crit-%d", i)
 		}
 	}
@@ -555,8 +556,8 @@ func TestCompressJqLargeArray(t *testing.T) {
 	lines = append(lines, "[")
 	for i := 0; i < 25; i++ {
 		lines = append(lines, "  {")
-		lines = append(lines, `    "id": `+itoa(i)+",")
-		lines = append(lines, `    "name": "item-`+itoa(i)+`"`)
+		lines = append(lines, `    "id": `+strconv.Itoa(i)+",")
+		lines = append(lines, `    "name": "item-`+strconv.Itoa(i)+`"`)
 		if i < 24 {
 			lines = append(lines, "  },")
 		} else {
@@ -605,7 +606,7 @@ func TestCompressTarSmallListing(t *testing.T) {
 func TestCompressTarVerboseListing(t *testing.T) {
 	var lines []string
 	for i := 0; i < 40; i++ {
-		lines = append(lines, "-rw-r--r-- user/group  1024 2024-01-15 10:30 path/to/file"+itoa(i)+".txt")
+		lines = append(lines, "-rw-r--r-- user/group  1024 2024-01-15 10:30 path/to/file"+strconv.Itoa(i)+".txt")
 	}
 
 	input := strings.Join(lines, "\n")
@@ -633,7 +634,7 @@ func TestCompressTarVerboseListing(t *testing.T) {
 func TestCompressTarExtract(t *testing.T) {
 	var lines []string
 	for i := 0; i < 50; i++ {
-		lines = append(lines, "x path/to/file"+itoa(i)+".txt")
+		lines = append(lines, "x path/to/file"+strconv.Itoa(i)+".txt")
 	}
 
 	input := strings.Join(lines, "\n")

@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -34,7 +35,7 @@ func compressJqOutput(input string) string {
 		if trimmed == "]" || trimmed == "]," {
 			if suppressedCount > 0 {
 				indent := strings.Repeat(" ", suppressIndent)
-				result = append(result, indent+"  ... "+itoa(suppressedCount)+" more elements")
+				result = append(result, indent+"  ... "+strconv.Itoa(suppressedCount)+" more elements")
 				suppressedCount = 0
 				suppressIndent = -1
 			}
