@@ -45,6 +45,8 @@ Flags:
   --measure            Enable token consumption logging
   --learn              Passively observe output for pattern learning
   --profile PROFILE    LLM profile: claude, gpt, gemini
+  -q, --quiet          Suppress informational messages on stderr
+  --debug              Show diagnostic output (config, detection, timing)
   --shell              Start proxy shell mode
   -c "command"         Execute single command
   --mcp                Start MCP server (JSON-RPC over stdio)

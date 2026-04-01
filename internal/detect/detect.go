@@ -33,48 +33,54 @@ const (
 	CmdNode
 )
 
+// cmdEntry defines a command type's name, binary aliases, and filters.
+type cmdEntry struct {
+	name     string
+	binaries []string
+	filters  func() []filter.FilterFunc
+}
+
+// registry maps CmdType to its registration entry.
+// Filters are returned via a func to avoid init-order issues with package-level functions.
+var registry = map[CmdType]cmdEntry{
+	CmdGrep:      {name: "grep", binaries: []string{"grep", "rg", "ag", "ack"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput} }},
+	CmdFind:      {name: "find", binaries: []string{"find", "fd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressFindOutput} }},
+	CmdGit:       {name: "git", binaries: []string{"git", "gh"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressGitOutput} }},
+	CmdGoTool:    {name: "go", binaries: []string{"go"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGoOutput} }},
+	CmdLs:        {name: "ls", binaries: []string{"ls", "exa", "eza", "lsd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressLsOutput} }},
+	CmdDocker:    {name: "docker", binaries: []string{"docker", "docker-compose", "podman"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressDockerOutput} }},
+	CmdNpm:       {name: "npm", binaries: []string{"npm", "yarn", "pnpm", "bun"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressNpmOutput} }},
+	CmdNode:      {name: "node", binaries: []string{"node", "npx", "tsx", "ts-node", "deno"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressNodeOutput} }},
+	CmdCargo:     {name: "cargo", binaries: []string{"cargo", "rustc"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCargoOutput} }},
+	CmdMake:      {name: "make", binaries: []string{"make", "cmake", "ninja"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressMakeOutput} }},
+	CmdCurl:      {name: "curl", binaries: []string{"curl", "wget", "http", "httpie"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCurlOutput} }},
+	CmdPython:    {name: "python", binaries: []string{"python", "python3", "python2", "pip", "pip3"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressPythonOutput} }},
+	CmdTree:      {name: "tree", binaries: []string{"tree"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTreeOutput} }},
+	CmdTerraform: {name: "terraform", binaries: []string{"terraform", "tofu", "tf"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTerraformOutput} }},
+	CmdKubectl:   {name: "kubectl", binaries: []string{"kubectl", "helm", "k9s", "oc"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressKubectlOutput} }},
+	CmdJq:        {name: "jq", binaries: []string{"jq", "yq", "gojq"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressJqOutput} }},
+	CmdTar:       {name: "tar", binaries: []string{"tar", "zip", "unzip", "gzip", "7z"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTarOutput} }},
+	CmdSSH:       {name: "ssh", binaries: []string{"ssh", "scp", "sftp", "rsync"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressSSHOutput} }},
+}
+
+// binaryIndex is a reverse lookup from binary name to CmdType, built at init.
+var binaryIndex map[string]CmdType
+
+func init() {
+	binaryIndex = make(map[string]CmdType, 64)
+	for cmdType, entry := range registry {
+		for _, bin := range entry.binaries {
+			binaryIndex[bin] = cmdType
+		}
+	}
+}
+
 // String returns the name of the command type.
 func (c CmdType) String() string {
-	switch c {
-	case CmdGrep:
-		return "grep"
-	case CmdFind:
-		return "find"
-	case CmdGit:
-		return "git"
-	case CmdGoTool:
-		return "go"
-	case CmdLs:
-		return "ls"
-	case CmdDocker:
-		return "docker"
-	case CmdNpm:
-		return "npm"
-	case CmdCargo:
-		return "cargo"
-	case CmdMake:
-		return "make"
-	case CmdCurl:
-		return "curl"
-	case CmdPython:
-		return "python"
-	case CmdTree:
-		return "tree"
-	case CmdTerraform:
-		return "terraform"
-	case CmdKubectl:
-		return "kubectl"
-	case CmdJq:
-		return "jq"
-	case CmdTar:
-		return "tar"
-	case CmdSSH:
-		return "ssh"
-	case CmdNode:
-		return "node"
-	default:
-		return "generic"
+	if entry, ok := registry[c]; ok {
+		return entry.name
 	}
+	return "generic"
 }
 
 // Identify detects the command type from the binary name.
@@ -82,90 +88,27 @@ func Identify(command string) CmdType {
 	base := filepath.Base(command)
 	base = strings.TrimSuffix(base, ".exe")
 
-	switch base {
-	case "grep", "rg", "ag", "ack":
-		return CmdGrep
-	case "find", "fd":
-		return CmdFind
-	case "git", "gh":
-		return CmdGit
-	case "go":
-		return CmdGoTool
-	case "ls", "exa", "eza", "lsd":
-		return CmdLs
-	case "docker", "docker-compose", "podman":
-		return CmdDocker
-	case "npm", "yarn", "pnpm", "bun":
-		return CmdNpm
-	case "node", "npx", "tsx", "ts-node", "deno":
-		return CmdNode
-	case "cargo", "rustc":
-		return CmdCargo
-	case "make", "cmake", "ninja":
-		return CmdMake
-	case "curl", "wget", "http", "httpie":
-		return CmdCurl
-	case "python", "python3", "python2", "pip", "pip3":
-		return CmdPython
-	case "tree":
-		return CmdTree
-	case "terraform", "tofu", "tf":
-		return CmdTerraform
-	case "kubectl", "helm", "k9s", "oc":
-		return CmdKubectl
-	case "jq", "yq", "gojq":
-		return CmdJq
-	case "tar", "zip", "unzip", "gzip", "7z":
-		return CmdTar
-	case "ssh", "scp", "sftp", "rsync":
-		return CmdSSH
-	default:
-		return CmdGeneric
+	if cmdType, ok := binaryIndex[base]; ok {
+		return cmdType
 	}
+	return CmdGeneric
 }
 
 // FiltersFor returns command-specific filters for the given command type.
 func FiltersFor(cmdType CmdType) []filter.FilterFunc {
-	switch cmdType {
-	case CmdGrep:
-		return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput}
-	case CmdFind:
-		return []filter.FilterFunc{filter.CompressPaths, compressFindOutput}
-	case CmdGit:
-		return []filter.FilterFunc{compressGitOutput}
-	case CmdGoTool:
-		return []filter.FilterFunc{filter.CompressPaths, compressGoOutput}
-	case CmdLs:
-		return []filter.FilterFunc{compressLsOutput}
-	case CmdDocker:
-		return []filter.FilterFunc{compressDockerOutput}
-	case CmdNpm:
-		return []filter.FilterFunc{compressNpmOutput}
-	case CmdCargo:
-		return []filter.FilterFunc{compressCargoOutput}
-	case CmdMake:
-		return []filter.FilterFunc{compressMakeOutput}
-	case CmdCurl:
-		return []filter.FilterFunc{compressCurlOutput}
-	case CmdPython:
-		return []filter.FilterFunc{compressPythonOutput}
-	case CmdTree:
-		return []filter.FilterFunc{compressTreeOutput}
-	case CmdTerraform:
-		return []filter.FilterFunc{compressTerraformOutput}
-	case CmdKubectl:
-		return []filter.FilterFunc{compressKubectlOutput}
-	case CmdJq:
-		return []filter.FilterFunc{compressJqOutput}
-	case CmdTar:
-		return []filter.FilterFunc{compressTarOutput}
-	case CmdSSH:
-		return []filter.FilterFunc{compressSSHOutput}
-	case CmdNode:
-		return []filter.FilterFunc{compressNodeOutput}
-	default:
-		return []filter.FilterFunc{filter.CompressPaths}
+	if entry, ok := registry[cmdType]; ok {
+		return entry.filters()
 	}
+	return []filter.FilterFunc{filter.CompressPaths}
+}
+
+// RegisteredTypes returns all registered command types (for introspection).
+func RegisteredTypes() []CmdType {
+	types := make([]CmdType, 0, len(registry))
+	for t := range registry {
+		types = append(types, t)
+	}
+	return types
 }
 
 // compressGrepOutput groups results by file and strips redundant prefixes.

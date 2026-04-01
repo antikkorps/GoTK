@@ -28,11 +28,27 @@ var (
 	streamMode       bool
 	measureFlag      bool // --measure flag
 	learnFlag        bool // --learn flag for passive observation
+	quietMode        bool // --quiet: suppress info/warning messages
+	debugMode        bool // --debug: verbose diagnostic output
 	maxLines         int
 	maxLinesExplicit bool // true if user set --max-lines or --no-truncate explicitly
 	cfg              *config.Config
 	mlog             *measure.Logger // nil if measurement disabled
 )
+
+// logInfo prints an informational message to stderr unless --quiet is set.
+func logInfo(format string, args ...any) {
+	if !quietMode {
+		fmt.Fprintf(os.Stderr, format, args...)
+	}
+}
+
+// logDebug prints a debug message to stderr only when --debug is set.
+func logDebug(format string, args ...any) {
+	if debugMode {
+		fmt.Fprintf(os.Stderr, "[gotk debug] "+format, args...)
+	}
+}
 
 func main() {
 	// Set up graceful shutdown on SIGINT and SIGTERM
@@ -48,6 +64,14 @@ func main() {
 
 	// Extract gotk flags before command
 	args = parseFlags(args)
+
+	if debugMode {
+		if len(cfg.LoadedFiles) > 0 {
+			logDebug("config files: %v\n", cfg.LoadedFiles)
+		} else {
+			logDebug("config: using defaults (no config files found)\n")
+		}
+	}
 
 	// Apply profile then mode overrides.
 	// Profile sets sensible defaults for the target LLM.
@@ -69,7 +93,7 @@ func main() {
 	if cfg.Measure.Enabled {
 		l, err := measure.NewLogger(cfg.Measure.LogPath, measure.SessionID(), cfg.Measure.MaxLogSize)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[gotk] warning: cannot init measure log: %v\n", err)
+			logInfo("[gotk] warning: cannot init measure log: %v\n", err)
 		} else {
 			mlog = l
 			defer mlog.Close() //nolint:errcheck
@@ -107,6 +131,7 @@ func main() {
 
 		// Auto-detect command type from output format
 		cmdType := detect.AutoDetect(raw)
+		logDebug("pipe mode: auto-detected command type %q\n", cmdType)
 		start := time.Now()
 		chain := proxy.BuildChain(cfg, cmdType, maxLines)
 		cleaned := chain.Apply(raw)
@@ -198,6 +223,7 @@ func main() {
 
 	// Build filter chain based on detected command, using config
 	cmdType := detect.Identify(cmdArgs[0])
+	logDebug("detected command type: %q for %q\n", cmdType, cmdArgs[0])
 	// Check custom command mappings
 	if mapped, ok := cfg.Commands[cmdArgs[0]]; ok {
 		cmdType = detect.Identify(mapped)
@@ -250,6 +276,10 @@ func parseFlags(args []string) []string {
 			measureFlag = true
 		case "--learn":
 			learnFlag = true
+		case "--quiet", "-q":
+			quietMode = true
+		case "--debug":
+			debugMode = true
 		case "--aggressive":
 			cfg.General.Mode = config.ModeAggressive
 		case "--balanced":
@@ -291,7 +321,7 @@ func printWithStats(raw, cleaned string) {
 		if rawBytes > 0 {
 			pct = saved * 100 / rawBytes
 		}
-		fmt.Fprintf(os.Stderr, "\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
+		logInfo("\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
 			rawBytes, cleanBytes, pct, saved)
 	}
 }

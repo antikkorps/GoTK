@@ -92,7 +92,7 @@ func runStreaming(cmdArgs []string) int {
 		if rawBytes > 0 {
 			pct = saved * 100 / rawBytes
 		}
-		fmt.Fprintf(os.Stderr, "\n[gotk] stream: %d → %d bytes (-%d%%, saved %d bytes)\n",
+		logInfo("\n[gotk] stream: %d → %d bytes (-%d%%, saved %d bytes)\n",
 			rawBytes, cleanBytes, pct, saved)
 	}
 
@@ -293,7 +293,7 @@ func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, ca
 		Cached:         cached,
 		DurationUs:     dur.Microseconds(),
 	}); err != nil {
-		fmt.Fprintf(os.Stderr, "[gotk] measure: failed to log entry: %v\n", err)
+		logInfo("[gotk] measure: failed to log entry: %v\n", err)
 	}
 }
 
@@ -444,7 +444,7 @@ func runLearn(args []string) {
 			fmt.Fprint(os.Stderr, result.Stderr)
 		}
 
-		fmt.Fprintf(os.Stderr, "\n[gotk learn] observed %d lines from %q\n", collector.Count(), strings.Join(cmdArgs, " "))
+		logInfo("\n[gotk learn] observed %d lines from %q\n", collector.Count(), strings.Join(cmdArgs, " "))
 
 	case "suggest":
 		observations, err := learn.StoreRead(storePath)
@@ -490,10 +490,10 @@ func observeForLearn(command, rawOutput string) {
 	collector := learn.NewCollector(command, sessionID)
 	collector.Observe(rawOutput)
 	if err := learn.StoreWrite(storePath, collector.Observations()); err != nil {
-		fmt.Fprintf(os.Stderr, "[gotk learn] warning: %v\n", err)
+		logInfo("[gotk learn] warning: %v\n", err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "[gotk learn] observed %d lines\n", collector.Count())
+	logInfo("[gotk learn] observed %d lines\n", collector.Count())
 }
 
 // runDaemon handles the "gotk daemon" subcommand.
