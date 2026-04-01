@@ -24,6 +24,7 @@ Usage:
 Subcommands:
   ctx       Context search with 5 output modes (gotk ctx pattern)
   learn     Project-specific pattern learning (run, suggest, status, clear)
+  config    Show loaded config files and effective settings
   daemon    Start a filtered shell session (gotk daemon)
   install   Configure GoTK integration (gotk install claude)
   exec      Execute a command explicitly (gotk exec -- cmd args...)
@@ -103,6 +104,23 @@ Examples:
   gotk ctx BuildChain --summary             Summary mode
   gotk --stats ctx BuildChain -t go -m 5     Filtered with stats
   gotk ctx "func.*Error" -t go              Regex search in Go files`,
+
+		"config": `gotk config — Show configuration
+
+Usage:
+  gotk config [show]
+
+Display the effective configuration after merging all config files.
+Shows which files were loaded and in what order (global, project, local).
+
+Config file locations (in precedence order):
+  1. ~/.config/gotk/config.toml    Global config
+  2. .gotk.toml                    Project config (found by walking up from cwd)
+  3. ./gotk.toml                   Local config (current directory)
+
+Examples:
+  gotk config                      Show effective config
+  gotk config show                 Same as above`,
 
 		"exec": `gotk exec — Explicit command execution
 

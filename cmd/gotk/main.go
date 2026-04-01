@@ -137,6 +137,9 @@ func main() {
 	case "learn":
 		runLearn(args[1:])
 		os.Exit(0)
+	case "config":
+		runConfig(args[1:])
+		os.Exit(0)
 	case "watch":
 		runWatch(args[1:])
 		os.Exit(0)

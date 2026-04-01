@@ -23,6 +23,22 @@ import (
 	"github.com/antikkorps/GoTK/internal/watch"
 )
 
+// runConfig handles the "gotk config" subcommand.
+func runConfig(args []string) {
+	sub := "show"
+	if len(args) > 0 {
+		sub = args[0]
+	}
+
+	switch sub {
+	case "show":
+		fmt.Print(cfg.Show())
+	default:
+		fmt.Fprintf(os.Stderr, "gotk config: unknown subcommand %q (use: show)\n", sub)
+		os.Exit(1)
+	}
+}
+
 // runStreaming executes a command in streaming mode, applying stream-compatible
 // filters line-by-line as output arrives.
 func runStreaming(cmdArgs []string) int {
@@ -259,7 +275,7 @@ func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, ca
 	}
 	quality, important := measure.ComputeQualityScore(raw, cleaned)
 
-	_ = mlog.Log(measure.Entry{
+	if err := mlog.Log(measure.Entry{
 		Command:        command,
 		CommandType:    cmdType,
 		RawBytes:       len(raw),
@@ -276,7 +292,9 @@ func logMeasurement(command, cmdType, raw, cleaned string, dur time.Duration, ca
 		Source:         "cli",
 		Cached:         cached,
 		DurationUs:     dur.Microseconds(),
-	})
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "[gotk] measure: failed to log entry: %v\n", err)
+	}
 }
 
 // runMeasure handles the "gotk measure" subcommand.
@@ -303,9 +321,13 @@ func runMeasure(args []string) {
 			fmt.Fprintln(os.Stderr, "Log file: not found")
 			return
 		}
-		entries, _ := measure.ReadEntries(logPath)
+		entries, err := measure.ReadEntries(logPath)
 		fmt.Fprintf(os.Stderr, "Log size: %d bytes\n", info.Size())
-		fmt.Fprintf(os.Stderr, "Entries:  %d\n", len(entries))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Entries:  error reading log: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Entries:  %d\n", len(entries))
+		}
 
 	case "report":
 		jsonOutput := false
