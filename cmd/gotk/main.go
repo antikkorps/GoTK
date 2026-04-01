@@ -134,6 +134,7 @@ func main() {
 		logDebug("pipe mode: auto-detected command type %q\n", cmdType)
 		start := time.Now()
 		chain := proxy.BuildChain(cfg, cmdType, maxLines)
+		logDebug("filter chain (%d filters): %v\n", chain.Len(), chain.Names())
 		cleaned := chain.Apply(raw)
 		logMeasurement("pipe", cmdType.String(), raw, cleaned, time.Since(start), false)
 		printWithStats(raw, cleaned)
@@ -216,6 +217,7 @@ func main() {
 	result, err := exec.Run(cmdArgs[0], cmdArgs[1:]...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotk: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  hint: check that %q is installed and in your PATH\n", cmdArgs[0])
 		if result == nil {
 			os.Exit(1)
 		}
@@ -230,6 +232,7 @@ func main() {
 	}
 	start := time.Now()
 	chain := proxy.BuildChain(cfg, cmdType, maxLines)
+	logDebug("filter chain (%d filters): %v\n", chain.Len(), chain.Names())
 
 	// Apply filters
 	cleaned := chain.Apply(result.Stdout)

@@ -312,7 +312,9 @@ func runMeasure(args []string) {
 		if cfg.Measure.Enabled {
 			fmt.Fprintln(os.Stderr, "enabled")
 		} else {
-			fmt.Fprintln(os.Stderr, "disabled (use --measure flag or [measure] enabled=true in config)")
+			fmt.Fprintln(os.Stderr, "disabled")
+			fmt.Fprintln(os.Stderr, "  hint: enable with --measure flag or add [measure] enabled=true to config")
+			fmt.Fprintln(os.Stderr, "  hint: run 'gotk config show' to see config file locations")
 		}
 		fmt.Fprintf(os.Stderr, "Log path: %s\n", logPath)
 
@@ -349,7 +351,7 @@ func runMeasure(args []string) {
 
 		entries, err := measure.ReadEntries(logPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n", err)
+			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n  hint: run 'gotk measure status' to check log path and permissions\n", err)
 			os.Exit(1)
 		}
 
@@ -373,7 +375,7 @@ func runMeasure(args []string) {
 
 		entries, err := measure.ReadEntries(logPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n", err)
+			fmt.Fprintf(os.Stderr, "gotk measure: cannot read log: %v\n  hint: run 'gotk measure status' to check log path and permissions\n", err)
 			os.Exit(1)
 		}
 
@@ -431,7 +433,7 @@ func runLearn(args []string) {
 		}
 
 		if err := learn.StoreWrite(storePath, collector.Observations()); err != nil {
-			fmt.Fprintf(os.Stderr, "gotk learn: failed to write observations: %v\n", err)
+			fmt.Fprintf(os.Stderr, "gotk learn: failed to write observations: %v\n  hint: check write permissions for ~/.local/share/gotk/\n", err)
 			os.Exit(1)
 		}
 
@@ -507,6 +509,7 @@ func runDaemon(args []string) {
 	case "start":
 		if err := daemon.Start(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "gotk daemon: %v\n", err)
+			fmt.Fprintln(os.Stderr, "  hint: ensure your shell is bash or zsh, set GOTK_SHELL if needed")
 			os.Exit(1)
 		}
 
@@ -610,6 +613,7 @@ func runInstall(args []string) {
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "gotk install claude: %v\n", err)
+			fmt.Fprintln(os.Stderr, "  hint: use --status to check current state, --global for ~/.claude/settings.json")
 			os.Exit(1)
 		}
 

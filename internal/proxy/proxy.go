@@ -22,45 +22,45 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filte
 
 	// Blacklist: remove matching lines early, before any other processing
 	if len(cfg.Rules.AlwaysRemove) > 0 {
-		chain.Add(filter.RemoveByRules(cfg.Rules.AlwaysRemove))
+		chain.AddNamed("always_remove", filter.RemoveByRules(cfg.Rules.AlwaysRemove))
 	}
 
 	if cfg.Filters.StripANSI {
-		chain.Add(filter.StripANSI)
+		chain.AddNamed("strip_ansi", filter.StripANSI)
 	}
 	if cfg.Filters.NormalizeWhitespace {
-		chain.Add(filter.NormalizeWhitespace)
+		chain.AddNamed("normalize_whitespace", filter.NormalizeWhitespace)
 	}
 	if cfg.Filters.Dedup {
-		chain.Add(filter.Dedup)
+		chain.AddNamed("dedup", filter.Dedup)
 	}
 
 	// Command-specific filters (CompressPaths is included via detect.FiltersFor
 	// for certain types, so we only add it for generic if enabled)
 	cmdFilters := detect.FiltersFor(cmdType)
 	for _, f := range cmdFilters {
-		chain.Add(f)
+		chain.AddNamed(cmdType.String(), f)
 	}
 
 	if cfg.Filters.TrimDecorative {
-		chain.Add(filter.TrimEmpty)
+		chain.AddNamed("trim_decorative", filter.TrimEmpty)
 	}
 
 	// Stack trace compression runs on all output (generic filter) since
 	// panics/tracebacks can appear in any command's stderr captured as stdout.
-	chain.Add(filter.CompressStackTraces)
+	chain.AddNamed("stack_traces", filter.CompressStackTraces)
 
 	// Secret redaction -- always runs before truncation to ensure no secrets
 	// leak even in truncated output.
 	if cfg.Security.RedactSecrets {
-		chain.Add(filter.RedactSecrets)
+		chain.AddNamed("redact_secrets", filter.RedactSecrets)
 	}
 
 	// Summary goes before truncation so LLM always sees the overview
-	chain.Add(filter.Summarize)
+	chain.AddNamed("summarize", filter.Summarize)
 
 	if cfg.Filters.Truncate {
-		chain.Add(filter.TruncateWithLimit(maxLines))
+		chain.AddNamed("truncate", filter.TruncateWithLimit(maxLines))
 	}
 
 	return chain
@@ -73,7 +73,7 @@ func BuildChainWithKeep(cfg *config.Config, cmdType detect.CmdType, maxLines int
 
 	// Whitelist: restore any matching lines that were removed by the chain
 	if len(cfg.Rules.AlwaysKeep) > 0 {
-		chain.Add(filter.KeepByRules(cfg.Rules.AlwaysKeep, originalInput))
+		chain.AddNamed("always_keep", filter.KeepByRules(cfg.Rules.AlwaysKeep, originalInput))
 	}
 
 	return chain
