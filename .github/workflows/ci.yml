@@ -48,7 +48,7 @@ jobs:
           go-version: "1.26"
 
       - name: Build
-        run: go build -ldflags "-X main.Version=$(git describe --tags --always --dirty)" ./...
+        run: go build -ldflags "-s -w -X main.Version=$(git describe --tags --always --dirty)" ./...
 
       - name: Test with coverage
         run: go test -race -coverprofile=coverage.out ./...
@@ -73,7 +73,7 @@ jobs:
           go-version: "1.26"
 
       - name: Build
-        run: go build -ldflags "-X main.Version=$(git describe --tags --always --dirty)" -o gotk ./cmd/gotk/
+        run: go build -ldflags "-s -w -X main.Version=$(git describe --tags --always --dirty)" -o gotk ./cmd/gotk/
 
       - name: Benchmark
         run: ./gotk bench --json
@@ -92,3 +92,22 @@ jobs:
 
       - name: Per-filter report
         run: ./gotk bench --per-filter
+
+      - name: Benchmark regression check
+        run: |
+          RESULT=$(./gotk bench --json)
+          AVG=$(echo "$RESULT" | grep -o '"avg_reduction_pct": [0-9.]*' | grep -o '[0-9.]*')
+          echo "Average reduction: ${AVG}%"
+          if [ "$(echo "$AVG < 50" | bc)" -eq 1 ]; then
+            echo "::error::Average reduction ${AVG}% dropped below 50% baseline"
+            exit 1
+          fi
+
+      - name: Binary size check
+        run: |
+          SIZE=$(stat -c%s gotk 2>/dev/null || stat -f%z gotk)
+          SIZE_MB=$(echo "scale=1; $SIZE / 1048576" | bc)
+          echo "Binary size: ${SIZE_MB}MB (${SIZE} bytes)"
+          if [ "$SIZE" -gt 5242880 ]; then
+            echo "::warning::Binary size ${SIZE_MB}MB exceeds 5MB target"
+          fi

@@ -384,30 +384,30 @@
 
 ### Build — Quality fixes (P2)
 
-- [ ] Extract `cmd/gotk/main.go` (1244 lines) into separate files: subcommands.go, usage.go
-- [ ] Unify command classification: move `TrivialCommands` + `InteractiveCommands` to shared package
-- [ ] Replace custom `itoa()` in `detect/detect.go` with `strconv.Itoa()`
-- [ ] Fix swallowed errors in install/measure paths — return errors instead of logging warnings
-- [ ] Add `Filter` interface with `Name()` method for chain introspection
-- [ ] Command registry pattern: unify `Identify()` + `FiltersFor()` into single registry
-- [ ] Pre-compile regex patterns in `filter/rules.go` (currently compiled per-call)
-- [ ] Add `gotk config show` subcommand (show loaded config files + effective config)
-- [ ] Add `--quiet` and `--debug` flags
-- [ ] Improve error messages: include recovery steps
+- [x] Extract `cmd/gotk/main.go` (1244 lines) into separate files: subcommands.go, usage.go
+- [x] Unify command classification: move `TrivialCommands` + `InteractiveCommands` to shared package
+- [x] Replace custom `itoa()` in `detect/detect.go` with `strconv.Itoa()`
+- [x] Fix swallowed errors in install/measure paths — return errors instead of logging warnings
+- [x] Add `Filter` interface with `Name()` method for chain introspection
+- [x] Command registry pattern: unify `Identify()` + `FiltersFor()` into single registry
+- [x] Pre-compile regex patterns in `filter/rules.go` (already optimal — compiled once per BuildChain)
+- [x] Add `gotk config show` subcommand (show loaded config files + effective config)
+- [x] Add `--quiet` and `--debug` flags
+- [x] Improve error messages: include recovery steps
 
 ### Build — CI/CD (P2)
 
-- [ ] Add release automation with goreleaser (multi-platform binaries on tag push)
-- [ ] Add benchmark regression detection (compare results to baseline)
-- [ ] Build with `-ldflags="-s -w"` to reduce binary size (4.7MB → ~3MB)
+- [x] Add release automation with goreleaser (multi-platform binaries on tag push)
+- [x] Add benchmark regression detection (compare results to baseline)
+- [x] Build with `-ldflags="-s -w"` to reduce binary size (4.7MB → 3.3MB)
 
 ### Build — Documentation (P2)
 
-- [ ] Update CLAUDE.md to reflect current architecture (18 filters, hook, daemon, install)
-- [ ] Document config merging rules (3-level precedence, nested map behavior)
-- [ ] Add godoc comments to all public functions in ctx/, measure/, daemon/
-- [ ] Add architecture.md sections: config merging, filter extensibility, performance characteristics
-- [ ] Document `GOTK_PASSTHROUGH=1` in README and help text
+- [x] Update CLAUDE.md to reflect current architecture (18 filters, hook, daemon, install)
+- [x] Document config merging rules (3-level precedence, nested map behavior)
+- [x] Add godoc comments to all public functions in ctx/, measure/, daemon/ (already present)
+- [x] Add architecture.md sections: config merging, filter extensibility, performance characteristics
+- [x] Document `GOTK_PASSTHROUGH=1` in README and help text
 
 ### Build — Testing (P2)
 
@@ -418,8 +418,8 @@
 
 ### Deliver
 
-- [ ] All security fixes applied and tested
-- [ ] CI green with linting + coverage gates
+- [x] All security fixes applied and tested
+- [x] CI green with linting + coverage gates
 - [ ] Tag v1.3.0
 
 ---

@@ -42,15 +42,16 @@ type LearnConfig struct {
 
 // Config holds all gotk configuration options.
 type Config struct {
-	General    GeneralConfig
-	Filters    FiltersConfig
-	Security   SecurityConfig
-	Measure    MeasureConfig
-	Learn      LearnConfig
-	Profile    LLMProfile        // target LLM profile
-	Commands   map[string]string // custom command-type mappings
-	Rules      RulesConfig       // whitelist/blacklist patterns
-	Truncation map[string]int    // per-command max_lines overrides
+	General     GeneralConfig
+	Filters     FiltersConfig
+	Security    SecurityConfig
+	Measure     MeasureConfig
+	Learn       LearnConfig
+	Profile     LLMProfile        // target LLM profile
+	Commands    map[string]string // custom command-type mappings
+	Rules       RulesConfig       // whitelist/blacklist patterns
+	Truncation  map[string]int    // per-command max_lines overrides
+	LoadedFiles []string          // config files that were loaded (in precedence order)
 }
 
 // SecurityConfig controls security-related settings.
@@ -145,6 +146,7 @@ func Load() *Config {
 		globalPath := filepath.Join(home, ".config", "gotk", "config.toml")
 		if data, err := os.ReadFile(globalPath); err == nil {
 			applyTOML(cfg, string(data))
+			cfg.LoadedFiles = append(cfg.LoadedFiles, globalPath)
 		}
 	}
 
@@ -152,12 +154,14 @@ func Load() *Config {
 	if projectPath := findProjectConfig(); projectPath != "" {
 		if data, err := os.ReadFile(projectPath); err == nil {
 			applyTOML(cfg, string(data))
+			cfg.LoadedFiles = append(cfg.LoadedFiles, projectPath)
 		}
 	}
 
 	// 3. Local config overrides everything
 	if data, err := os.ReadFile("gotk.toml"); err == nil {
 		applyTOML(cfg, string(data))
+		cfg.LoadedFiles = append(cfg.LoadedFiles, "gotk.toml")
 	}
 
 	return cfg
@@ -447,6 +451,100 @@ func ParseProfile(s string) LLMProfile {
 	default:
 		return ProfileNone
 	}
+}
+
+// Show returns a human-readable representation of the effective configuration
+// and which config files were loaded.
+func (c *Config) Show() string {
+	var b strings.Builder
+
+	b.WriteString("Loaded config files:\n")
+	if len(c.LoadedFiles) == 0 {
+		b.WriteString("  (none — using defaults)\n")
+	} else {
+		for _, f := range c.LoadedFiles {
+			b.WriteString("  " + f + "\n")
+		}
+	}
+
+	b.WriteString("\nEffective configuration:\n")
+
+	b.WriteString("\n[general]\n")
+	b.WriteString("  max_lines = " + strconv.Itoa(c.General.MaxLines) + "\n")
+	b.WriteString("  stats = " + formatBool(c.General.Stats) + "\n")
+	b.WriteString("  shell_mode = " + formatBool(c.General.ShellMode) + "\n")
+	mode := string(c.General.Mode)
+	if mode == "" {
+		mode = "balanced"
+	}
+	b.WriteString("  mode = " + mode + "\n")
+
+	b.WriteString("\n[filters]\n")
+	b.WriteString("  strip_ansi = " + formatBool(c.Filters.StripANSI) + "\n")
+	b.WriteString("  normalize_whitespace = " + formatBool(c.Filters.NormalizeWhitespace) + "\n")
+	b.WriteString("  dedup = " + formatBool(c.Filters.Dedup) + "\n")
+	b.WriteString("  compress_paths = " + formatBool(c.Filters.CompressPaths) + "\n")
+	b.WriteString("  trim_decorative = " + formatBool(c.Filters.TrimDecorative) + "\n")
+	b.WriteString("  truncate = " + formatBool(c.Filters.Truncate) + "\n")
+
+	b.WriteString("\n[security]\n")
+	b.WriteString("  command_timeout = " + strconv.Itoa(c.Security.CommandTimeout) + "\n")
+	b.WriteString("  max_output_bytes = " + strconv.Itoa(c.Security.MaxOutputBytes) + "\n")
+	b.WriteString("  redact_secrets = " + formatBool(c.Security.RedactSecrets) + "\n")
+	b.WriteString("  rate_limit = " + strconv.Itoa(c.Security.RateLimit) + "\n")
+	b.WriteString("  rate_burst = " + strconv.Itoa(c.Security.RateBurst) + "\n")
+	b.WriteString("  sandbox_mode = " + formatBool(c.Security.SandboxMode) + "\n")
+	if c.Security.AuditLog != "" {
+		b.WriteString("  audit_log = " + c.Security.AuditLog + "\n")
+	}
+
+	b.WriteString("\n[measure]\n")
+	b.WriteString("  enabled = " + formatBool(c.Measure.Enabled) + "\n")
+	b.WriteString("  log_path = " + c.Measure.LogPath + "\n")
+	b.WriteString("  max_log_size = " + strconv.Itoa(c.Measure.MaxLogSize) + "\n")
+
+	b.WriteString("\n[learn]\n")
+	b.WriteString("  min_sessions = " + strconv.Itoa(c.Learn.MinSessions) + "\n")
+	b.WriteString("  min_frequency = " + strconv.FormatFloat(c.Learn.MinFrequency, 'f', 2, 64) + "\n")
+	b.WriteString("  min_noise = " + strconv.FormatFloat(c.Learn.MinNoise, 'f', 2, 64) + "\n")
+
+	if c.Profile != ProfileNone {
+		b.WriteString("\n[profile]\n")
+		b.WriteString("  name = " + string(c.Profile) + "\n")
+	}
+
+	if len(c.Commands) > 0 {
+		b.WriteString("\n[commands]\n")
+		for k, v := range c.Commands {
+			b.WriteString("  " + k + " = " + v + "\n")
+		}
+	}
+
+	if len(c.Rules.AlwaysKeep) > 0 || len(c.Rules.AlwaysRemove) > 0 {
+		b.WriteString("\n[rules]\n")
+		if len(c.Rules.AlwaysKeep) > 0 {
+			b.WriteString("  always_keep = [" + strings.Join(c.Rules.AlwaysKeep, ", ") + "]\n")
+		}
+		if len(c.Rules.AlwaysRemove) > 0 {
+			b.WriteString("  always_remove = [" + strings.Join(c.Rules.AlwaysRemove, ", ") + "]\n")
+		}
+	}
+
+	if len(c.Truncation) > 0 {
+		b.WriteString("\n[truncation]\n")
+		for k, v := range c.Truncation {
+			b.WriteString("  " + k + " = " + strconv.Itoa(v) + "\n")
+		}
+	}
+
+	return b.String()
+}
+
+func formatBool(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 // ParseMode converts a string to a FilterMode, returning ModeBalanced for unknown values.

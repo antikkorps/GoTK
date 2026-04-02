@@ -68,7 +68,9 @@ func (l *Logger) Log(e Entry) error {
 	// Check if rotation is needed before writing
 	if l.maxSize > 0 {
 		if info, err := l.file.Stat(); err == nil && info.Size() > int64(l.maxSize) {
-			l.rotate()
+			if err := l.rotate(); err != nil {
+				return fmt.Errorf("measure: rotation failed: %w", err)
+			}
 		}
 	}
 
@@ -79,15 +81,20 @@ func (l *Logger) Log(e Entry) error {
 // rotate keeps the most recent half of the log file.
 // Uses atomic file ops (write to temp file + rename) to prevent data loss.
 // Must be called with l.mu held.
-func (l *Logger) rotate() {
+func (l *Logger) rotate() error {
 	// Close current file, read contents, keep second half, rewrite atomically
-	_ = l.file.Close()
+	if err := l.file.Close(); err != nil {
+		return fmt.Errorf("measure: close for rotation: %w", err)
+	}
 
 	data, err := os.ReadFile(l.path)
 	if err != nil {
 		// Reopen in append mode and continue
-		l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-		return
+		l.file, err = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return fmt.Errorf("measure: reopen after failed read: %w", err)
+		}
+		return fmt.Errorf("measure: read for rotation: %w", err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -102,11 +109,17 @@ func (l *Logger) rotate() {
 
 	// Atomic write: temp file + rename to prevent corruption
 	tmpPath := l.path + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(kept), 0600); err == nil {
-		_ = os.Rename(tmpPath, l.path)
+	if err := os.WriteFile(tmpPath, []byte(kept), 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "[gotk] measure: rotation write failed: %v\n", err)
+	} else if err := os.Rename(tmpPath, l.path); err != nil {
+		fmt.Fprintf(os.Stderr, "[gotk] measure: rotation rename failed: %v\n", err)
 	}
 
-	l.file, _ = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	l.file, err = os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("measure: reopen after rotation: %w", err)
+	}
+	return nil
 }
 
 // Close closes the underlying log file.

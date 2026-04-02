@@ -251,6 +251,15 @@ min_noise = 0.80       # minimum noise confidence (80%)
 enabled = false
 ```
 
+Use `gotk config show` to see which config files were loaded and the effective configuration.
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `GOTK_PASSTHROUGH=1` | Disable all filtering — output passes through unchanged. Use as an escape hatch when debugging or when you need raw output. |
+| `GOTK_SHELL` | Explicit shell override for proxy/daemon mode (avoids recursion when `SHELL=gotk`). |
+
 ## Filter Catalog
 
 See [docs/filters.md](docs/filters.md) for a complete catalog with before/after examples.

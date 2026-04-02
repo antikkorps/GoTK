@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,7 +40,7 @@ func compressCurlOutput(input string) string {
 				recvHeaders = nil
 			}
 			if sendHeaderCount > 0 {
-				result = append(result, "> ("+itoa(sendHeaderCount)+" request headers)")
+				result = append(result, "> ("+strconv.Itoa(sendHeaderCount)+" request headers)")
 				sendHeaderCount = 0
 			}
 			result = append(result, line)
@@ -75,7 +76,7 @@ func compressCurlOutput(input string) string {
 		// Bare ">" or "<" — flush pending and skip
 		if trimmed == ">" {
 			if sendHeaderCount > 0 {
-				result = append(result, "> ("+itoa(sendHeaderCount)+" request headers)")
+				result = append(result, "> ("+strconv.Itoa(sendHeaderCount)+" request headers)")
 				sendHeaderCount = 0
 			}
 			continue
@@ -115,7 +116,7 @@ func compressCurlOutput(input string) string {
 		result = append(result, compressHeaders(recvHeaders)...)
 	}
 	if sendHeaderCount > 0 {
-		result = append(result, "> ("+itoa(sendHeaderCount)+" request headers)")
+		result = append(result, "> ("+strconv.Itoa(sendHeaderCount)+" request headers)")
 	}
 
 	return strings.Join(result, "\n")
@@ -148,7 +149,7 @@ func compressHeaders(headers []string) []string {
 	}
 
 	if skipped > 0 {
-		kept = append(kept, "< ("+itoa(skipped)+" other headers)")
+		kept = append(kept, "< ("+strconv.Itoa(skipped)+" other headers)")
 	}
 	return kept
 }

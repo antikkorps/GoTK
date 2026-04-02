@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -71,17 +72,17 @@ func compressPythonOutput(input string) string {
 
 		// Flush counters before other content
 		if satisfiedCount > 0 {
-			result = append(result, "Already satisfied: "+itoa(satisfiedCount)+" packages")
+			result = append(result, "Already satisfied: "+strconv.Itoa(satisfiedCount)+" packages")
 			satisfiedCount = 0
 		}
 		if downloadCount > 0 {
-			result = append(result, "pip: "+itoa(downloadCount)+" packages downloaded/installed")
+			result = append(result, "pip: "+strconv.Itoa(downloadCount)+" packages downloaded/installed")
 			downloadCount = 0
 		}
 		if deprecationCount > 0 {
 			result = append(result, firstDeprecation)
 			if deprecationCount > 1 {
-				result = append(result, "... and "+itoa(deprecationCount-1)+" more deprecation warnings")
+				result = append(result, "... and "+strconv.Itoa(deprecationCount-1)+" more deprecation warnings")
 			}
 			deprecationCount = 0
 			firstDeprecation = ""
@@ -116,7 +117,7 @@ func compressPythonOutput(input string) string {
 					if frames[0].codeLine != "" {
 						result = append(result, frames[0].codeLine)
 					}
-					result = append(result, "  ... "+itoa(len(frames)-2)+" more frames ...")
+					result = append(result, "  ... "+strconv.Itoa(len(frames)-2)+" more frames ...")
 					last := frames[len(frames)-1]
 					result = append(result, last.fileLine)
 					if last.codeLine != "" {
@@ -138,15 +139,15 @@ func compressPythonOutput(input string) string {
 
 	// Flush trailing counters
 	if satisfiedCount > 0 {
-		result = append(result, "Already satisfied: "+itoa(satisfiedCount)+" packages")
+		result = append(result, "Already satisfied: "+strconv.Itoa(satisfiedCount)+" packages")
 	}
 	if downloadCount > 0 {
-		result = append(result, "pip: "+itoa(downloadCount)+" packages downloaded/installed")
+		result = append(result, "pip: "+strconv.Itoa(downloadCount)+" packages downloaded/installed")
 	}
 	if deprecationCount > 0 {
 		result = append(result, firstDeprecation)
 		if deprecationCount > 1 {
-			result = append(result, "... and "+itoa(deprecationCount-1)+" more deprecation warnings")
+			result = append(result, "... and "+strconv.Itoa(deprecationCount-1)+" more deprecation warnings")
 		}
 	}
 

@@ -10,29 +10,48 @@ Goal: ~80% token reduction by stripping noise.
 ## Build & Run
 
 ```bash
-go build -o gotk ./cmd/gotk/
+go build -ldflags "-s -w -X main.Version=$(git describe --tags --always)" -o gotk ./cmd/gotk/
 ./gotk --stats grep -rn "pattern" .
 echo "test" | ./gotk --stats
 ./gotk ctx BuildChain -t go          # context search
+./gotk config show                   # show effective config
+./gotk --debug echo hello            # diagnostic output
 go test ./...
 ```
 
 ## Architecture
 
-- `cmd/gotk/` — CLI entrypoint, flag parsing, pipe detection
+- `cmd/gotk/main.go` — CLI entrypoint, flag parsing, pipe detection
+- `cmd/gotk/subcommands.go` — All subcommand handlers (bench, ctx, daemon, install, learn, measure, watch, hook, config)
+- `cmd/gotk/usage.go` — Help text and subcommand help
 - `internal/exec/` — Command execution and output capture
-- `internal/filter/` — Filter chain + individual filters (ANSI, whitespace, dedup, paths, trim, truncate)
-- `internal/detect/` — Command detection (explicit + auto-detect) + command-specific filter selection
+- `internal/filter/` — Filter chain (named filters with introspection) + individual filters (ANSI, whitespace, dedup, paths, trim, truncate, secrets, stack traces, summary)
+- `internal/detect/` — Command registry (18 command types with binary aliases + filters), auto-detection from output
 - `internal/ctx/` — Context search engine (walk, search, 5 output formatters)
-- `internal/config/` — TOML config loader (no external deps)
-- `internal/proxy/` — Proxy shell mode (`--shell`, `-c`)
+- `internal/config/` — TOML config loader (3-level merge: global, project, local), `Show()` for introspection
+- `internal/proxy/` — Proxy shell mode (`--shell`, `-c`), filter chain builder with named filters
+- `internal/hook/` — Claude Code PreToolUse hook protocol handler
+- `internal/daemon/` — Filtered shell session (zsh/bash interception)
+- `internal/install/` — Auto-configure Claude Code hooks in settings.json
+- `internal/cmdclass/` — Shared command classification (TrivialCommands, InteractiveCommands)
+- `internal/mcp/` — MCP server (JSON-RPC over stdio, 4 tools)
+- `internal/measure/` — Token consumption metrics and logging
+- `internal/learn/` — Project-specific pattern learning (observe, analyze, suggest)
+- `internal/bench/` — Benchmark suite with quality scoring
+- `internal/classify/` — Semantic line classifier (error/warning/info/debug/noise)
+- `internal/cache/` — Content-hash based output cache
+- `internal/watch/` — File watcher for re-run on changes
+- `internal/errors/` — Custom error types
 
 ## Design Principles
 
 - Filters are composable functions `func(string) string` chained via `filter.Chain`
+- Chain supports named filters (`AddNamed`) with `Names()`/`Len()` for introspection
+- Command detection uses a registry pattern (single map: CmdType -> {name, binaries, filters})
 - Generic filters always apply (ANSI strip, whitespace normalize, dedup, trim)
 - Command-specific filters add on top (grep path compression, find prefix factoring, etc.)
 - Stderr passes through unmodified
+- `--quiet` suppresses info/warning messages, `--debug` shows config/detection/chain details
 
 ## Quality-First Filtering
 

@@ -5,8 +5,12 @@ This document covers GoTK's internal design. For usage and a high-level overview
 ## Package Layout
 
 ```
-cmd/gotk/main.go       Entry point. Parses flags, detects pipe vs direct mode,
+cmd/gotk/
+  main.go              Entry point. Parses flags, detects pipe vs direct mode,
                         orchestrates exec -> detect -> filter -> output.
+  subcommands.go       All subcommand handlers (bench, config, ctx, daemon,
+                        hook, install, learn, measure, watch).
+  usage.go             Help text and per-subcommand help.
 
 internal/exec/          Runner. Executes a subprocess, captures stdout/stderr
                         separately, returns exit code. Supports timeout and
@@ -59,6 +63,18 @@ internal/measure/       Token consumption measurement. JSONL logger, report
 internal/bench/         Benchmark suite with realistic fixtures. Per-filter
                         contribution analysis, A/B testing, quality scoring.
 
+internal/hook/          Claude Code PreToolUse hook protocol handler.
+                        Wraps Bash commands with "| gotk" for output filtering.
+
+internal/daemon/        Filtered shell session. Spawns bash/zsh with command
+                        interception via ZLE widget (zsh) or DEBUG trap (bash).
+
+internal/install/       Auto-configure Claude Code hooks in settings.json.
+                        Supports --global, --project, --uninstall, --status.
+
+internal/cmdclass/      Shared command classification maps (TrivialCommands,
+                        InteractiveCommands). Used by hook and daemon packages.
+
 internal/errors/        Custom error types (typed errors instead of raw strings).
 ```
 
@@ -70,7 +86,7 @@ The core abstraction is `filter.FilterFunc`:
 type FilterFunc func(string) string
 ```
 
-Filters are pure functions: string in, string out. They are composed into a `filter.Chain`, which applies them sequentially — each filter receives the output of the previous one.
+Filters are pure functions: string in, string out. They are composed into a `filter.Chain`, which applies them sequentially — each filter receives the output of the previous one. Filters can be added with names (`AddNamed`) for introspection — `chain.Names()` returns the list of filter names (visible with `--debug`).
 
 The chain is built in `proxy.BuildChain()` with a fixed structure:
 
@@ -95,7 +111,7 @@ GoTK identifies the command type to select command-specific filters. There are t
 
 ### Explicit detection (direct/exec mode)
 
-`detect.Identify(command)` examines the binary name (after `filepath.Base` and stripping `.exe`). It maps names to `CmdType` constants:
+`detect.Identify(command)` uses a registry-based lookup. Each `CmdType` is registered with its name, binary aliases, and filter functions in a single `registry` map. A reverse `binaryIndex` (binary name -> CmdType) is built at `init()` for O(1) lookup.
 
 | CmdType | Matched binaries |
 |---------|------------------|
@@ -182,9 +198,34 @@ Guidelines:
 ## Adding New Command Types
 
 1. Add a new `CmdType` constant in `internal/detect/detect.go`
-2. Add the binary name mapping in `Identify()`
+2. Add a registry entry with name, binary aliases, and filter function(s)
 3. Add a pattern in `internal/detect/autodetect.go` for pipe-mode detection
-4. Write the command-specific filter function(s) in `detect.go`
-5. Register the filters in `FiltersFor()`
+4. Write the command-specific filter function(s) in a `filters_<name>.go` file
 
 The filter function receives fully deduplicated, whitespace-normalized, ANSI-stripped text. It should focus on structural compression (grouping, prefix factoring, metadata stripping) rather than basic cleanup.
+
+## Config Merging
+
+Configuration is loaded from three levels with increasing precedence:
+
+1. **Global**: `~/.config/gotk/config.toml` — user-wide defaults
+2. **Project**: `.gotk.toml` — found by walking up from cwd to root (max 50 levels)
+3. **Local**: `./gotk.toml` — current directory overrides
+
+Each level completely overrides the keys it defines. Nested maps (`[commands]`, `[truncation]`) are merged per-key — a project config can add a command mapping without erasing global ones. Array values (`always_keep`, `always_remove`) are replaced, not appended.
+
+After file loading, overrides are applied in order:
+1. CLI flags (`--aggressive`, `--max-lines`, etc.)
+2. `ApplyProfile()` — LLM-specific defaults (claude, gpt, gemini)
+3. `ApplyMode()` — filter mode adjustments
+4. Explicit `--max-lines` / `--no-truncate` wins over both profile and mode
+
+Use `gotk config show` to see which files were loaded and the effective configuration.
+
+## Performance Characteristics
+
+- **Filter chain**: all filters are pure string functions — no I/O, no allocation beyond the output string. Typical latency: <100ms for 100KB input.
+- **Command detection**: O(1) map lookup via `binaryIndex` (built at init).
+- **Auto-detection**: samples first 50 non-empty lines only — O(50 * patterns) regardless of input size.
+- **Regex patterns**: all compiled at package init (except user-provided `always_keep`/`always_remove` which are compiled once per `BuildChain` call).
+- **Binary size**: ~3.3MB with `-ldflags="-s -w"` (stripped), ~4.7MB without.

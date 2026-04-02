@@ -2,6 +2,7 @@ package detect
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -40,13 +41,13 @@ func compressCargoOutput(input string) string {
 
 		// Flush compiling summary before a non-compiling line
 		if compilingCount > 0 {
-			result = append(result, "   Compiled "+itoa(compilingCount)+" crates")
+			result = append(result, "   Compiled "+strconv.Itoa(compilingCount)+" crates")
 			compilingCount = 0
 		}
 
 		// Flush downloading summary before a non-downloading line
 		if downloadingCount > 0 {
-			result = append(result, "   Downloaded "+itoa(downloadingCount)+" crates")
+			result = append(result, "   Downloaded "+strconv.Itoa(downloadingCount)+" crates")
 			downloadingCount = 0
 		}
 
@@ -58,10 +59,10 @@ func compressCargoOutput(input string) string {
 
 	// Flush trailing counts
 	if compilingCount > 0 {
-		result = append(result, "   Compiled "+itoa(compilingCount)+" crates")
+		result = append(result, "   Compiled "+strconv.Itoa(compilingCount)+" crates")
 	}
 	if downloadingCount > 0 {
-		result = append(result, "   Downloaded "+itoa(downloadingCount)+" crates")
+		result = append(result, "   Downloaded "+strconv.Itoa(downloadingCount)+" crates")
 	}
 
 	return strings.Join(result, "\n")

@@ -1,6 +1,9 @@
 package filter
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Dedup removes consecutive duplicate lines.
 // Keeps the first occurrence and replaces runs with a count marker.
@@ -45,18 +48,5 @@ func formatDupMarker(count int) string {
 	if count == 1 {
 		return "  ... (1 duplicate line)"
 	}
-	return "  ... (" + itoa(count) + " duplicate lines)"
-}
-
-// Simple int to string without importing strconv.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	digits := []byte{}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
+	return "  ... (" + strconv.Itoa(count) + " duplicate lines)"
 }
