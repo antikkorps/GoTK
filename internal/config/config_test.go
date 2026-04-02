@@ -765,3 +765,217 @@ func TestLoad_ProjectConfigPrecedence(t *testing.T) {
 		t.Errorf("MaxLines = %d, want 300 (local should override project)", cfg.General.MaxLines)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Config precedence integration tests
+// ---------------------------------------------------------------------------
+
+// helper: write a file creating parent dirs as needed.
+func writeConfig(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConfigPrecedence_LocalOverridesProject(t *testing.T) {
+	tmp := t.TempDir()
+	// Isolate from any real global config
+	t.Setenv("HOME", tmp)
+
+	// Project config (.gotk.toml) in tmp root
+	writeConfig(t, filepath.Join(tmp, ".gotk.toml"), `[general]
+max_lines = 100
+mode = "conservative"
+`)
+
+	// Local config (gotk.toml) in tmp root — overrides max_lines only
+	writeConfig(t, filepath.Join(tmp, "gotk.toml"), `[general]
+max_lines = 200
+`)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	if cfg.General.MaxLines != 200 {
+		t.Errorf("MaxLines = %d, want 200 (local should override project)", cfg.General.MaxLines)
+	}
+	if cfg.General.Mode != ModeConservative {
+		t.Errorf("Mode = %q, want %q (project value should be preserved)", cfg.General.Mode, ModeConservative)
+	}
+}
+
+func TestConfigPrecedence_ProjectOverridesGlobal(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Global config
+	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[general]
+max_lines = 30
+
+[security]
+redact_secrets = false
+`)
+
+	// Project config overrides max_lines
+	writeConfig(t, filepath.Join(tmp, ".gotk.toml"), `[general]
+max_lines = 75
+`)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	if cfg.General.MaxLines != 75 {
+		t.Errorf("MaxLines = %d, want 75 (project should override global)", cfg.General.MaxLines)
+	}
+	if cfg.Security.RedactSecrets != false {
+		t.Error("RedactSecrets should be false (global value preserved since project does not set it)")
+	}
+}
+
+func TestConfigPrecedence_MergesSections(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Global: filters section
+	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[filters]
+strip_ansi = false
+`)
+
+	// Project: security section
+	writeConfig(t, filepath.Join(tmp, ".gotk.toml"), `[security]
+sandbox_mode = true
+`)
+
+	// Local: general section
+	writeConfig(t, filepath.Join(tmp, "gotk.toml"), `[general]
+max_lines = 25
+`)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	// Global: filters
+	if cfg.Filters.StripANSI != false {
+		t.Error("StripANSI should be false (from global config)")
+	}
+	// Project: security
+	if cfg.Security.SandboxMode != true {
+		t.Error("SandboxMode should be true (from project config)")
+	}
+	// Local: general
+	if cfg.General.MaxLines != 25 {
+		t.Errorf("MaxLines = %d, want 25 (from local config)", cfg.General.MaxLines)
+	}
+}
+
+func TestConfigPrecedence_RulesAppendOrOverride(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Global: rules with always_keep = ["ERROR"]
+	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[rules]
+always_keep = ["ERROR"]
+`)
+
+	// Project: rules with always_keep = ["WARN", "FATAL"]  — replaces global
+	writeConfig(t, filepath.Join(tmp, ".gotk.toml"), `[rules]
+always_keep = ["WARN", "FATAL"]
+`)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	if len(cfg.Rules.AlwaysKeep) != 2 {
+		t.Fatalf("AlwaysKeep has %d entries, want 2", len(cfg.Rules.AlwaysKeep))
+	}
+	if cfg.Rules.AlwaysKeep[0] != "WARN" {
+		t.Errorf("AlwaysKeep[0] = %q, want WARN", cfg.Rules.AlwaysKeep[0])
+	}
+	if cfg.Rules.AlwaysKeep[1] != "FATAL" {
+		t.Errorf("AlwaysKeep[1] = %q, want FATAL", cfg.Rules.AlwaysKeep[1])
+	}
+}
+
+func TestConfigPrecedence_TruncationMerge(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Global: truncation for grep
+	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[truncation]
+grep = 30
+`)
+
+	// Project: truncation for find
+	writeConfig(t, filepath.Join(tmp, ".gotk.toml"), `[truncation]
+find = 50
+`)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	if cfg.Truncation["grep"] != 30 {
+		t.Errorf("Truncation[grep] = %d, want 30 (from global)", cfg.Truncation["grep"])
+	}
+	if cfg.Truncation["find"] != 50 {
+		t.Errorf("Truncation[find] = %d, want 50 (from project)", cfg.Truncation["find"])
+	}
+}
+
+func TestConfigPrecedence_NoConfigFiles(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	orig, _ := os.Getwd()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+
+	cfg := Load()
+
+	// Should return defaults without error
+	if cfg.General.MaxLines != 50 {
+		t.Errorf("MaxLines = %d, want 50 (default)", cfg.General.MaxLines)
+	}
+	if !cfg.Filters.StripANSI {
+		t.Error("StripANSI should default to true")
+	}
+	if !cfg.Security.RedactSecrets {
+		t.Error("RedactSecrets should default to true")
+	}
+	if len(cfg.Rules.AlwaysKeep) != 0 {
+		t.Errorf("AlwaysKeep should be empty, got %v", cfg.Rules.AlwaysKeep)
+	}
+	if len(cfg.Truncation) != 0 {
+		t.Errorf("Truncation should be empty, got %v", cfg.Truncation)
+	}
+}

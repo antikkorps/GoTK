@@ -411,10 +411,10 @@
 
 ### Build — Testing (P2)
 
-- [ ] Add E2E tests: complex filter interactions, large output, signal handling
-- [ ] Add golden file edge cases: filter combinations, empty lines, binary data, rule conflicts
-- [ ] Add config precedence integration tests (global/project/local merge)
-- [ ] Increase MCP test coverage (65% → 80%+): rate limiting, sandbox edge cases
+- [x] Add E2E tests: complex filter interactions, large output, signal handling
+- [x] Add golden file edge cases: filter combinations, empty lines, binary data, rule conflicts
+- [x] Add config precedence integration tests (global/project/local merge)
+- [x] Increase MCP test coverage (65% → 83.8%): rate limiting, sandbox edge cases
 
 ### Deliver
 

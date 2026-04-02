@@ -1,0 +1,6 @@
+Building project...
+ERROR: undefined reference to 'init_module'
+  ... (2 duplicate lines)
+WARNING: deprecated function call at line 42
+  ... (1 duplicate line)
+Linking failed with 3 errors

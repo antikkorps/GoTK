@@ -1,0 +1,8 @@
+Compiling project...
+ERROR: /home/user/project/src/main.go:42: undefined variable 'config'
+WARNING: /home/user/project/src/utils.go:17: unused import "fmt"
+/home/user/project/src/handler.go:99: note: function declared here
+ERROR: /home/user/project/pkg/db/connection.go:23: cannot connect to database
+  at /home/user/project/pkg/db/connection.go:23
+  at /home/user/project/cmd/server/main.go:56
+Build failed: 2 errors, 1 warning

@@ -1,0 +1,7 @@
+Building project...
+ERROR: undefined reference to 'init_module'
+ERROR: undefined reference to 'init_module'
+ERROR: undefined reference to 'init_module'
+WARNING: deprecated function call at line 42
+WARNING: deprecated function call at line 42
+Linking failed with 3 errors

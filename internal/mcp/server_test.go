@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/antikkorps/GoTK/internal/cache"
 	"github.com/antikkorps/GoTK/internal/config"
+	"github.com/antikkorps/GoTK/internal/measure"
 )
 
 // --- validateCommand tests ---
@@ -1148,5 +1151,683 @@ func TestFindShell_ReturnsNonEmpty(t *testing.T) {
 	got := findShell()
 	if got == "" {
 		t.Error("findShell() should never return an empty string")
+	}
+}
+
+// --- handleToolCall dispatch tests ---
+
+func TestHandleToolCall_UnknownTool(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	req := jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`10`),
+		Method:  "tools/call",
+		Params:  json.RawMessage(`{"name":"nonexistent_tool","arguments":{}}`),
+	}
+	handleToolCall(cfg, fc, req)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Error == nil {
+		t.Fatal("unknown tool should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "Unknown tool") {
+		t.Errorf("error message = %q, should contain 'Unknown tool'", resp.Error.Message)
+	}
+}
+
+func TestHandleToolCall_InvalidParamsJSON(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	req := jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`11`),
+		Method:  "tools/call",
+		Params:  json.RawMessage(`not valid json`),
+	}
+	handleToolCall(cfg, fc, req)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Error == nil {
+		t.Fatal("invalid params JSON should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "Invalid params") {
+		t.Errorf("error message = %q, should contain 'Invalid params'", resp.Error.Message)
+	}
+}
+
+func TestHandleToolCall_ValidFilterDispatch(t *testing.T) {
+	// Initialize reReqTracker (needed by handleFilter)
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	req := jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`12`),
+		Method:  "tools/call",
+		Params:  json.RawMessage(`{"name":"gotk_filter","arguments":{"input":"hello world"}}`),
+	}
+	handleToolCall(cfg, fc, req)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("valid filter dispatch should not error, got: %s", resp.Error.Message)
+	}
+	resultJSON, _ := json.Marshal(resp.Result)
+	if !strings.Contains(string(resultJSON), "hello world") {
+		t.Error("filter dispatch result should contain the input text")
+	}
+}
+
+// --- handleExec tests ---
+
+func TestHandleExec_SimpleCommand(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(128, "test")
+	argsJSON, _ := json.Marshal(execArgs{Command: "echo hello"})
+	handleExec(cfg, fc, json.RawMessage(`20`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("echo hello should succeed, got error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	resultStr := string(resultJSON)
+	if !strings.Contains(resultStr, "hello") {
+		t.Errorf("exec result should contain 'hello', got: %s", resultStr)
+	}
+	if !strings.Contains(resultStr, "gotk:") {
+		t.Error("exec result should contain stats")
+	}
+}
+
+func TestHandleExec_EmptyCommand(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(execArgs{Command: ""})
+	handleExec(cfg, fc, json.RawMessage(`21`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("empty command should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "command is required") {
+		t.Errorf("error message = %q, should contain 'command is required'", resp.Error.Message)
+	}
+}
+
+func TestHandleExec_BlockedCommand(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(execArgs{Command: "rm -rf /"})
+	handleExec(cfg, fc, json.RawMessage(`22`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("blocked command should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "command blocked") {
+		t.Errorf("error message = %q, should contain 'command blocked'", resp.Error.Message)
+	}
+}
+
+func TestHandleExec_SandboxBlocked(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	cfg.Security.SandboxMode = true
+	fc := cache.New(0, "")
+	// "touch" is not in the read-only allowlist
+	argsJSON, _ := json.Marshal(execArgs{Command: "touch /tmp/test"})
+	handleExec(cfg, fc, json.RawMessage(`23`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("sandbox should block non-read command")
+	}
+	if !strings.Contains(resp.Error.Message, "sandbox") {
+		t.Errorf("error message = %q, should contain 'sandbox'", resp.Error.Message)
+	}
+}
+
+func TestHandleExec_InputTooLarge(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	// Create a raw args payload exceeding maxInputSize (10MB)
+	huge := strings.Repeat("x", maxInputSize+1)
+	rawArgs := json.RawMessage(fmt.Sprintf(`{"command":"%s"}`, huge))
+	handleExec(cfg, fc, json.RawMessage(`24`), rawArgs)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("input too large should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "input too large") {
+		t.Errorf("error message = %q, should contain 'input too large'", resp.Error.Message)
+	}
+}
+
+// --- handleCtx tests ---
+
+func TestHandleCtx_SimpleSearch(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	// Create a temp dir under project root with a searchable file
+	tmpDir, err := os.MkdirTemp(".", "gotk_ctx_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)                                                                        //nolint:errcheck
+	os.WriteFile(filepath.Join(tmpDir, "sample.go"), []byte("package main\nfunc hello() {}\n"), 0644) //nolint:errcheck
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	argsJSON, _ := json.Marshal(ctxArgs{Pattern: "hello", Path: tmpDir})
+	handleCtx(cfg, json.RawMessage(`30`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("ctx search should succeed, got error: %s", resp.Error.Message)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	if !strings.Contains(string(resultJSON), "hello") {
+		t.Error("ctx result should contain matching pattern")
+	}
+}
+
+func TestHandleCtx_EmptyPattern(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	argsJSON, _ := json.Marshal(ctxArgs{Pattern: ""})
+	handleCtx(cfg, json.RawMessage(`31`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("empty pattern should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "pattern is required") {
+		t.Errorf("error message = %q, should contain 'pattern is required'", resp.Error.Message)
+	}
+}
+
+func TestHandleCtx_InputTooLarge(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	huge := strings.Repeat("x", maxInputSize+1)
+	rawArgs := json.RawMessage(fmt.Sprintf(`{"pattern":"%s"}`, huge))
+	handleCtx(cfg, json.RawMessage(`32`), rawArgs)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("input too large should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "input too large") {
+		t.Errorf("error message = %q, should contain 'input too large'", resp.Error.Message)
+	}
+}
+
+// --- extractCommand tests ---
+
+func TestExtractCommand_EnvVarPrefix(t *testing.T) {
+	fields := strings.Fields("FOO=bar grep test")
+	got := extractCommand(fields)
+	if got != "grep" {
+		t.Errorf("extractCommand with env prefix = %q, want 'grep'", got)
+	}
+}
+
+func TestExtractCommand_Sudo(t *testing.T) {
+	fields := strings.Fields("sudo rm -rf /")
+	got := extractCommand(fields)
+	if got != "rm" {
+		t.Errorf("extractCommand with sudo = %q, want 'rm'", got)
+	}
+}
+
+func TestExtractCommand_EmptyFields(t *testing.T) {
+	got := extractCommand([]string{})
+	if got != "" {
+		t.Errorf("extractCommand with empty fields = %q, want empty", got)
+	}
+}
+
+func TestExtractCommand_OnlyEnvVars(t *testing.T) {
+	fields := strings.Fields("FOO=bar BAZ=qux")
+	got := extractCommand(fields)
+	// When all fields are env vars, it falls back to the first field's base name
+	if got != "foo=bar" {
+		t.Errorf("extractCommand with only env vars = %q, want 'foo=bar'", got)
+	}
+}
+
+// --- handleNotification tests ---
+
+func TestHandleNotification_UnknownNotification(t *testing.T) {
+	// Should not panic on unknown notification
+	handleNotification("notifications/unknown_event")
+	handleNotification("")
+}
+
+func TestHandleNotification_Initialized(t *testing.T) {
+	// Should not panic on valid notification
+	handleNotification("notifications/initialized")
+}
+
+// --- auditLog tests ---
+
+func TestAuditLog_WritesToFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "gotk_audit_write_*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close() //nolint:errcheck
+	defer os.Remove(tmpFile.Name())
+
+	f, err := os.OpenFile(tmpFile.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldAuditFile := auditFile
+	auditFile = f
+	defer func() {
+		f.Close() //nolint:errcheck
+		auditFile = oldAuditFile
+	}()
+
+	auditLog("CMD_BLOCKED", "rm -rf / was blocked")
+
+	f.Sync() //nolint:errcheck
+
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "[SECURITY]") {
+		t.Errorf("audit log should contain '[SECURITY]', got: %q", content)
+	}
+	if !strings.Contains(content, "CMD_BLOCKED") {
+		t.Errorf("audit log should contain 'CMD_BLOCKED', got: %q", content)
+	}
+	if !strings.Contains(content, "rm -rf / was blocked") {
+		t.Errorf("audit log should contain the detail text, got: %q", content)
+	}
+}
+
+func TestAuditLog_NilFileDoesNotPanic(t *testing.T) {
+	oldAuditFile := auditFile
+	auditFile = nil
+	defer func() { auditFile = oldAuditFile }()
+
+	// Should not panic
+	auditLog("TEST_EVENT", "test detail")
+}
+
+// --- handleFilter additional tests ---
+
+func TestHandleFilter_EmptyInput(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	argsJSON, _ := json.Marshal(filterArgs{Input: ""})
+	handleFilter(cfg, fc, json.RawMessage(`40`), argsJSON)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("empty input should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "input is required") {
+		t.Errorf("error message = %q, should contain 'input is required'", resp.Error.Message)
+	}
+}
+
+func TestHandleFilter_InputTooLarge(t *testing.T) {
+	reReqTracker = NewReRequestTracker(DefaultReRequestWindow)
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := config.Default()
+	fc := cache.New(0, "")
+	huge := strings.Repeat("x", maxInputSize+1)
+	rawArgs := json.RawMessage(fmt.Sprintf(`{"input":"%s"}`, huge))
+	handleFilter(cfg, fc, json.RawMessage(`41`), rawArgs)
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	json.Unmarshal(buf.Bytes(), &resp) //nolint:errcheck
+	if resp.Error == nil {
+		t.Fatal("input too large should return error")
+	}
+	if !strings.Contains(resp.Error.Message, "input too large") {
+		t.Errorf("error message = %q, should contain 'input too large'", resp.Error.Message)
+	}
+}
+
+// --- validateSandbox edge cases ---
+
+func TestValidateSandbox_EmptyCommand(t *testing.T) {
+	result := validateSandbox("")
+	if result != "" {
+		t.Errorf("empty command should be allowed in sandbox, got: %q", result)
+	}
+}
+
+func TestValidateSandbox_OnlyEnvVars(t *testing.T) {
+	// A command like "FOO=bar BAZ=qux" has no actual command, only env vars.
+	// extractCommand will fall back to base of first field, which won't be in allowlist.
+	result := validateSandbox("FOO=bar BAZ=qux")
+	if result == "" {
+		t.Error("command with only env vars should be blocked in sandbox")
+	}
+}
+
+// --- logMCPMeasurement tests ---
+
+func TestLogMCPMeasurement_NilLogger(t *testing.T) {
+	oldLogger := mcpMeasureLogger
+	mcpMeasureLogger = nil
+	defer func() { mcpMeasureLogger = oldLogger }()
+
+	// Should not panic when logger is nil
+	logMCPMeasurement("echo hi", "generic", "normal", "hello\n", "hello\n", time.Millisecond, false, ReRequestResult{})
+}
+
+func TestLogMCPMeasurement_WithLogger(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "gotk_measure_*.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close() //nolint:errcheck
+	defer os.Remove(tmpFile.Name())
+
+	ml, err := measure.NewLogger(tmpFile.Name(), "test-session", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldLogger := mcpMeasureLogger
+	mcpMeasureLogger = ml
+	defer func() {
+		ml.Close() //nolint:errcheck
+		mcpMeasureLogger = oldLogger
+	}()
+
+	raw := "line1\nline2\nline3\n"
+	cleaned := "line1\n"
+
+	logMCPMeasurement("echo hi", "generic", "normal", raw, cleaned, time.Millisecond, false, ReRequestResult{})
+
+	ml.Close() //nolint:errcheck
+
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "echo hi") {
+		t.Errorf("measure log should contain command, got: %q", content)
+	}
+	if !strings.Contains(content, "mcp") {
+		t.Errorf("measure log should contain source 'mcp', got: %q", content)
+	}
+}
+
+func TestLogMCPMeasurement_ReRequest(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "gotk_measure_rereq_*.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close() //nolint:errcheck
+	defer os.Remove(tmpFile.Name())
+
+	ml, err := measure.NewLogger(tmpFile.Name(), "test-session", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldLogger := mcpMeasureLogger
+	mcpMeasureLogger = ml
+	defer func() {
+		ml.Close() //nolint:errcheck
+		mcpMeasureLogger = oldLogger
+	}()
+
+	reReq := ReRequestResult{
+		IsReRequest:   true,
+		Type:          "exact",
+		TimeSincePrev: 30 * time.Second,
+	}
+
+	logMCPMeasurement("echo hi", "generic", "normal", "hello\n", "hello\n", time.Millisecond, false, reReq)
+
+	ml.Close() //nolint:errcheck
+
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "rerequest") {
+		t.Errorf("measure log should contain rerequest field, got: %q", content)
+	}
+}
+
+// --- writeResponse tests ---
+
+func TestWriteResponse_ValidResponse(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	writeResponse(jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`99`),
+		Result:  map[string]string{"status": "ok"},
+	})
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v (raw: %s)", err, buf.String())
+	}
+	if resp.JSONRPC != "2.0" {
+		t.Errorf("JSONRPC = %q, want '2.0'", resp.JSONRPC)
+	}
+}
+
+func TestWriteResponse_ErrorResponse(t *testing.T) {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	writeResponse(jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`100`),
+		Error:   &rpcError{Code: -32600, Message: "Invalid Request"},
+	})
+
+	w.Close() //nolint:errcheck
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+
+	var resp jsonRPCResponse
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Error == nil {
+		t.Fatal("should have error in response")
+	}
+	if resp.Error.Code != -32600 {
+		t.Errorf("error code = %d, want -32600", resp.Error.Code)
 	}
 }
