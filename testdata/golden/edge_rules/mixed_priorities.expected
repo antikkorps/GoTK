@@ -1,0 +1,15 @@
+  Build Report
+INFO: Starting build at 2024-01-15 10:30:00
+Compiling package auth...
+Compiling package api...
+WARNING: api/handler.go:34: shadow variable 'err' in nested scope
+Compiling package db...
+ERROR: db/migrate.go:78: missing return statement
+  expected type: error
+  got: (nothing)
+INFO: Running tests...
+PASS: auth/login_test.go (0.3s)
+FAIL: db/migrate_test.go (0.1s)
+  migrate_test.go:45: expected nil error, got: missing return
+Summary: 1 error, 1 warning, 1 test failure
+Build failed.

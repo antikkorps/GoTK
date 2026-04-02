@@ -1,0 +1,8 @@
+Reading file /tmp/data.bin...
+\x00\x00\x00\x01\x02\x03 garbage bytes here
+ERROR: corrupt header at offset 0x4F
+\xff\xfe\xfd more binary noise
+WARNING: checksum mismatch for block 7
+\x00\x00 null padding \x00\x00
+ERROR: unable to recover block, skipping
+Process completed with 2 errors

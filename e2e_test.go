@@ -1,6 +1,7 @@
 package gotk_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -367,5 +368,301 @@ func TestE2E_Ctx_Help(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "--def") {
 		t.Errorf("help ctx should mention --def flag, got: %q", stdout)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Complex filter interactions
+// ---------------------------------------------------------------------------
+
+func TestE2E_FilterInteraction_GrepOutput(t *testing.T) {
+	bin := binary(t)
+	// Simulate grep -rn output with ANSI colors, duplicate lines, and error messages
+	input := strings.Join([]string{
+		"\x1b[35msrc/main.go\x1b[0m:\x1b[32m10\x1b[0m:func main() {",
+		"\x1b[35msrc/main.go\x1b[0m:\x1b[32m11\x1b[0m:    fmt.Println(\"hello\")",
+		"\x1b[35msrc/main.go\x1b[0m:\x1b[32m12\x1b[0m:    fmt.Println(\"hello\")",
+		"\x1b[35msrc/utils.go\x1b[0m:\x1b[32m5\x1b[0m:func helper() error {",
+		"\x1b[35msrc/utils.go\x1b[0m:\x1b[32m6\x1b[0m:    return fmt.Errorf(\"connection refused\")",
+		"grep: /tmp/binary.dat: binary file matches",
+		"\x1b[35msrc/handler.go\x1b[0m:\x1b[32m20\x1b[0m:    log.Fatal(\"critical error: out of memory\")",
+	}, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// ANSI codes should be stripped
+	if strings.Contains(stdout, "\x1b[") {
+		t.Error("ANSI codes should be stripped from grep output")
+	}
+	// Error/warning lines must be preserved
+	if !strings.Contains(stdout, "connection refused") {
+		t.Error("error message 'connection refused' should be preserved")
+	}
+	if !strings.Contains(stdout, "critical error") {
+		t.Error("error message 'critical error' should be preserved")
+	}
+	// Functional content should be preserved
+	if !strings.Contains(stdout, "func main()") {
+		t.Error("function definition should be preserved")
+	}
+}
+
+func TestE2E_FilterInteraction_GoTestOutput(t *testing.T) {
+	bin := binary(t)
+	// Simulate go test output with mix of PASS, FAIL, and error lines
+	input := strings.Join([]string{
+		"=== RUN   TestAdd",
+		"--- PASS: TestAdd (0.00s)",
+		"=== RUN   TestSubtract",
+		"--- PASS: TestSubtract (0.00s)",
+		"=== RUN   TestDivide",
+		"    divide_test.go:15: expected 5, got 0",
+		"    divide_test.go:16: division by zero not handled",
+		"--- FAIL: TestDivide (0.00s)",
+		"=== RUN   TestMultiply",
+		"--- PASS: TestMultiply (0.00s)",
+		"FAIL",
+		"exit status 1",
+		"FAIL\texample.com/calc\t0.003s",
+	}, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// FAIL lines must be preserved (most important for LLM debugging)
+	if !strings.Contains(stdout, "FAIL") {
+		t.Error("FAIL lines should be preserved in go test output")
+	}
+	// Error details must be preserved
+	if !strings.Contains(stdout, "division by zero") {
+		t.Error("error detail 'division by zero' should be preserved")
+	}
+	if !strings.Contains(stdout, "expected 5, got 0") {
+		t.Error("assertion detail should be preserved")
+	}
+	// Summary line should be preserved
+	if !strings.Contains(stdout, "exit status 1") {
+		t.Error("exit status line should be preserved")
+	}
+}
+
+func TestE2E_FilterInteraction_GitDiffOutput(t *testing.T) {
+	bin := binary(t)
+	// Simulate git diff output
+	input := strings.Join([]string{
+		"diff --git a/main.go b/main.go",
+		"index abc1234..def5678 100644",
+		"--- a/main.go",
+		"+++ b/main.go",
+		"@@ -10,6 +10,8 @@ func main() {",
+		"     fmt.Println(\"hello\")",
+		"-    os.Exit(0)",
+		"+    if err != nil {",
+		"+        log.Fatal(err)",
+		"+    }",
+		"     fmt.Println(\"done\")",
+		"diff --git a/go.mod b/go.mod",
+		"index 111aaaa..222bbbb 100644",
+		"--- a/go.mod",
+		"+++ b/go.mod",
+		"@@ -1,3 +1,4 @@",
+		" module example.com/app",
+		"+require golang.org/x/text v0.3.0",
+	}, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// Diff markers should be preserved
+	if !strings.Contains(stdout, "diff --git") {
+		t.Error("diff header should be preserved")
+	}
+	// Added/removed lines should be preserved
+	if !strings.Contains(stdout, "+    if err != nil") {
+		t.Error("added lines should be preserved in diff output")
+	}
+	if !strings.Contains(stdout, "-    os.Exit(0)") {
+		t.Error("removed lines should be preserved in diff output")
+	}
+	// Hunk headers should be preserved
+	if !strings.Contains(stdout, "@@") {
+		t.Error("hunk headers (@@) should be preserved")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Large output handling
+// ---------------------------------------------------------------------------
+
+func TestE2E_LargeOutput_Truncation(t *testing.T) {
+	bin := binary(t)
+	// Generate 10,000+ unique lines
+	var lines []string
+	for i := 0; i < 10500; i++ {
+		lines = append(lines, fmt.Sprintf("unique output line %d with data %x", i, i*17))
+	}
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--max-lines", "50")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// Should contain the omission marker
+	if !strings.Contains(stdout, "lines omitted") {
+		t.Errorf("large output should be truncated with omission marker, got %d bytes", len(stdout))
+	}
+	// Output should be significantly smaller than input
+	if len(stdout) > len(input)/2 {
+		t.Errorf("truncated output (%d bytes) should be much smaller than input (%d bytes)", len(stdout), len(input))
+	}
+	// Head lines should be present (first lines)
+	if !strings.Contains(stdout, "unique output line 0") {
+		t.Error("head of output should be preserved after truncation")
+	}
+	// Tail lines should be present (last lines)
+	if !strings.Contains(stdout, "unique output line 10499") {
+		t.Error("tail of output should be preserved after truncation")
+	}
+}
+
+func TestE2E_LargeOutput_NoTruncate(t *testing.T) {
+	bin := binary(t)
+	// Generate 10,000+ unique lines
+	var lines []string
+	for i := 0; i < 10500; i++ {
+		lines = append(lines, fmt.Sprintf("line-%d-data", i))
+	}
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--no-truncate")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// Should NOT contain omission marker
+	if strings.Contains(stdout, "lines omitted") {
+		t.Error("--no-truncate should not truncate large output")
+	}
+	// First and last lines should be present
+	if !strings.Contains(stdout, "line-0-data") {
+		t.Error("first line should be present with --no-truncate")
+	}
+	if !strings.Contains(stdout, "line-10499-data") {
+		t.Error("last line should be present with --no-truncate")
+	}
+}
+
+func TestE2E_LargeOutput_ErrorsPreservedAfterTruncation(t *testing.T) {
+	bin := binary(t)
+	// Generate large output with error lines scattered throughout, including at the end
+	var lines []string
+	for i := 0; i < 500; i++ {
+		lines = append(lines, fmt.Sprintf("normal output line %d", i))
+		if i == 5 {
+			lines = append(lines, "ERROR: connection timeout at startup")
+		}
+	}
+	// Add errors near the end (these should be in the tail section)
+	lines = append(lines, "FATAL: process crashed with signal SIGSEGV")
+	lines = append(lines, "exit status 1")
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--max-lines", "30")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// Truncation should have occurred
+	if !strings.Contains(stdout, "lines omitted") {
+		t.Error("output should be truncated")
+	}
+	// Errors at the tail should be preserved (truncation keeps head + tail)
+	if !strings.Contains(stdout, "FATAL: process crashed") {
+		t.Error("tail error 'FATAL: process crashed' should be preserved after truncation")
+	}
+	if !strings.Contains(stdout, "exit status 1") {
+		t.Error("tail 'exit status 1' should be preserved after truncation")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Signal handling and edge cases
+// ---------------------------------------------------------------------------
+
+func TestE2E_ExecNonZeroExitWithOutput(t *testing.T) {
+	bin := binary(t)
+	// Command that produces output and exits non-zero
+	stdout, _, code := run(t, bin, "", "sh", "-c", "echo 'some output before failure'; echo 'error: something went wrong' >&2; exit 7")
+	if code != 7 {
+		t.Errorf("exit code = %d, want 7", code)
+	}
+	if !strings.Contains(stdout, "some output before failure") {
+		t.Errorf("stdout should contain output before failure, got: %q", stdout)
+	}
+}
+
+func TestE2E_MaxLines_Zero(t *testing.T) {
+	bin := binary(t)
+	// --max-lines 0 should disable truncation (same as --no-truncate)
+	var lines []string
+	for i := 0; i < 200; i++ {
+		lines = append(lines, fmt.Sprintf("line-zero-test-%d", i))
+	}
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--max-lines", "0")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// maxLines=0 disables truncation
+	if strings.Contains(stdout, "lines omitted") {
+		t.Error("--max-lines 0 should disable truncation")
+	}
+}
+
+func TestE2E_MaxLines_One(t *testing.T) {
+	bin := binary(t)
+	var lines []string
+	for i := 0; i < 50; i++ {
+		lines = append(lines, fmt.Sprintf("edge-case-line-%d", i))
+	}
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--max-lines", "1")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// With max-lines=1, output should be very small
+	outputLines := strings.Split(strings.TrimSpace(stdout), "\n")
+	// Should have very few content lines (1 kept + possibly omission marker)
+	if len(outputLines) > 5 {
+		t.Errorf("--max-lines 1 should produce very few lines, got %d lines", len(outputLines))
+	}
+}
+
+func TestE2E_MaxLines_VeryLarge(t *testing.T) {
+	bin := binary(t)
+	// With a very large --max-lines value, no truncation should occur for small input
+	var lines []string
+	for i := 0; i < 100; i++ {
+		lines = append(lines, fmt.Sprintf("large-limit-line-%d", i))
+	}
+	input := strings.Join(lines, "\n") + "\n"
+
+	stdout, _, code := run(t, bin, input, "--max-lines", "999999")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if strings.Contains(stdout, "lines omitted") {
+		t.Error("very large --max-lines should not truncate small input")
+	}
+	// Content should be preserved
+	if !strings.Contains(stdout, "large-limit-line-0") {
+		t.Error("first line should be present")
+	}
+	if !strings.Contains(stdout, "large-limit-line-99") {
+		t.Error("last line should be present")
 	}
 }
