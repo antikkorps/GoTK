@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://antikkorps.github.io/GoTK/sitemap-index.xml

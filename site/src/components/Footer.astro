@@ -1,0 +1,34 @@
+---
+import type { Locale } from '../i18n/translations';
+import { t } from '../i18n/translations';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+
+const links = [
+  { labelKey: 'heroGithub' as const, href: 'https://github.com/antikkorps/GoTK' },
+  { labelKey: 'footerDocs' as const, href: 'https://github.com/antikkorps/GoTK/tree/main/docs' },
+  { labelKey: 'footerLicense' as const, href: 'https://github.com/antikkorps/GoTK/blob/main/LICENSE' },
+];
+---
+
+<footer class="py-8 sm:py-12 px-4 sm:px-6 border-t border-text-muted/10">
+  <div class="max-w-6xl mx-auto flex flex-col items-center gap-3 sm:gap-4">
+    <div class="flex flex-wrap justify-center gap-4 sm:gap-6">
+      {links.map((l) => (
+        <a
+          href={l.href}
+          class="text-text-muted hover:text-accent-blue transition-colors text-xs sm:text-sm"
+        >
+          {t(locale, l.labelKey)}
+        </a>
+      ))}
+    </div>
+    <p class="text-text-muted/60 text-xs sm:text-sm">
+      {t(locale, 'footerBuiltWith')}
+    </p>
+  </div>
+</footer>

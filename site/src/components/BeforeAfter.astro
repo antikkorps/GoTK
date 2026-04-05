@@ -1,0 +1,244 @@
+---
+import type { Locale } from '../i18n/translations';
+import { t } from '../i18n/translations';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+
+const examples = [
+  {
+    id: 'grep',
+    label: 'grep -rn',
+    reduction: 95,
+    before: [
+      '<span class="text-accent">src/server/handler.go</span><span class="text-text-muted">:14:</span>func HandleRequest(w http.ResponseWriter, r *http.Request) {',
+      '<span class="text-accent">src/server/handler.go</span><span class="text-text-muted">:28:</span>  // HandleRequest processes incoming HTTP requests',
+      '<span class="text-accent">src/server/handler.go</span><span class="text-text-muted">:55:</span>  log.Printf("HandleRequest: method=%s path=%s", r.Method, r.URL.Path)',
+      '<span class="text-accent">src/server/middleware.go</span><span class="text-text-muted">:9:</span>func AuthMiddleware(next http.Handler) http.Handler {',
+      '<span class="text-accent">src/server/middleware.go</span><span class="text-text-muted">:33:</span>  // Validate token before HandleRequest',
+      '<span class="text-accent">src/client/api.go</span><span class="text-text-muted">:22:</span>func (c *Client) SendRequest(ctx context.Context, req *Request) (*Response, error) {',
+      '<span class="text-accent">src/client/api.go</span><span class="text-text-muted">:71:</span>  return c.SendRequest(ctx, &amp;Request{Method: "GET", Path: path})',
+      '<span class="text-accent">src/client/api.go</span><span class="text-text-muted">:85:</span>  return c.SendRequest(ctx, &amp;Request{Method: "POST", Path: path, Body: body})',
+      '<span class="text-accent">pkg/models/request.go</span><span class="text-text-muted">:5:</span>type Request struct {',
+      '<span class="text-accent">pkg/models/request.go</span><span class="text-text-muted">:12:</span>// NewRequest creates a request with defaults.',
+    ],
+    after: [
+      '<span class="text-accent-blue font-bold">&gt;&gt; src/server/handler.go</span>',
+      '  func HandleRequest(w http.ResponseWriter, r *http.Request) {',
+      '  // HandleRequest processes incoming HTTP requests',
+      '',
+      '<span class="text-accent-blue font-bold">&gt;&gt; src/client/api.go</span>',
+      '  func (c *Client) SendRequest(...) (*Response, error) {',
+      '',
+      '<span class="text-accent-blue font-bold">&gt;&gt; pkg/models/request.go</span>',
+      '  type Request struct {',
+    ],
+  },
+  {
+    id: 'gotest',
+    label: 'go test',
+    reduction: 70,
+    before: [
+      '<span class="text-text-muted">=== RUN   TestAdd</span>',
+      '<span class="text-accent">--- PASS: TestAdd (0.00s)</span>',
+      '<span class="text-text-muted">=== RUN   TestSubtract</span>',
+      '<span class="text-accent">--- PASS: TestSubtract (0.00s)</span>',
+      '<span class="text-text-muted">=== RUN   TestMultiply</span>',
+      '<span class="text-[#ff5f56]">    multiply_test.go:15: expected 42, got 41</span>',
+      '<span class="text-[#ff5f56]">--- FAIL: TestMultiply (0.00s)</span>',
+      '<span class="text-text-muted">=== RUN   TestDivide</span>',
+      '<span class="text-accent">--- PASS: TestDivide (0.00s)</span>',
+      '<span class="text-text-muted">=== RUN   TestDivideByZero</span>',
+      '<span class="text-[#ff5f56]">    divide_test.go:28: expected error for division by zero</span>',
+      '<span class="text-[#ff5f56]">--- FAIL: TestDivideByZero (0.01s)</span>',
+      '<span class="text-[#ff5f56]">FAIL</span>',
+      '<span class="text-[#ff5f56]">FAIL  github.com/example/math  0.023s</span>',
+      '<span class="text-accent">ok    github.com/example/strings  0.015s</span>',
+      '<span class="text-accent">ok    github.com/example/utils    0.008s</span>',
+      '<span class="text-accent">ok    github.com/example/config   0.012s</span>',
+      '<span class="text-accent">ok    github.com/example/models   0.019s</span>',
+    ],
+    after: [
+      '<span class="text-[#ff5f56]">--- FAIL: TestMultiply (0.00s)</span>',
+      '<span class="text-[#ff5f56]">    multiply_test.go:15: expected 42, got 41</span>',
+      '<span class="text-[#ff5f56]">--- FAIL: TestDivideByZero (0.01s)</span>',
+      '<span class="text-[#ff5f56]">    divide_test.go:28: expected error for division by zero</span>',
+      '<span class="text-[#ff5f56]">FAIL  github.com/example/math  0.023s</span>',
+      '<span class="text-accent">ok 4 packages: strings, utils, config, models</span>',
+    ],
+  },
+  {
+    id: 'docker',
+    label: 'docker build',
+    reduction: 66,
+    before: [
+      'Sending build context to Docker daemon  15.87kB',
+      '<span class="text-text-muted">Step 1/8 : FROM golang:1.21-alpine AS builder</span>',
+      '<span class="text-text-muted"> ---&gt; abc123def456</span>',
+      '<span class="text-text-muted">Step 2/8 : WORKDIR /app</span>',
+      '<span class="text-text-muted"> ---&gt; Running in 1234567890ab</span>',
+      '<span class="text-text-muted">Removing intermediate container 1234567890ab</span>',
+      '<span class="text-text-muted"> ---&gt; 2345678901bc</span>',
+      '<span class="text-text-muted">Step 3/8 : COPY go.mod go.sum ./</span>',
+      '<span class="text-text-muted"> ---&gt; Running in 3456789012cd</span>',
+      '<span class="text-text-muted">Removing intermediate container 3456789012cd</span>',
+      '<span class="text-text-muted">Step 4/8 : RUN go mod download</span>',
+      '<span class="text-text-muted"> ---&gt; Running in 5678901234ef</span>',
+      '<span class="text-text-muted">Removing intermediate container 5678901234ef</span>',
+      '<span class="text-text-muted">Step 5/8 : COPY . .</span>',
+      '<span class="text-text-muted">Step 6/8 : RUN CGO_ENABLED=0 go build -o /app/server</span>',
+      '<span class="text-text-muted"> ---&gt; Running in 9012345678cd</span>',
+      '<span class="text-text-muted">Removing intermediate container 9012345678cd</span>',
+      '<span class="text-text-muted">Step 7/8 : FROM alpine:3.19</span>',
+      '<span class="text-text-muted">Step 8/8 : COPY --from=builder /app/server /server</span>',
+      '<span class="text-text-muted"> ---&gt; Running in bbccddee2233</span>',
+      '<span class="text-text-muted">Removing intermediate container bbccddee2233</span>',
+      '<span class="text-accent">Successfully built ccddee334455</span>',
+      '<span class="text-accent">Successfully tagged myapp:v1.2.3</span>',
+    ],
+    after: [
+      '<span class="text-accent-blue font-bold">--- FROM golang:1.21-alpine AS builder ---</span>',
+      'WORKDIR /app',
+      'COPY go.mod go.sum ./',
+      'RUN go mod download',
+      'COPY . .',
+      'RUN CGO_ENABLED=0 go build -o /app/server',
+      '<span class="text-accent-blue font-bold">--- FROM alpine:3.19 ---</span>',
+      'COPY --from=builder /app/server /server',
+      '<span class="text-accent">Successfully tagged myapp:v1.2.3</span>',
+    ],
+  },
+  {
+    id: 'npm',
+    label: 'npm install',
+    reduction: 80,
+    before: [
+      '<span class="text-text-muted">npm warn deprecated inflight@1.0.6: This module is not supported</span>',
+      '<span class="text-text-muted">npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported</span>',
+      '<span class="text-text-muted">npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported</span>',
+      '',
+      'added 247 packages in 12s',
+      '',
+      '<span class="text-text-muted">12 packages are looking for funding</span>',
+      '<span class="text-text-muted">  run `npm fund` for details</span>',
+      '',
+      '<span class="text-[#ffbd2e]">6 vulnerabilities (2 moderate, 4 high)</span>',
+      '',
+      '<span class="text-text-muted">To address all issues, run:</span>',
+      '<span class="text-text-muted">  npm audit fix</span>',
+      '',
+      '<span class="text-text-muted">Run `npm audit` for details.</span>',
+    ],
+    after: [
+      '<span class="text-text-muted">deprecated: 3 packages (inflight, glob, rimraf)</span>',
+      'added 247 packages in 12s',
+      '<span class="text-[#ffbd2e]">6 vulnerabilities (2 moderate, 4 high)</span>',
+    ],
+  },
+];
+---
+
+<section class="py-16 sm:py-24 px-4 sm:px-6">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-4">
+      {t(locale, 'beforeAfterTitle')}
+    </h2>
+    <p class="text-text-muted text-center mb-6 sm:mb-8 text-base sm:text-lg">
+      {t(locale, 'beforeAfterSubtitle')}
+    </p>
+
+    <!-- Tabs — horizontal scroll on mobile -->
+    <div class="flex justify-start sm:justify-center gap-2 mb-6 sm:mb-8 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none" id="example-tabs">
+      {examples.map((ex, i) => (
+        <button
+          data-tab={ex.id}
+          class:list={[
+            'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0',
+            i === 0 ? 'bg-accent text-base' : 'bg-card text-text-muted border border-text-muted/20 hover:border-accent/30',
+          ]}
+        >
+          {ex.label}
+          <span class="ml-1 text-xs opacity-70">-{ex.reduction}%</span>
+        </button>
+      ))}
+    </div>
+
+    <!-- Panels -->
+    {examples.map((ex, i) => (
+      <div
+        data-panel={ex.id}
+        class:list={[i !== 0 && 'hidden']}
+      >
+        <!-- Mobile: reduction badge on top -->
+        <div class="flex md:hidden justify-center mb-4">
+          <div class="px-4 py-2 bg-accent text-base font-bold rounded-full text-sm shadow-lg shadow-accent/20">
+            -{ex.reduction}% tokens
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4 sm:gap-6 relative">
+          <!-- Before -->
+          <div class="rounded-xl overflow-hidden border border-text-muted/20">
+            <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 bg-card border-b border-text-muted/20">
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ff5f56]"></span>
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ffbd2e]"></span>
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27c93f]"></span>
+              <span class="ml-2 text-text-muted text-xs sm:text-sm">{t(locale, 'beforePrefix')} — {ex.before.length} {t(locale, 'lines')}</span>
+            </div>
+            <pre class="p-3 sm:p-4 bg-base text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.before.join('\n')} /></pre>
+          </div>
+
+          <!-- After -->
+          <div class="rounded-xl overflow-hidden border border-accent/30">
+            <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 bg-card border-b border-accent/30">
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ff5f56]"></span>
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ffbd2e]"></span>
+              <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27c93f]"></span>
+              <span class="ml-2 text-accent text-xs sm:text-sm">{t(locale, 'afterPrefix')} — {ex.after.length} {t(locale, 'lines')}</span>
+            </div>
+            <pre class="p-3 sm:p-4 bg-base text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.after.join('\n')} /></pre>
+          </div>
+
+          <!-- Desktop: badge between panels -->
+          <div class="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+            <div class="px-4 py-2 bg-accent text-base font-bold rounded-full text-sm shadow-lg shadow-accent/20">
+              -{ex.reduction}% tokens
+            </div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+
+<script>
+  const tabs = document.querySelectorAll('#example-tabs button');
+  const panels = document.querySelectorAll('[data-panel]');
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const target = (tab as HTMLElement).dataset.tab;
+
+      tabs.forEach((t) => {
+        t.className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 bg-card text-text-muted border border-text-muted/20 hover:border-accent/30';
+      });
+      (tab as HTMLElement).className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 bg-accent text-base';
+
+      panels.forEach((p) => {
+        if ((p as HTMLElement).dataset.panel === target) {
+          p.classList.remove('hidden');
+        } else {
+          p.classList.add('hidden');
+        }
+      });
+    });
+  });
+</script>

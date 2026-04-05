@@ -1,0 +1,43 @@
+---
+import type { Locale } from '../i18n/translations';
+import { t } from '../i18n/translations';
+import Icon from './Icon.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+
+const features = [
+  { icon: 'filter', titleKey: 'feature1Title' as const, descKey: 'feature1Desc' as const },
+  { icon: 'zap', titleKey: 'feature2Title' as const, descKey: 'feature2Desc' as const },
+  { icon: 'shield', titleKey: 'feature3Title' as const, descKey: 'feature3Desc' as const },
+  { icon: 'layers', titleKey: 'feature4Title' as const, descKey: 'feature4Desc' as const },
+  { icon: 'compress', titleKey: 'feature5Title' as const, descKey: 'feature5Desc' as const },
+  { icon: 'brain', titleKey: 'feature6Title' as const, descKey: 'feature6Desc' as const },
+];
+---
+
+<section class="py-16 sm:py-24 px-4 sm:px-6">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-4">
+      {t(locale, 'featuresTitle')}
+    </h2>
+    <p class="text-text-muted text-center mb-8 sm:mb-12 text-base sm:text-lg px-2">
+      {t(locale, 'featuresSubtitle')}
+    </p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      {features.map((f) => (
+        <div class="p-5 sm:p-6 bg-card rounded-xl border border-text-muted/10 hover:border-accent/30 transition-colors">
+          <div class="mb-3 sm:mb-4 text-accent">
+            <Icon name={f.icon} size={24} />
+          </div>
+          <h3 class="text-base sm:text-lg font-semibold mb-2">{t(locale, f.titleKey)}</h3>
+          <p class="text-text-muted text-sm leading-relaxed">{t(locale, f.descKey)}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

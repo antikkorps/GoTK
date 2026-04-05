@@ -1,0 +1,65 @@
+---
+import type { Locale } from '../i18n/translations';
+import { t } from '../i18n/translations';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const installCmd = 'go install github.com/antikkorps/GoTK/cmd/gotk@latest';
+const copyLabel = t(locale, 'heroCopy');
+const copiedLabel = t(locale, 'heroCopied');
+---
+
+<section class="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 text-center">
+  <div class="inline-flex items-center gap-2 px-4 py-1.5 mb-6 sm:mb-8 rounded-full border border-text-muted/20 text-text-muted text-sm">
+    <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+    {t(locale, 'heroBadge')}
+  </div>
+
+  <h1 class="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-4 sm:mb-6">
+    {t(locale, 'heroTitle1')}<br />
+    <span class="text-accent">{t(locale, 'heroTitle2')}</span>
+  </h1>
+
+  <p class="text-lg sm:text-xl md:text-2xl text-text-muted max-w-2xl mb-8 sm:mb-12 px-2">
+    {t(locale, 'heroSubtitle')}
+  </p>
+
+  <div class="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
+    <div class="relative group w-full sm:w-auto">
+      <code
+        class="block px-4 sm:px-6 py-3 bg-card rounded-lg font-mono text-xs sm:text-sm border border-text-muted/20 cursor-pointer select-all overflow-x-auto whitespace-nowrap"
+        id="install-cmd"
+      >
+        $ {installCmd}
+      </code>
+      <button
+        id="copy-btn"
+        class="absolute -right-1 -top-2 px-2 py-1 bg-accent text-base text-xs font-medium rounded sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+        aria-label={copyLabel}
+      >
+        {copyLabel}
+      </button>
+    </div>
+
+    <a
+      href="https://github.com/antikkorps/GoTK"
+      class="w-full sm:w-auto text-center px-6 py-3 rounded-lg border border-accent-blue text-accent-blue font-medium hover:bg-accent-blue/10 transition-colors"
+    >
+      {t(locale, 'heroGithub')}
+    </a>
+  </div>
+</section>
+
+<script define:vars={{ installCmd, copyLabel, copiedLabel }}>
+  document.getElementById('copy-btn')?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(installCmd);
+    const btn = document.getElementById('copy-btn');
+    if (btn) {
+      btn.textContent = copiedLabel;
+      setTimeout(() => { btn.textContent = copyLabel; }, 2000);
+    }
+  });
+</script>
