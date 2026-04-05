@@ -96,7 +96,7 @@ jobs:
       - name: Benchmark regression check
         run: |
           RESULT=$(./gotk bench --json)
-          AVG=$(echo "$RESULT" | grep -o '"avg_reduction_pct": [0-9.]*' | grep -o '[0-9.]*')
+          AVG=$(echo "$RESULT" | grep -o '"avg_reduction": [0-9.]*' | grep -o '[0-9.]*')
           echo "Average reduction: ${AVG}%"
           if [ "$(echo "$AVG < 50" | bc)" -eq 1 ]; then
             echo "::error::Average reduction ${AVG}% dropped below 50% baseline"

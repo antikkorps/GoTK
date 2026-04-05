@@ -1,0 +1,70 @@
+---
+import type { Locale } from '../i18n/translations';
+import { t } from '../i18n/translations';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+
+const benchmarks = [
+  { cmd: 'pnpm test', pct: 98 },
+  { cmd: 'grep -rn', pct: 95 },
+  { cmd: 'git log', pct: 90 },
+  { cmd: 'find', pct: 70 },
+  { cmd: 'ls -la', pct: 51 },
+];
+---
+
+<section class="py-16 sm:py-24 px-4 sm:px-6">
+  <div class="max-w-4xl mx-auto">
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-4">
+      {t(locale, 'benchTitle')}
+    </h2>
+    <p class="text-text-muted text-center mb-8 sm:mb-12 text-base sm:text-lg">
+      {t(locale, 'benchSubtitle')} <code class="text-accent-blue">gotk bench</code>
+    </p>
+
+    <div class="space-y-4 sm:space-y-5" id="benchmark-bars">
+      {benchmarks.map((b, i) => (
+        <div class="flex items-center gap-3 sm:gap-4">
+          <code class="w-20 sm:w-28 text-right text-xs sm:text-sm font-mono text-text-muted shrink-0">{b.cmd}</code>
+          <div class="flex-1 h-7 sm:h-8 bg-card rounded-full overflow-hidden border border-text-muted/10">
+            <div
+              class="h-full rounded-full bg-gradient-to-r from-accent/80 to-accent flex items-center justify-end pr-2 sm:pr-3 transition-all duration-700 ease-out"
+              style={`width: 0%; transition-delay: ${i * 100}ms;`}
+              data-width={`${b.pct}%`}
+            >
+              <span class="text-base text-xs sm:text-sm font-bold">{b.pct}%</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p class="text-center mt-6 sm:mt-8 text-text-muted text-sm sm:text-base">
+      {t(locale, 'benchAvg')} <span class="text-accent font-bold text-lg sm:text-xl">87.5%</span> {t(locale, 'benchAvgSuffix')}
+    </p>
+  </div>
+</section>
+
+<script>
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const bars = entry.target.querySelectorAll('[data-width]');
+          bars.forEach((bar) => {
+            (bar as HTMLElement).style.width = (bar as HTMLElement).dataset.width!;
+          });
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.3 }
+  );
+
+  const el = document.getElementById('benchmark-bars');
+  if (el) observer.observe(el);
+</script>

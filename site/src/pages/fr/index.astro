@@ -1,0 +1,24 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Hero from '../../components/Hero.astro';
+import BeforeAfter from '../../components/BeforeAfter.astro';
+import Features from '../../components/Features.astro';
+import Integrations from '../../components/Integrations.astro';
+import Benchmarks from '../../components/Benchmarks.astro';
+import QuickStart from '../../components/QuickStart.astro';
+import Footer from '../../components/Footer.astro';
+
+const locale = 'fr' as const;
+---
+
+<Layout locale={locale}>
+  <main>
+    <Hero locale={locale} />
+    <BeforeAfter locale={locale} />
+    <Features locale={locale} />
+    <Integrations locale={locale} />
+    <Benchmarks locale={locale} />
+    <QuickStart locale={locale} />
+  </main>
+  <Footer locale={locale} />
+</Layout>
