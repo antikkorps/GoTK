@@ -396,12 +396,21 @@ type readArgs struct {
 }
 
 type grepArgs struct {
+	Pattern     string `json:"pattern"`
+	Path        string `json:"path"`
+	MaxLines    int    `json:"max_lines"`
+	Recursive   bool   `json:"recursive"`
+	IgnoreCase  bool   `json:"ignore_case"`
+	LineNumber  bool   `json:"line_number"`
+	PerFileCap  int    `json:"per_file_cap"`
+}
+
+type globArgs struct {
 	Pattern    string `json:"pattern"`
 	Path       string `json:"path"`
-	MaxLines   int    `json:"max_lines"`
-	Recursive  bool   `json:"recursive"`
-	IgnoreCase bool   `json:"ignore_case"`
-	LineNumber bool   `json:"line_number"`
+	MaxResults int    `json:"max_results"`
+	// Cluster is a tri-state: nil = auto (based on result count), true/false force.
+	Cluster *bool `json:"cluster,omitempty"`
 }
 
 type ctxArgs struct {
@@ -615,16 +624,31 @@ func buildToolsList() toolsListResult {
 			},
 			{
 				Name:        "gotk_grep",
-				Description: "Search file contents with noise removal. Results are grouped by file with compressed paths. More token-efficient than grep. Automatically applies recursive search and line numbers.",
+				Description: "Search file contents with noise removal. Results are grouped by file with compressed paths and a per-file match cap (truncated files show a '… N more in this file' marker). More token-efficient than grep. Automatically applies recursive search and line numbers.",
 				InputSchema: inputSchema{
 					Type: "object",
 					Properties: map[string]propDef{
-						"pattern":     {Type: "string", Description: "Search pattern (regular expression)"},
-						"path":        {Type: "string", Description: "File or directory to search in (default: current directory)"},
-						"max_lines":   {Type: "integer", Description: "Maximum output lines (default: 100)"},
-						"recursive":   {Type: "boolean", Description: "Search recursively in subdirectories (default: true)"},
-						"ignore_case": {Type: "boolean", Description: "Case-insensitive search (default: false)"},
-						"line_number": {Type: "boolean", Description: "Show line numbers (default: true)"},
+						"pattern":      {Type: "string", Description: "Search pattern (regular expression)"},
+						"path":         {Type: "string", Description: "File or directory to search in (default: current directory)"},
+						"max_lines":    {Type: "integer", Description: "Maximum output lines (default: 100)"},
+						"recursive":    {Type: "boolean", Description: "Search recursively in subdirectories (default: true)"},
+						"ignore_case":  {Type: "boolean", Description: "Case-insensitive search (default: false)"},
+						"line_number":  {Type: "boolean", Description: "Show line numbers (default: true)"},
+						"per_file_cap": {Type: "integer", Description: "Max match lines per file before collapsing to '… N more in this file' marker (default: 10, 0 = unlimited)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+			{
+				Name:        "gotk_glob",
+				Description: "List files matching a shell-style glob pattern. Skips standard noise directories (node_modules, .git, vendor, __pycache__, etc.) and clusters results by directory when many paths match — far more token-efficient than the built-in Glob tool on large repos.",
+				InputSchema: inputSchema{
+					Type: "object",
+					Properties: map[string]propDef{
+						"pattern":     {Type: "string", Description: "Glob pattern. Basename match by default (*.go, test_*.py); patterns with '/' match the relative path; leading '**/' is stripped since the walk is always recursive."},
+						"path":        {Type: "string", Description: "Root directory to search (default: current directory)"},
+						"max_results": {Type: "integer", Description: "Maximum number of paths returned (default: 500). Protects against accidentally huge result sets."},
+						"cluster":     {Type: "boolean", Description: "Force directory-clustered output (default: auto — clusters when ≥30 matches)"},
 					},
 					Required: []string{"pattern"},
 				},
@@ -651,6 +675,8 @@ func handleToolCall(cfg *config.Config, fc *cache.Cache, req jsonRPCRequest) {
 		handleRead(cfg, fc, req.ID, params.Arguments)
 	case "gotk_grep":
 		handleGrep(cfg, fc, req.ID, params.Arguments)
+	case "gotk_glob":
+		handleGlob(cfg, req.ID, params.Arguments)
 	default:
 		sendError(req.ID, -32602, "Unknown tool: "+params.Name)
 	}
@@ -856,6 +882,10 @@ const defaultReadMaxLines = 200
 // defaultGrepMaxLines is the default max lines for gotk_grep.
 const defaultGrepMaxLines = 100
 
+// defaultGrepPerFileCap is the default per-file match cap for gotk_grep —
+// beyond this, lines for that file collapse into "… N more in this file".
+const defaultGrepPerFileCap = 10
+
 func handleRead(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs json.RawMessage) {
 	if len(rawArgs) > maxInputSize {
 		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
@@ -1045,6 +1075,20 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	filterDur := time.Since(filterStart)
 
+	// Per-file match cap runs outside the filter chain (and after the cache
+	// lookup) because it is a cosmetic/UX choice specific to this tool, not a
+	// general-purpose filter — leaving it in the chain would affect non-MCP
+	// grep consumers and invalidate the chain cache when tuning the cap.
+	perFileCap := defaultGrepPerFileCap
+	if args.PerFileCap > 0 {
+		perFileCap = args.PerFileCap
+	} else if args.PerFileCap < 0 {
+		perFileCap = 0 // explicit opt-out
+	}
+	if perFileCap > 0 {
+		cleaned = capGrepMatchesPerFile(cleaned, perFileCap)
+	}
+
 	normKey := NormalizeGrepKey(args.Pattern, path)
 	reReq := reReqTracker.Check("gotk_grep", command, normKey, maxLines, false)
 	reReqTracker.Record("gotk_grep", command, normKey, maxLines, false)
@@ -1069,6 +1113,54 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	if result.ExitCode == 1 {
 		text = "[no matches found]\n" + stats
 	}
+
+	sendResult(id, toolCallResult{
+		Content: []contentBlock{{Type: "text", Text: text}},
+	})
+}
+
+func handleGlob(cfg *config.Config, id json.RawMessage, rawArgs json.RawMessage) {
+	_ = cfg // glob is read-only and lives entirely inside the project root; no config knobs apply.
+
+	if len(rawArgs) > maxInputSize {
+		sendError(id, -32602, fmt.Sprintf("input too large: %d bytes exceeds %d byte limit", len(rawArgs), maxInputSize))
+		return
+	}
+
+	var args globArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		sendError(id, -32602, "Invalid arguments: "+err.Error())
+		return
+	}
+
+	if args.Pattern == "" {
+		sendError(id, -32602, "pattern is required")
+		return
+	}
+
+	root := args.Path
+	if root == "" {
+		root = "."
+	}
+	safeRoot, pathErr := validatePath(root)
+	if pathErr != "" {
+		sendError(id, -32602, pathErr)
+		return
+	}
+
+	logErr("GLOB: %q in %s", args.Pattern, safeRoot)
+
+	matches, err := runGlob(args.Pattern, safeRoot, args.MaxResults)
+	if err != nil {
+		sendError(id, -32603, "glob failed: "+err.Error())
+		return
+	}
+
+	text := formatGlobResults(matches, safeRoot, args.Cluster)
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += fmt.Sprintf("[gotk: %d paths matched]", len(matches))
 
 	sendResult(id, toolCallResult{
 		Content: []contentBlock{{Type: "text", Text: text}},

@@ -335,7 +335,9 @@ Exposed tools:
   gotk_exec     Execute any command and return cleaned output
   gotk_filter   Filter pre-existing text through the cleaning pipeline
   gotk_read     Read a file with smart truncation and noise removal
-  gotk_grep     Search file contents with grouped, compressed results
+  gotk_grep     Search file contents with grouped results + per-file match cap
+  gotk_glob     List files matching a shell-style glob, with directory clustering
+  gotk_ctx      Context search (5 modes) with built-in exclusions
 
 Setup:
   claude mcp add --transport stdio gotk -- gotk --mcp
