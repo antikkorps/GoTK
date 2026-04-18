@@ -60,7 +60,8 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filte
 	chain.AddNamed("summarize", filter.Summarize)
 
 	if cfg.Filters.Truncate {
-		chain.AddNamed("truncate", filter.TruncateWithLimit(maxLines))
+		mode := filter.ParseAutoEscalate(cfg.General.AutoEscalate)
+		chain.AddNamed("truncate", filter.TruncateWithEscalation(maxLines, mode, cfg.General.EscalateWindow))
 	}
 
 	return chain

@@ -299,6 +299,11 @@ func parseFlags(args []string) []string {
 				cfg.Profile = config.ParseProfile(args[i+1])
 				i++
 			}
+		case "--auto-escalate":
+			if i+1 < len(args) {
+				cfg.General.AutoEscalate = args[i+1]
+				i++
+			}
 		case "-c":
 			if i+1 < len(args) {
 				shellCmd = args[i+1]
