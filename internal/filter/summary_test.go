@@ -168,6 +168,64 @@ func TestSummarize(t *testing.T) {
 				"1,500 lines",
 			},
 		},
+		{
+			// Regression for #18: Jest console.log trailers (isolated `at <loc>`
+			// lines below a `console.<method>` header) must not be counted as
+			// errors, and Jest test totals should override inferred FAIL signals.
+			name: "jest passing run with many console.logs",
+			input: genLines(50, "PASS tests/foo.test.js") + func() string {
+				var b strings.Builder
+				for i := 0; i < 50; i++ {
+					b.WriteString("  console.log\n")
+					b.WriteString("    JWT AUTH succeeded for user testuser\n")
+					b.WriteString("      at log (middlewares/jwt.auth.js:71:13)\n")
+				}
+				return b.String()
+			}() + "\nTests:       1620 passed, 1620 total\n",
+			wantSummary: true,
+			wantContains: []string{
+				"errors: 0",
+				"result: PASS",
+			},
+			wantNotContain: []string{
+				"result: FAIL",
+				"→ at log (",
+			},
+		},
+		{
+			// A real Jest failure (≥2 consecutive frames below an Error banner)
+			// must still be counted.
+			name: "jest failing run with real stack trace",
+			input: genLines(100, "running tests") + `  ● Test suite failed to run
+    TypeError: Cannot read property 'foo' of undefined
+      at Object.<anonymous> (src/bar.test.js:12:5)
+      at Module._compile (internal/modules/cjs/loader.js:999:30)
+      at runTest (jest/runner.js:42:11)
+
+Tests:       1 failed, 1619 passed, 1620 total
+`,
+			wantSummary: true,
+			wantContains: []string{
+				"result: FAIL",
+			},
+			wantNotContain: []string{
+				"errors: 0",
+			},
+		},
+		{
+			// Jest totals are authoritative even when anchor words like "FAIL"
+			// appear elsewhere in the output (e.g. in test names or logs).
+			name: "jest totals override spurious FAIL tokens",
+			input: genLines(99, "should not FAIL when the input is empty") +
+				"Tests:       42 passed, 42 total\n",
+			wantSummary: true,
+			wantContains: []string{
+				"result: PASS",
+			},
+			wantNotContain: []string{
+				"result: FAIL",
+			},
+		},
 	}
 
 	for _, tt := range tests {
