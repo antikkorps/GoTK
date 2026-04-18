@@ -606,13 +606,13 @@ func runInstall(args []string) {
 		fmt.Fprintln(os.Stderr, "gotk install: missing target (claude)")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "Usage:")
-		fmt.Fprintln(os.Stderr, "  gotk install claude [--global] [--project] [--uninstall] [--status]")
+		fmt.Fprintln(os.Stderr, "  gotk install claude [--local | --project | --global] [--uninstall] [--status]")
 		os.Exit(1)
 	}
 
 	switch args[0] {
 	case "claude":
-		scope := install.ScopeProject
+		scope := install.ScopeLocal
 		uninstallFlag := false
 		statusFlag := false
 
@@ -622,6 +622,8 @@ func runInstall(args []string) {
 				scope = install.ScopeGlobal
 			case "--project":
 				scope = install.ScopeProject
+			case "--local":
+				scope = install.ScopeLocal
 			case "--uninstall":
 				uninstallFlag = true
 			case "--status":

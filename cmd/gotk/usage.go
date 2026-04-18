@@ -281,11 +281,14 @@ Usage:
 Targets:
   claude    Install GoTK as a Claude Code PreToolUse hook
 
-Flags:
-  --global      Install in ~/.claude/settings.json (all projects)
-  --project     Install in .claude/settings.json (default, current project)
-  --uninstall   Remove GoTK hook configuration
-  --status      Check if GoTK hook is installed
+Scope flags (pick one — default: --local):
+  --local       Install in .claude/settings.local.json (gitignored, personal — DEFAULT)
+  --project     Install in .claude/settings.json (shared, committed to git)
+  --global      Install in ~/.claude/settings.json (applies to all projects)
+
+Other flags:
+  --uninstall   Remove GoTK hook configuration at the chosen scope
+  --status      Check if GoTK hook is installed at the chosen scope
 
 How it works:
   GoTK registers as a PreToolUse hook for the Bash tool. When Claude Code
@@ -296,10 +299,11 @@ How it works:
   Commands already piped through gotk are not double-wrapped.
 
 Examples:
-  gotk install claude                  Install for current project
-  gotk install claude --global         Install for all projects
-  gotk install claude --status         Check installation status
-  gotk install claude --uninstall      Remove hook`,
+  gotk install claude                  Install to .claude/settings.local.json (personal)
+  gotk install claude --project        Install to .claude/settings.json (shared with team)
+  gotk install claude --global         Install to ~/.claude/settings.json (all projects)
+  gotk install claude --status         Check installation status (--local by default)
+  gotk install claude --uninstall      Remove hook (--local by default)`,
 
 		"update": `gotk update — Self-upgrade to the latest release
 

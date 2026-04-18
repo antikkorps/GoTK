@@ -9,11 +9,27 @@ import (
 )
 
 // Scope determines where the hook is installed.
+//
+// Claude Code resolves settings in three layers, from highest to lowest
+// precedence: enterprise policy → user (~/.claude/settings.json) →
+// project-shared (<project>/.claude/settings.json) → project-local
+// (<project>/.claude/settings.local.json). The project-local file is
+// expected to be gitignored and carries personal overrides.
 type Scope int
 
 const (
-	ScopeProject Scope = iota // .claude/settings.json (default)
-	ScopeGlobal               // ~/.claude/settings.json
+	// ScopeLocal writes to <project>/.claude/settings.local.json — the
+	// gitignored, personal-override file. This is the default because it
+	// is the safest: it never ends up in a teammate's diff, and it matches
+	// Claude Code's own default for interactive settings changes.
+	ScopeLocal Scope = iota
+	// ScopeProject writes to <project>/.claude/settings.json — the shared,
+	// commit-to-git variant. Use when every contributor on the project
+	// should get the hook.
+	ScopeProject
+	// ScopeGlobal writes to ~/.claude/settings.json — applied across all
+	// projects for this user.
+	ScopeGlobal
 )
 
 // ClaudeInstall configures GoTK as a Claude Code PreToolUse hook.
@@ -145,6 +161,8 @@ func settingsFilePath(scope Scope) (string, error) {
 		return filepath.Join(home, ".claude", "settings.json"), nil
 	case ScopeProject:
 		return filepath.Join(".claude", "settings.json"), nil
+	case ScopeLocal:
+		return filepath.Join(".claude", "settings.local.json"), nil
 	default:
 		return "", fmt.Errorf("unknown scope: %d", scope)
 	}
