@@ -20,8 +20,39 @@ import (
 	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
+	"github.com/antikkorps/GoTK/internal/update"
 	"github.com/antikkorps/GoTK/internal/watch"
 )
+
+// runUpdate handles the "gotk update" subcommand.
+func runUpdate(args []string) {
+	opts := update.Options{Current: Version}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--check":
+			opts.CheckOnly = true
+		case "--from-source":
+			opts.FromSource = true
+		case "--force":
+			opts.Force = true
+		case "-h", "--help":
+			printSubcommandHelp("update")
+			return
+		default:
+			fmt.Fprintf(os.Stderr, "gotk update: unknown flag %q\n", args[i])
+			os.Exit(2)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if err := update.Run(ctx, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "gotk update: %v\n", err)
+		os.Exit(1)
+	}
+}
 
 // runConfig handles the "gotk config" subcommand.
 func runConfig(args []string) {

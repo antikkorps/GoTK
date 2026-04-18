@@ -27,6 +27,7 @@ Subcommands:
   config    Show loaded config files and effective settings
   daemon    Start a filtered shell session (gotk daemon)
   install   Configure GoTK integration (gotk install claude)
+  update    Self-upgrade to the latest release (gotk update [--check])
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
@@ -299,6 +300,34 @@ Examples:
   gotk install claude --global         Install for all projects
   gotk install claude --status         Check installation status
   gotk install claude --uninstall      Remove hook`,
+
+		"update": `gotk update — Self-upgrade to the latest release
+
+Usage:
+  gotk update [--check | --from-source | --force]
+
+Flags:
+  --check         Report whether a newer release is available; do not download
+  --from-source   Skip the binary path and run "go install …@latest" directly
+  --force         Re-install even when already at the latest tag
+
+How it works:
+  The default flow queries the GitHub Releases API, picks the asset matching
+  this machine's OS and architecture, verifies its SHA256 against the
+  release's checksums.txt, extracts the gotk binary, and atomically renames
+  it over the running executable. The running process keeps executing from
+  the old in-memory image until it exits.
+
+  When no pre-built binary exists for this platform (e.g. Windows today), or
+  when --from-source is passed, gotk runs:
+    go install github.com/antikkorps/GoTK/cmd/gotk@latest
+  This places the new binary in $GOBIN or $GOPATH/bin.
+
+Examples:
+  gotk update --check              See if a newer release is available
+  gotk update                      Download + verify + replace this binary
+  gotk update --from-source        Re-install from source via "go install"
+  gotk update --force              Re-install even on the latest tag`,
 
 		"hook": `gotk hook — Claude Code hook handler (internal)
 
