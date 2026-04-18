@@ -41,11 +41,11 @@ const escalateCapMultiplier = 2
 // strings): each anchor requires a language/tool-specific prefix or structure.
 var failureAnchors = []*regexp.Regexp{
 	// Test runners
-	regexp.MustCompile(`^FAIL\s+\S`),                // "FAIL tests/foo.test.js" (Jest, go test file prefix)
-	regexp.MustCompile(`^---\s+FAIL:`),              // go test: "--- FAIL: TestFoo"
-	regexp.MustCompile(`^FAILED\b`),                 // generic "FAILED"
-	regexp.MustCompile(`^\s*●\s`),                   // Jest failure marker
-	regexp.MustCompile(`\b[1-9]\d*\s+failed\b`),     // "N failed" with N > 0 (jest/pytest/cargo totals)
+	regexp.MustCompile(`^FAIL\s+\S`),                 // "FAIL tests/foo.test.js" (Jest, go test file prefix)
+	regexp.MustCompile(`^---\s+FAIL:`),               // go test: "--- FAIL: TestFoo"
+	regexp.MustCompile(`^FAILED\b`),                  // generic "FAILED"
+	regexp.MustCompile(`^\s*●\s`),                    // Jest failure marker
+	regexp.MustCompile(`\b[1-9]\d*\s+failed\b`),      // "N failed" with N > 0 (jest/pytest/cargo totals)
 	regexp.MustCompile(`(?i)^FAILED\s*\([a-z]+=\d+`), // Python unittest: "FAILED (failures=3)"
 
 	// Exceptions / runtime errors
@@ -56,11 +56,11 @@ var failureAnchors = []*regexp.Regexp{
 	regexp.MustCompile(`^Traceback \(most recent call`),
 
 	// Compilers / build tools
-	regexp.MustCompile(`(?i)\berror\s+TS\d+`),    // TypeScript (tsc)
-	regexp.MustCompile(`\berror\[E\d+\]`),        // Rust
-	regexp.MustCompile(`^BUILD FAILED`),          // Gradle, Maven
-	regexp.MustCompile(`^\s*error:`),             // Go/cc/clang generic
-	regexp.MustCompile(`^##\[error\]`),           // GitHub Actions error annotation
+	regexp.MustCompile(`(?i)\berror\s+TS\d+`), // TypeScript (tsc)
+	regexp.MustCompile(`\berror\[E\d+\]`),     // Rust
+	regexp.MustCompile(`^BUILD FAILED`),       // Gradle, Maven
+	regexp.MustCompile(`^\s*error:`),          // Go/cc/clang generic
+	regexp.MustCompile(`^##\[error\]`),        // GitHub Actions error annotation
 }
 
 // ParseAutoEscalate converts a string to an AutoEscalateMode, returning

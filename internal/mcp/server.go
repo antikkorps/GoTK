@@ -396,13 +396,13 @@ type readArgs struct {
 }
 
 type grepArgs struct {
-	Pattern     string `json:"pattern"`
-	Path        string `json:"path"`
-	MaxLines    int    `json:"max_lines"`
-	Recursive   bool   `json:"recursive"`
-	IgnoreCase  bool   `json:"ignore_case"`
-	LineNumber  bool   `json:"line_number"`
-	PerFileCap  int    `json:"per_file_cap"`
+	Pattern    string `json:"pattern"`
+	Path       string `json:"path"`
+	MaxLines   int    `json:"max_lines"`
+	Recursive  bool   `json:"recursive"`
+	IgnoreCase bool   `json:"ignore_case"`
+	LineNumber bool   `json:"line_number"`
+	PerFileCap int    `json:"per_file_cap"`
 }
 
 type globArgs struct {
