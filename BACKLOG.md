@@ -424,6 +424,25 @@
 
 ---
 
+## Sprint 11 — Live-Install Feedback (2026-04-17 → 2026-04-18)
+
+> Three issues raised after a live install on a real Node.js project with a 1620-test Jest suite. Each one addressed a concrete failure mode not covered by synthetic fixtures.
+
+### Build
+
+- [x] Fix false-positive `FAIL` on Jest `console.log` trailers (#18, PR #21) — isolated stack frames and trailers below `console.<method>` headers no longer inflate the error count; authoritative test-runner result markers (Jest / pytest / go test / cargo) override heuristic anchor matching.
+- [x] Auto-escalate truncation to preserve failure context (#20, PR #22) — new `--auto-escalate` flag with `off|hint|window|conservative` modes; `window` (default) keeps head + tail + ±N lines around every detected failure anchor so a mid-run failure never hides in the dropped middle.
+- [x] MCP coverage for `Read`/`Grep`/`Glob`-style operations (#19, PR #23) — new `gotk_glob` tool with directory clustering at ≥30 matches; `gotk_grep` now caps matches per file with a `… N more in this file` marker.
+
+### Deliver
+
+- [x] Unit tests for each fix (3 + 10 + 10)
+- [x] `docs/quickstart.md` updated with `--auto-escalate` examples
+- [x] `gotk --help` and MCP help text updated with new tools and flags
+- [x] Tag v1.4.0 (after final review)
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
@@ -432,6 +451,7 @@
 - [x] Per-LLM profiles (Claude, GPT, Gemini)
 - [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
+- [ ] `gotk update` — self-upgrade command (hybrid: GitHub Releases self-replace with `go install @latest` fallback). Nécessite publication de binaires multi-plateformes via GitHub Actions. `gotk update --check` pour comparer la version sans télécharger.
 
 ---
 

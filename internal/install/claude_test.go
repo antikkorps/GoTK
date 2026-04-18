@@ -141,6 +141,16 @@ func TestFindGotkPath(t *testing.T) {
 	}
 }
 
+func TestSettingsFilePath_Local(t *testing.T) {
+	path, err := settingsFilePath(ScopeLocal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != filepath.Join(".claude", "settings.local.json") {
+		t.Errorf("expected .claude/settings.local.json, got %s", path)
+	}
+}
+
 func TestSettingsFilePath_Project(t *testing.T) {
 	path, err := settingsFilePath(ScopeProject)
 	if err != nil {

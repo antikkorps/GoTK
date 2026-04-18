@@ -178,6 +178,9 @@ func main() {
 	case "install":
 		runInstall(args[1:])
 		os.Exit(0)
+	case "update":
+		runUpdate(args[1:])
+		os.Exit(0)
 	case "exec":
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "gotk exec: missing command")

@@ -22,6 +22,17 @@ gotk --version
 echo "test output with noise" | gotk --stats
 ```
 
+## Staying current
+
+```bash
+gotk update --check    # Is a newer release out?
+gotk update            # Download, verify SHA256, replace this binary
+```
+
+The default flow uses the GitHub Releases artifacts matching your OS/arch.
+On platforms with no pre-built binary (e.g. Windows today), or with
+`--from-source`, `gotk update` falls back to `go install …@latest`.
+
 ---
 
 ## Claude Code

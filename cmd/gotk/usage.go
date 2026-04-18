@@ -27,6 +27,7 @@ Subcommands:
   config    Show loaded config files and effective settings
   daemon    Start a filtered shell session (gotk daemon)
   install   Configure GoTK integration (gotk install claude)
+  update    Self-upgrade to the latest release (gotk update [--check])
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
@@ -280,11 +281,14 @@ Usage:
 Targets:
   claude    Install GoTK as a Claude Code PreToolUse hook
 
-Flags:
-  --global      Install in ~/.claude/settings.json (all projects)
-  --project     Install in .claude/settings.json (default, current project)
-  --uninstall   Remove GoTK hook configuration
-  --status      Check if GoTK hook is installed
+Scope flags (pick one — default: --local):
+  --local       Install in .claude/settings.local.json (gitignored, personal — DEFAULT)
+  --project     Install in .claude/settings.json (shared, committed to git)
+  --global      Install in ~/.claude/settings.json (applies to all projects)
+
+Other flags:
+  --uninstall   Remove GoTK hook configuration at the chosen scope
+  --status      Check if GoTK hook is installed at the chosen scope
 
 How it works:
   GoTK registers as a PreToolUse hook for the Bash tool. When Claude Code
@@ -295,10 +299,39 @@ How it works:
   Commands already piped through gotk are not double-wrapped.
 
 Examples:
-  gotk install claude                  Install for current project
-  gotk install claude --global         Install for all projects
-  gotk install claude --status         Check installation status
-  gotk install claude --uninstall      Remove hook`,
+  gotk install claude                  Install to .claude/settings.local.json (personal)
+  gotk install claude --project        Install to .claude/settings.json (shared with team)
+  gotk install claude --global         Install to ~/.claude/settings.json (all projects)
+  gotk install claude --status         Check installation status (--local by default)
+  gotk install claude --uninstall      Remove hook (--local by default)`,
+
+		"update": `gotk update — Self-upgrade to the latest release
+
+Usage:
+  gotk update [--check | --from-source | --force]
+
+Flags:
+  --check         Report whether a newer release is available; do not download
+  --from-source   Skip the binary path and run "go install …@latest" directly
+  --force         Re-install even when already at the latest tag
+
+How it works:
+  The default flow queries the GitHub Releases API, picks the asset matching
+  this machine's OS and architecture, verifies its SHA256 against the
+  release's checksums.txt, extracts the gotk binary, and atomically renames
+  it over the running executable. The running process keeps executing from
+  the old in-memory image until it exits.
+
+  When no pre-built binary exists for this platform (e.g. Windows today), or
+  when --from-source is passed, gotk runs:
+    go install github.com/antikkorps/GoTK/cmd/gotk@latest
+  This places the new binary in $GOBIN or $GOPATH/bin.
+
+Examples:
+  gotk update --check              See if a newer release is available
+  gotk update                      Download + verify + replace this binary
+  gotk update --from-source        Re-install from source via "go install"
+  gotk update --force              Re-install even on the latest tag`,
 
 		"hook": `gotk hook — Claude Code hook handler (internal)
 
