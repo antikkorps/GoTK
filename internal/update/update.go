@@ -103,7 +103,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	if opts.FromSource {
-		fmt.Fprintln(opts.Out, "[gotk update] using go install fallback (--from-source)")
+		fmt.Fprintln(opts.Out, "[gotk update] using go install fallback (--from-source)") //nolint:errcheck
 		return goInstallLatest(ctx, opts.Out)
 	}
 
@@ -116,7 +116,7 @@ func Run(ctx context.Context, opts Options) error {
 	current := strings.TrimPrefix(opts.Current, "v")
 
 	if opts.Current == devVersionMarker || opts.Current == "" {
-		fmt.Fprintf(opts.Out, "[gotk update] current version is a development build; latest release is %s\n", rel.TagName)
+		fmt.Fprintf(opts.Out, "[gotk update] current version is a development build; latest release is %s\n", rel.TagName) //nolint:errcheck
 		if opts.CheckOnly {
 			return nil
 		}
@@ -124,16 +124,16 @@ func Run(ctx context.Context, opts Options) error {
 	} else {
 		cmp, cerr := Compare(current, latest)
 		if cerr != nil {
-			fmt.Fprintf(opts.Out, "[gotk update] WARN: cannot parse version %q (%v); assuming update is needed\n", opts.Current, cerr)
+			fmt.Fprintf(opts.Out, "[gotk update] WARN: cannot parse version %q (%v); assuming update is needed\n", opts.Current, cerr) //nolint:errcheck
 			cmp = -1
 		}
 		switch {
 		case cmp >= 0 && !opts.Force:
-			fmt.Fprintf(opts.Out, "[gotk update] already up to date (current %s, latest %s)\n", opts.Current, rel.TagName)
+			fmt.Fprintf(opts.Out, "[gotk update] already up to date (current %s, latest %s)\n", opts.Current, rel.TagName) //nolint:errcheck
 			return nil
 		case cmp < 0:
-			fmt.Fprintf(opts.Out, "[gotk update] new version available: %s → %s\n", opts.Current, rel.TagName)
-			fmt.Fprintf(opts.Out, "  release notes: %s\n", rel.HTMLURL)
+			fmt.Fprintf(opts.Out, "[gotk update] new version available: %s → %s\n", opts.Current, rel.TagName) //nolint:errcheck
+			fmt.Fprintf(opts.Out, "  release notes: %s\n", rel.HTMLURL)                                        //nolint:errcheck
 		}
 	}
 
@@ -143,18 +143,18 @@ func Run(ctx context.Context, opts Options) error {
 
 	asset, ok := PickAsset(rel.Assets, latest, goos, goarch)
 	if !ok {
-		fmt.Fprintf(opts.Out, "[gotk update] no pre-built binary for %s/%s in %s — falling back to `go install`\n",
+		fmt.Fprintf(opts.Out, "[gotk update] no pre-built binary for %s/%s in %s — falling back to `go install`\n", //nolint:errcheck
 			goos, goarch, rel.TagName)
 		return goInstallLatest(ctx, opts.Out)
 	}
 
 	checksum, cerr := fetchChecksum(ctx, rel.Assets, asset.Name, opts.AssetClient)
 	if cerr != nil {
-		fmt.Fprintf(opts.Out, "[gotk update] WARN: %v — falling back to `go install`\n", cerr)
+		fmt.Fprintf(opts.Out, "[gotk update] WARN: %v — falling back to `go install`\n", cerr) //nolint:errcheck
 		return goInstallLatest(ctx, opts.Out)
 	}
 
-	fmt.Fprintf(opts.Out, "[gotk update] downloading %s (%s)\n", asset.Name, humanBytes(asset.Size))
+	fmt.Fprintf(opts.Out, "[gotk update] downloading %s (%s)\n", asset.Name, humanBytes(asset.Size)) //nolint:errcheck
 	tmpBin, err := downloadAndExtract(ctx, asset, checksum, opts.AssetClient)
 	if err != nil {
 		return fmt.Errorf("download %s: %w", asset.Name, err)
@@ -174,7 +174,7 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("replace %s: %w", exePath, err)
 	}
 
-	fmt.Fprintf(opts.Out, "[gotk update] installed %s to %s\n", rel.TagName, exePath)
+	fmt.Fprintf(opts.Out, "[gotk update] installed %s to %s\n", rel.TagName, exePath) //nolint:errcheck
 	return nil
 }
 
@@ -418,7 +418,7 @@ func goInstallLatest(ctx context.Context, out io.Writer) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go install failed: %w", err)
 	}
-	fmt.Fprintln(out, "[gotk update] installed via go install (binary now lives in $GOBIN or $GOPATH/bin)")
+	fmt.Fprintln(out, "[gotk update] installed via go install (binary now lives in $GOBIN or $GOPATH/bin)") //nolint:errcheck
 	return nil
 }
 
