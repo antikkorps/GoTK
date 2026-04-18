@@ -45,6 +45,7 @@ Flags:
   --measure            Enable token consumption logging
   --learn              Passively observe output for pattern learning
   --profile PROFILE    LLM profile: claude, gpt, gemini
+  --auto-escalate MODE Preserve failure context when truncating: off|hint|window|conservative (default: window)
   -q, --quiet          Suppress informational messages on stderr
   --debug              Show diagnostic output (config, detection, timing)
   --shell              Start proxy shell mode

@@ -67,10 +67,12 @@ type SecurityConfig struct {
 
 // GeneralConfig holds general settings.
 type GeneralConfig struct {
-	MaxLines  int
-	Stats     bool
-	ShellMode bool
-	Mode      FilterMode
+	MaxLines       int
+	Stats          bool
+	ShellMode      bool
+	Mode           FilterMode
+	AutoEscalate   string // off|hint|window|conservative — see filter.AutoEscalateMode
+	EscalateWindow int    // lines kept before/after each failure anchor (0 = default)
 }
 
 // RulesConfig holds whitelist/blacklist regex patterns.
@@ -96,9 +98,11 @@ type FiltersConfig struct {
 func Default() *Config {
 	return &Config{
 		General: GeneralConfig{
-			MaxLines:  50,
-			Stats:     false,
-			ShellMode: false,
+			MaxLines:       50,
+			Stats:          false,
+			ShellMode:      false,
+			AutoEscalate:   "window",
+			EscalateWindow: 10,
 		},
 		Filters: FiltersConfig{
 			StripANSI:           true,
@@ -246,6 +250,12 @@ func applyTOML(cfg *Config, data string) {
 				cfg.General.ShellMode = parseBool(val)
 			case "mode":
 				cfg.General.Mode = ParseMode(val)
+			case "auto_escalate":
+				cfg.General.AutoEscalate = val
+			case "escalate_window":
+				if n, err := strconv.Atoi(val); err == nil {
+					cfg.General.EscalateWindow = n
+				}
 			}
 		case "filters":
 			b := parseBool(val)
@@ -478,6 +488,12 @@ func (c *Config) Show() string {
 		mode = "balanced"
 	}
 	b.WriteString("  mode = " + mode + "\n")
+	escalate := c.General.AutoEscalate
+	if escalate == "" {
+		escalate = "window"
+	}
+	b.WriteString("  auto_escalate = " + escalate + "\n")
+	b.WriteString("  escalate_window = " + strconv.Itoa(c.General.EscalateWindow) + "\n")
 
 	b.WriteString("\n[filters]\n")
 	b.WriteString("  strip_ansi = " + formatBool(c.Filters.StripANSI) + "\n")

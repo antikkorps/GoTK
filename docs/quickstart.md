@@ -168,6 +168,21 @@ gotk --stream make build
 GOTK_PASSTHROUGH=1 your-command
 ```
 
+### Preserve failure context on long output
+
+By default, when truncation kicks in on a failing run, GoTK keeps head + tail +
+a window of ±10 lines around each detected failure anchor (Jest `●`, go test
+`--- FAIL`, panics, stack traces, `error TS…`, `error[E…]`, etc.). This
+prevents the dangerous case where the failure sits in the dropped middle and
+an LLM only sees a passing-looking summary.
+
+```bash
+gotk --auto-escalate window   go test ./...   # default: head+tail+failure windows
+gotk --auto-escalate conservative go test ./... # keep full output when failure detected
+gotk --auto-escalate hint     go test ./...   # head+tail + footer hint
+gotk --auto-escalate off      go test ./...   # legacy behaviour (may drop failures)
+```
+
 ## Watch Mode
 
 Re-run commands on file changes with filtered output — great for TDD loops:
