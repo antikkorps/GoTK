@@ -642,6 +642,53 @@ func TestE2E_MaxLines_One(t *testing.T) {
 	}
 }
 
+// runMerged executes gotk and returns a single buffer that concatenates
+// child stdout and stderr in the order they were written (os/exec preserves
+// the order when both descriptors target the same writer). This reproduces
+// the user's `2>&1` pipeline at the shell level so we can assert the
+// relative ordering of lines across both streams.
+func runMerged(t *testing.T, bin string, args ...string) (string, int) {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
+	var buf strings.Builder
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err := cmd.Run()
+	code := 0
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		code = exitErr.ExitCode()
+	} else if err != nil {
+		t.Fatalf("failed to run gotk: %v", err)
+	}
+	return buf.String(), code
+}
+
+// Regression for issue #27: when stdout and stderr are merged (e.g. `2>&1`
+// in the user's shell), the `[gotk] X -> Y bytes` stats line must land at
+// the very end of the stream — after any passthrough stderr emitted by the
+// wrapped command. Earlier builds emitted stats before stderr passthrough,
+// causing the marker to appear in the middle of the merged output.
+func TestE2E_StatsLandsAtEndOfMergedStream(t *testing.T) {
+	bin := binary(t)
+	// The child writes to stdout, then to stderr, then exits. Under a merged
+	// stream the observed order should be: stdout, stderr, [gotk] stats.
+	merged, code := runMerged(t, bin, "-s", "sh", "-c",
+		"echo child-stdout; echo child-stderr-final >&2")
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; output:\n%s", code, merged)
+	}
+	stdoutIdx := strings.Index(merged, "child-stdout")
+	stderrIdx := strings.Index(merged, "child-stderr-final")
+	statsIdx := strings.Index(merged, "[gotk]")
+	if stdoutIdx < 0 || stderrIdx < 0 || statsIdx < 0 {
+		t.Fatalf("expected all three markers in merged output, got:\n%s", merged)
+	}
+	if !(stdoutIdx < stderrIdx && stderrIdx < statsIdx) {
+		t.Errorf("stats must land after stderr passthrough (stdout=%d, stderr=%d, stats=%d):\n%s",
+			stdoutIdx, stderrIdx, statsIdx, merged)
+	}
+}
+
 func TestE2E_MaxLines_VeryLarge(t *testing.T) {
 	bin := binary(t)
 	// With a very large --max-lines value, no truncation should occur for small input

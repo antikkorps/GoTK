@@ -137,7 +137,8 @@ func main() {
 		logDebug("filter chain (%d filters): %v\n", chain.Len(), chain.Names())
 		cleaned := chain.Apply(raw)
 		logMeasurement("pipe", cmdType.String(), raw, cleaned, time.Since(start), false)
-		printWithStats(raw, cleaned)
+		fmt.Print(cleaned)
+		emitStats(raw, cleaned)
 		return
 	}
 
@@ -246,13 +247,14 @@ func main() {
 		observeForLearn(strings.Join(cmdArgs, " "), result.Stdout)
 	}
 
-	// Output
-	printWithStats(result.Stdout, cleaned)
-
-	// Pass through stderr unmodified
+	// Output — order matters when stdout/stderr are merged with 2>&1:
+	// cleaned stdout first, then child stderr, then the [gotk] stats line.
+	// That way the stats marker always lands at the very end of the merged stream.
+	fmt.Print(cleaned)
 	if result.Stderr != "" {
 		fmt.Fprint(os.Stderr, result.Stderr)
 	}
+	emitStats(result.Stdout, cleaned)
 
 	os.Exit(result.ExitCode)
 }
@@ -321,20 +323,22 @@ func parseFlags(args []string) []string {
 	return remaining
 }
 
-func printWithStats(raw, cleaned string) {
-	fmt.Print(cleaned)
-
-	if showStats {
-		rawBytes := len(raw)
-		cleanBytes := len(cleaned)
-		saved := rawBytes - cleanBytes
-		pct := 0
-		if rawBytes > 0 {
-			pct = saved * 100 / rawBytes
-		}
-		logInfo("\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
-			rawBytes, cleanBytes, pct, saved)
+// emitStats writes the [gotk] reduction summary to stderr when --stats is set.
+// Callers should print the filtered output and any passthrough stderr BEFORE
+// calling this so the marker lands at the end of the merged stream under 2>&1.
+func emitStats(raw, cleaned string) {
+	if !showStats {
+		return
 	}
+	rawBytes := len(raw)
+	cleanBytes := len(cleaned)
+	saved := rawBytes - cleanBytes
+	pct := 0
+	if rawBytes > 0 {
+		pct = saved * 100 / rawBytes
+	}
+	logInfo("\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
+		rawBytes, cleanBytes, pct, saved)
 }
 
 // isTerminal checks if a file is connected to a terminal.
