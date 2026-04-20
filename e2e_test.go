@@ -769,6 +769,117 @@ RAW
 	}
 }
 
+// TestE2E_UninstallClaudeSymmetric covers `gotk uninstall claude` as a
+// symmetric alias for `gotk install claude --uninstall`. The user can now
+// write uninstall/install as parallel verbs instead of a flag toggle.
+func TestE2E_UninstallClaudeSymmetric(t *testing.T) {
+	bin := binary(t)
+	project := t.TempDir()
+	oldCwd, _ := os.Getwd()
+	if err := os.Chdir(project); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldCwd) //nolint:errcheck
+
+	// install → settings.local.json gets a GoTK hook
+	_, _, code := run(t, bin, "", "install", "claude", "--local")
+	if code != 0 {
+		t.Fatalf("install exit = %d", code)
+	}
+	settingsPath := filepath.Join(project, ".claude", "settings.local.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("settings file not created: %v", err)
+	}
+	if !strings.Contains(string(data), "gotk hook") {
+		t.Fatalf("hook not installed, got: %s", data)
+	}
+
+	// uninstall claude → hook removed, file remains (possibly empty JSON)
+	_, _, code = run(t, bin, "", "uninstall", "claude", "--local")
+	if code != 0 {
+		t.Fatalf("uninstall exit = %d", code)
+	}
+	data, err = os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("settings file removed by uninstall: %v", err)
+	}
+	if strings.Contains(string(data), "gotk hook") {
+		t.Errorf("hook still present after uninstall: %s", data)
+	}
+}
+
+// TestE2E_UninstallDryRun runs `gotk uninstall --dry-run` and verifies
+// (a) it prints a plan and (b) it makes no filesystem changes.
+func TestE2E_UninstallDryRun(t *testing.T) {
+	bin := binary(t)
+	project := t.TempDir()
+	oldCwd, _ := os.Getwd()
+	if err := os.Chdir(project); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldCwd) //nolint:errcheck
+
+	// Fake home so we don't touch the user's real config.
+	home := t.TempDir()
+	cfg := filepath.Join(home, ".config", "gotk", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte("# test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(bin, "uninstall", "--dry-run")
+	cmd.Env = append(os.Environ(), "HOME="+home)
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("dry-run errored: %v (stderr=%s)", err, stderr.String())
+	}
+
+	combined := stdout.String() + stderr.String()
+	for _, want := range []string{"This will remove GoTK", "Binary", "dry-run"} {
+		if !strings.Contains(combined, want) {
+			t.Errorf("dry-run output missing %q, got:\n%s", want, combined)
+		}
+	}
+	// config file must still exist
+	if _, err := os.Stat(cfg); err != nil {
+		t.Errorf("dry-run must not touch files, stat err: %v", err)
+	}
+}
+
+// TestE2E_UninstallYesRemovesConfig runs `gotk uninstall --yes` against a
+// fake home populated with a config file and verifies the file (and its
+// now-empty parent directory) are removed without prompting.
+func TestE2E_UninstallYesRemovesConfig(t *testing.T) {
+	bin := binary(t)
+	home := t.TempDir()
+	cfg := filepath.Join(home, ".config", "gotk", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte("# test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(bin, "uninstall", "--yes")
+	cmd.Env = append(os.Environ(), "HOME="+home)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("uninstall --yes errored: %v (stderr=%s)", err, stderr.String())
+	}
+	if _, err := os.Stat(cfg); !os.IsNotExist(err) {
+		t.Errorf("config.toml should be removed, stat err: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "rm ") {
+		t.Errorf("expected an `rm <binary>` hint in output, got:\n%s", stderr.String())
+	}
+}
+
 func TestE2E_MaxLines_VeryLarge(t *testing.T) {
 	bin := binary(t)
 	// With a very large --max-lines value, no truncation should occur for small input

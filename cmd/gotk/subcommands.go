@@ -655,3 +655,92 @@ func runInstall(args []string) {
 		os.Exit(1)
 	}
 }
+
+// runUninstall handles the "gotk uninstall" subcommand.
+//
+// Two shapes:
+//   - "gotk uninstall claude [--local|--project|--global]" — symmetric alias
+//     for "gotk install claude --uninstall". Removes ONLY the Claude Code
+//     hook from the given scope (default: local).
+//   - "gotk uninstall" (no target) — full cleanup: remove Claude hooks from
+//     every scope, delete user-level GoTK config/data, and print the exact
+//     `rm` command for the binary itself (gotk can't delete its own running
+//     executable reliably).
+func runUninstall(args []string) {
+	if len(args) > 0 && args[0] == "claude" {
+		runUninstallClaude(args[1:])
+		return
+	}
+
+	yes := false
+	dryRun := false
+	for _, a := range args {
+		switch a {
+		case "--yes", "-y":
+			yes = true
+		case "--dry-run":
+			dryRun = true
+		default:
+			fmt.Fprintf(os.Stderr, "gotk uninstall: unknown flag %q\n", a)
+			os.Exit(1)
+		}
+	}
+
+	plan, err := install.PlanUninstall()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gotk uninstall: %v\n", err)
+		os.Exit(1)
+	}
+
+	install.PrintPlan(os.Stderr, plan)
+
+	if dryRun {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "(dry-run: no changes made)")
+		return
+	}
+
+	if !yes {
+		fmt.Fprintln(os.Stderr)
+		ok, err := install.Confirm(os.Stdin, os.Stderr, "Proceed?")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotk uninstall: reading confirmation: %v\n", err)
+			os.Exit(1)
+		}
+		if !ok {
+			fmt.Fprintln(os.Stderr, "Aborted.")
+			return
+		}
+	}
+
+	fmt.Fprintln(os.Stderr)
+	res := install.ExecuteUninstall(plan)
+	install.PrintResult(os.Stderr, plan, res)
+
+	if len(res.Errors) > 0 {
+		os.Exit(1)
+	}
+}
+
+// runUninstallClaude is the symmetric form: `gotk uninstall claude` mirrors
+// `gotk install claude --uninstall`. Accepts the same scope flags.
+func runUninstallClaude(args []string) {
+	scope := install.ScopeLocal
+	for _, a := range args {
+		switch a {
+		case "--global":
+			scope = install.ScopeGlobal
+		case "--project":
+			scope = install.ScopeProject
+		case "--local":
+			scope = install.ScopeLocal
+		default:
+			fmt.Fprintf(os.Stderr, "gotk uninstall claude: unknown flag %q\n", a)
+			os.Exit(1)
+		}
+	}
+	if err := install.ClaudeUninstall(scope); err != nil {
+		fmt.Fprintf(os.Stderr, "gotk uninstall claude: %v\n", err)
+		os.Exit(1)
+	}
+}

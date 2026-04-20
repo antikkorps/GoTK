@@ -475,15 +475,16 @@
 
 ### Build
 
-- [ ] `gotk uninstall claude` — symmetric alias for the existing `gotk install claude --uninstall`. Removes only the Claude Code hook from `.claude/settings.json` (or `~/.claude/settings.json` with `--global`); gotk binary stays installed. Keep the old `--uninstall` flag working for one release, then deprecate.
-- [ ] #29 — `gotk uninstall` (no args): full removal. Detect and remove the binary from common install locations (`/usr/local/bin`, `$GOBIN`, `$GOPATH/bin`, Homebrew prefix if present); remove any active integrations it finds (Claude hook, daemon shell init lines); optionally purge configs under `~/.config/gotk/` with a confirmation prompt. Refuse to self-delete while running — print the exact `rm` command and exit, or re-exec a detached cleanup.
-- [ ] #31 — Generalize `gotk install <agent>` for multiple agents. Start with one additional agent (Cursor or Continue.dev — whichever has the cleanest hook surface) to validate the abstraction. Scopes `--global` / `--project`, flags `--status` / `--uninstall`. Not scope-creep into `gotk install all` until the pattern is proven on 2+ agents.
+- [x] `gotk uninstall claude` — symmetric alias for `gotk install claude --uninstall`. Accepts the same `--local` / `--project` / `--global` scope flags. The old `--uninstall` flag still works.
+- [x] #29 — `gotk uninstall` (no target): plans a full cleanup, prints which Claude hook scopes have a gotk hook + which config files exist, prompts for `[y/N]`. On confirm removes every present hook, deletes the config files, and removes any now-empty GoTK config/data directories. Refuses to self-delete the binary while running — prints the exact `rm` command (with `sudo` hint when the parent dir isn't writable). `--dry-run` and `--yes` / `-y` flags.
+- [ ] #31 — Generalize `gotk install <agent>` for multiple agents. Deferred until a concrete second agent is requested — no point abstracting ahead of demand.
 
 ### Deliver
 
-- [ ] Unit tests for binary discovery, symlink handling, and the config-purge prompt.
-- [ ] Update `docs/quickstart.md` and README install/uninstall section.
-- [ ] Help text for `gotk uninstall` and `gotk uninstall <agent>`.
+- [x] Unit tests: 5 tests covering plan detection, selective hook removal, config file/dir cleanup, non-empty-dir preservation, and the `Confirm` prompt (8 subcases).
+- [x] E2E tests: `TestE2E_UninstallClaudeSymmetric`, `TestE2E_UninstallDryRun`, `TestE2E_UninstallYesRemovesConfig`.
+- [x] Updated `docs/quickstart.md` with the new `gotk uninstall` flows.
+- [x] Help text via `gotk help uninstall`.
 
 ---
 

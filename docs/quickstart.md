@@ -49,8 +49,21 @@ is automatically filtered — no CLAUDE.md instructions needed, no MCP overhead.
 ```bash
 gotk install claude --global     # All projects (~/. claude/settings.json)
 gotk install claude --status     # Check if installed
-gotk install claude --uninstall  # Remove
+gotk uninstall claude            # Remove (symmetric alias for --uninstall)
+gotk uninstall claude --global   # Remove the global-scope hook specifically
 ```
+
+To wipe GoTK entirely from the system:
+
+```bash
+gotk uninstall --dry-run         # Preview what would be removed
+gotk uninstall                   # Interactive cleanup with [y/N] prompt
+gotk uninstall --yes             # Same, non-interactive
+```
+
+This removes every Claude hook scope, the GoTK config dir, and the measurement
+log. The binary itself cannot delete itself while running, so the command
+prints the exact `rm` invocation for the user to run afterwards.
 
 > **Alternatives:** CLAUDE.md instructions (~95% reliable) or MCP mode (higher
 > token overhead). See [integrations.md](integrations.md) for all options.
