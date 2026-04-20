@@ -451,7 +451,9 @@
 - [x] Per-LLM profiles (Claude, GPT, Gemini)
 - [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
-- [ ] `gotk update` — self-upgrade command (hybrid: GitHub Releases self-replace with `go install @latest` fallback). Nécessite publication de binaires multi-plateformes via GitHub Actions. `gotk update --check` pour comparer la version sans télécharger.
+- [x] `gotk update` — self-upgrade command (shipped in v1.4.0). Hybrid: GitHub Releases self-replace with `go install @latest` fallback. `--check` for check-only, `--force`, `--from-source`.
+- [ ] CI maintenance: bump GitHub Actions off Node.js 20 (deprecated — forced to Node.js 24 on 2026-06-02, removed 2026-09-16). Affects `actions/checkout@v4`, `actions/setup-go@v5`, `goreleaser/goreleaser-action@v6` in `release.yml` and `ci.yml`. Check for newer majors or set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` as a short-term opt-in.
+- [ ] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum" on the release job because the project has zero external deps. Either add `cache: false` to the step or suppress by creating an empty `go.sum` at checkout. Non-blocking — just noise in the run log.
 
 ---
 
