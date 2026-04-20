@@ -81,14 +81,8 @@ func TestExecuteUninstall_RemovesOnlyPresent(t *testing.T) {
 	}
 	hookCmd := exe + " hook"
 
-	// Only install in ScopeLocal; the other two scopes should be Absent
-	// and ExecuteUninstall should skip them cleanly.
-	localPath, err := settingsFilePath(ScopeLocal)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Run the test from a temp cwd so the local settings file lives somewhere
-	// we control.
+	// Run the test from a temp cwd so settingsFilePath(ScopeLocal) resolves
+	// to a directory we control (it's a CWD-relative path).
 	oldCwd, _ := os.Getwd()
 	project := t.TempDir()
 	if err := os.Chdir(project); err != nil {
@@ -96,7 +90,9 @@ func TestExecuteUninstall_RemovesOnlyPresent(t *testing.T) {
 	}
 	defer os.Chdir(oldCwd) //nolint:errcheck
 
-	localPath, err = settingsFilePath(ScopeLocal)
+	// Only install in ScopeLocal; the other two scopes should be Absent
+	// and ExecuteUninstall should skip them cleanly.
+	localPath, err := settingsFilePath(ScopeLocal)
 	if err != nil {
 		t.Fatal(err)
 	}

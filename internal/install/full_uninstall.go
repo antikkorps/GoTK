@@ -143,13 +143,26 @@ func ExecuteUninstall(plan *UninstallPlan) *UninstallResult {
 	return res
 }
 
+// line prints an unformatted line + newline to w.
+// Errors are intentionally discarded: these helpers render UI to stderr
+// where there's nothing meaningful to recover from a write failure.
+func line(w io.Writer, args ...any) {
+	_, _ = fmt.Fprintln(w, args...)
+}
+
+// linef prints a formatted line to w (no trailing newline unless the
+// caller puts one in the format string).
+func linef(w io.Writer, format string, args ...any) {
+	_, _ = fmt.Fprintf(w, format, args...)
+}
+
 // PrintPlan writes a human-readable summary of what the plan will do.
 // It reports absent Claude hooks so the user can see we checked.
 func PrintPlan(w io.Writer, plan *UninstallPlan) {
-	fmt.Fprintln(w, "This will remove GoTK integrations from your system:")
-	fmt.Fprintln(w)
+	line(w, "This will remove GoTK integrations from your system:")
+	line(w)
 
-	fmt.Fprintln(w, "  Claude Code hooks:")
+	line(w, "  Claude Code hooks:")
 	for _, h := range plan.ClaudeHooks {
 		mark := "[ ]"
 		note := "(no hook found)"
@@ -158,21 +171,21 @@ func PrintPlan(w io.Writer, plan *UninstallPlan) {
 			note = ""
 		}
 		label := scopeLabel(h.Scope)
-		fmt.Fprintf(w, "    %s %s  %s %s\n", mark, label, h.Path, note)
+		linef(w, "    %s %s  %s %s\n", mark, label, h.Path, note)
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  GoTK config / data files:")
+	line(w)
+	line(w, "  GoTK config / data files:")
 	if len(plan.ConfigFiles) == 0 {
-		fmt.Fprintln(w, "    (none found)")
+		line(w, "    (none found)")
 	}
 	for _, f := range plan.ConfigFiles {
-		fmt.Fprintf(w, "    [x] %s\n", f)
+		linef(w, "    [x] %s\n", f)
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  Binary (NOT removed automatically — gotk can't delete itself while running):")
-	fmt.Fprintf(w, "    %s\n", plan.BinaryPath)
+	line(w)
+	line(w, "  Binary (NOT removed automatically — gotk can't delete itself while running):")
+	linef(w, "    %s\n", plan.BinaryPath)
 }
 
 // PrintResult writes a summary of what ExecuteUninstall actually did.
@@ -180,21 +193,21 @@ func PrintPlan(w io.Writer, plan *UninstallPlan) {
 // binary, so nothing is left implicit.
 func PrintResult(w io.Writer, plan *UninstallPlan, res *UninstallResult) {
 	for _, p := range res.RemovedHooks {
-		fmt.Fprintf(w, "Removed Claude hook from %s\n", p)
+		linef(w, "Removed Claude hook from %s\n", p)
 	}
 	for _, p := range res.RemovedFiles {
-		fmt.Fprintf(w, "Removed %s\n", p)
+		linef(w, "Removed %s\n", p)
 	}
 	for _, p := range res.RemovedDirs {
-		fmt.Fprintf(w, "Removed directory %s\n", p)
+		linef(w, "Removed directory %s\n", p)
 	}
 	for _, err := range res.Errors {
-		fmt.Fprintf(w, "error: %v\n", err)
+		linef(w, "error: %v\n", err)
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Binary was not removed. Run this to finish the uninstall:")
-	fmt.Fprintln(w)
+	line(w)
+	line(w, "Binary was not removed. Run this to finish the uninstall:")
+	line(w)
 	// Binaries under /usr/local/bin/ (or any root-owned path) need sudo;
 	// otherwise a plain rm suffices. We test writability of the parent
 	// directory as a proxy — good enough for a hint.
@@ -202,13 +215,13 @@ func PrintResult(w io.Writer, plan *UninstallPlan, res *UninstallResult) {
 	if !parentWritable(plan.BinaryPath) {
 		prefix = "sudo "
 	}
-	fmt.Fprintf(w, "  %srm %s\n", prefix, plan.BinaryPath)
+	linef(w, "  %srm %s\n", prefix, plan.BinaryPath)
 }
 
 // Confirm reads a yes/no answer from r. Empty input is treated as "no"
 // so that accidental <enter> keeps the user's system intact.
 func Confirm(r io.Reader, w io.Writer, prompt string) (bool, error) {
-	fmt.Fprintf(w, "%s [y/N]: ", prompt)
+	linef(w, "%s [y/N]: ", prompt)
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {
 		return false, scanner.Err()

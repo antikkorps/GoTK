@@ -525,6 +525,7 @@
 - [x] `gotk update` — self-upgrade command (shipped in v1.4.0). Hybrid: GitHub Releases self-replace with `go install @latest` fallback. `--check` for check-only, `--force`, `--from-source`.
 - [x] CI maintenance: bump GitHub Actions off Node.js 20. `actions/checkout@v4→v6`, `actions/setup-go@v5→v6`, `goreleaser/goreleaser-action@v6→v7` — all three now on `node24`. Applied to both `ci.yml` and `release.yml`.
 - [x] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum". Fixed by adding `cache: false` on every `setup-go` step (zero external deps — no go.sum to cache).
+- [ ] Interactive install wizard — `gotk setup` (or `gotk init`): detect shell, detect which LLM CLIs are on PATH (Claude Code, Cursor, Aider, Continue.dev), ask the user which integrations to enable and at which scope (local/project/global), run the corresponding installs, then write a minimal `.gotk.toml` if the user wants project-specific config. Benefit: single entry-point for first-time users instead of three or four docs pages. Non-goals: no TUI framework (keep it stdin/stdout scanner-based to match `gotk uninstall`'s prompt style). Depends on #31 (multi-agent install generalization) for anything beyond Claude.
 
 ---
 
