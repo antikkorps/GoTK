@@ -363,7 +363,19 @@ Examples:
   gotk update --check              See if a newer release is available
   gotk update                      Download + verify + replace this binary
   gotk update --from-source        Re-install from source via "go install"
-  gotk update --force              Re-install even on the latest tag`,
+  gotk update --force              Re-install even on the latest tag
+
+Passive update notice:
+  On every invocation, gotk reads a small JSON cache under
+  ~/.local/share/gotk/update_check.json and prints a one-liner on stderr
+  when a newer release is cached. A refresh is kicked off in the
+  background (detached, 3s timeout) when the cache is older than 24h.
+
+  The notice is only printed when stderr is a TTY. It's suppressed when:
+    - GOTK_NO_UPDATE_CHECK=1 is set
+    - CI or GITHUB_ACTIONS is set (keeps CI logs clean)
+    - the current build is a dev build (no version baked in)
+  Set GOTK_NO_UPDATE_CHECK=1 in your shell rc to opt out permanently.`,
 
 		"hook": `gotk hook — Claude Code hook handler (internal)
 

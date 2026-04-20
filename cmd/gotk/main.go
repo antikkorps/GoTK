@@ -16,6 +16,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/mcp"
 	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
+	"github.com/antikkorps/GoTK/internal/update"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=..."
@@ -64,6 +65,15 @@ func main() {
 
 	// Extract gotk flags before command
 	args = parseFlags(args)
+
+	// Nudge the user toward `gotk update` when a newer release is
+	// cached. The call is non-blocking: it reads a small JSON file and
+	// optionally fires a detached refresh goroutine. No-op when stderr
+	// is not a TTY, when CI/GOTK_NO_UPDATE_CHECK is set, or on dev
+	// builds — see update.NotifyIfUpdate for the full gating.
+	if notice := update.NotifyIfUpdate(Version, isTerminal(os.Stderr)); notice != "" {
+		fmt.Fprintln(os.Stderr, notice)
+	}
 
 	if debugMode {
 		if len(cfg.LoadedFiles) > 0 {
