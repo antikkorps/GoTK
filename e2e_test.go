@@ -769,6 +769,35 @@ RAW
 	}
 }
 
+// TestE2E_UpdateNoticeSilentOnPipe verifies the passive "update
+// available" notice doesn't leak into captured output — i.e. it's
+// silenced when stderr isn't a TTY. This is what keeps scripts, pipes,
+// and CI runs quiet even when a newer gotk release is cached.
+func TestE2E_UpdateNoticeSilentOnPipe(t *testing.T) {
+	bin := binary(t)
+	home := t.TempDir()
+	cacheDir := filepath.Join(home, ".local", "share", "gotk")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cache := `{"checked_at":"2026-04-20T00:00:00Z","latest":"v99.0.0"}`
+	if err := os.WriteFile(filepath.Join(cacheDir, "update_check.json"), []byte(cache), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(bin, "--version")
+	cmd.Env = append(os.Environ(), "HOME="+home, "CI=", "GITHUB_ACTIONS=", "GOTK_NO_UPDATE_CHECK=")
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("gotk --version failed: %v (stderr=%s)", err, stderr.String())
+	}
+	if strings.Contains(stderr.String(), "update available") {
+		t.Errorf("update notice must not appear when stderr is captured (not a TTY), got:\n%s", stderr.String())
+	}
+}
+
 // TestE2E_UninstallClaudeSymmetric covers `gotk uninstall claude` as a
 // symmetric alias for `gotk install claude --uninstall`. The user can now
 // write uninstall/install as parallel verbs instead of a flag toggle.
