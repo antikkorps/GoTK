@@ -1,0 +1,17 @@
+PASS src/auth/login.test.ts
+  Auth > login
+    ✓ returns 200 on valid credentials (42 ms)
+    ✓ returns 401 on wrong password (18 ms)
+    Email d'avertissement no-file envoye: OK
+    Session created for user_12345
+PASS src/api/users.test.ts
+  Users API
+    ✓ GET /users returns list (12 ms)
+    Cache miss for key user:12345
+(node:43294) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+... and 3 identical warnings from other workers
+Test Suites: 18 passed, 18 total
+Tests:       149 passed, 149 total
+Snapshots:   0 total
+Time:        4.823 s

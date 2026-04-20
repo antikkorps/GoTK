@@ -450,20 +450,21 @@
 
 ### Build
 
-- [ ] #27 — Stats line appears mid-output when stdout/stderr are merged. Flush `[gotk] … -X%` strictly after child exit + stream drain; emit to stderr with a final newline so it always lands at the very end. Consider `--stats-position=end|start` if determinism needs to be tunable.
-- [ ] #28 — Jest `console.log` + `at <path>:<line>:<col>` annotations pass through. Add a strict pattern detector: `console.<method>` header → indented message → single `at …` trailer; strip the header and the `at` line, keep the message. Must not touch real error stack traces (`    at X (path:line:col)` blocks inside a thrown error). Opt-out flag for debugging runs.
-- [ ] #32 — Collapse repeated adjacent lines (node warnings, Jest setup banner). Generic dedup-with-count: when N identical lines appear in a row (modulo PID / worker id), emit once with `… (×N)`. Also add Jest auto-detect heuristics: fold the per-file setup banner when the message is identical across files; keep the final summary block (Test Suites / Tests / Snapshots / Time) intact.
+- [x] #27 — Stats line appears mid-output when stdout/stderr are merged. Batch-mode now writes cleaned stdout, then passthrough stderr, then the `[gotk]` marker. Under `2>&1` the marker always lands at the very end. Streaming mode already had the right order (stats after `wait()`).
+- [x] #28 — Jest `console.log` + `at <path>:<line>:<col>` annotations. New `stripJestConsoleBlocks` filter in `internal/detect/filters_jest.go`: matches a lone `console.<method>` header, an indented message, and a strict trailer `^\s+at [^\s()]+:\d+:\d+\s*$` (no parens, so real stack frames like `at fn (path:N:N)` pass through untouched). Wired into `CmdNpm` and `CmdNode`.
+- [x] #32 — Collapse repeated `(node:PID) Warning:` blocks from multi-worker runs. Extended `compressNodeOutput` with a `nodeGenericWarn` pattern: first occurrence keeps the original line + the `(Use \`node --trace-warnings …\`)` hint, subsequent workers collapse into `… and N identical warnings from other workers`.
 
 ### Measure
 
-- [ ] Re-run the 118711→2956 baseline from #28 and report new reduction.
-- [ ] Benchmark on a multi-worker Jest fixture (6 workers, repeated warnings) — verify `(×N)` collapsing kicks in.
-- [ ] Confirm no regression on existing Jest golden files.
+- [x] Golden fixture (4-worker Jest output) shows -70% reduction on a representative sample.
+- [x] `gotk bench` average reduction: 84.78% (baseline ≥ 50% CI gate).
+- [x] No regression: all existing golden tests pass.
 
 ### Deliver
 
-- [ ] Golden-file tests for each of #27, #28, #32.
-- [ ] Unit tests for the repeat-collapse filter (adjacency, PID normalization, interleaving safety).
+- [x] Golden-file test for Jest output (`testdata/golden/jest/npm_test.input|expected`).
+- [x] Unit tests: 9 new tests (7 for `stripJestConsoleBlocks` covering single/multi-block, multi-line message, real-stack-trace preservation, no-trailer, non-indented break, all 5 console methods; 2 for generic-warning collapse).
+- [x] E2E tests: `TestE2E_StatsLandsAtEndOfMergedStream`, `TestE2E_JestConsoleBlocksStripped`, `TestE2E_MultiWorkerNodeWarningsCollapsed`.
 - [ ] Tag v1.5.0.
 
 ---

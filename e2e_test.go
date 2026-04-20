@@ -689,6 +689,86 @@ func TestE2E_StatsLandsAtEndOfMergedStream(t *testing.T) {
 	}
 }
 
+// Regression for issue #28: Jest wraps every test-side `console.log` call
+// with a header line, the message, and an `at <path>:<line>:<col>` trailer.
+// The filter must strip the header and the `at` trailer, keeping only the
+// message content. Exercised through pipe mode to match the most common
+// integration pattern (`gotk < jest-output.txt`).
+func TestE2E_JestConsoleBlocksStripped(t *testing.T) {
+	bin := binary(t)
+	// Force CmdNpm by executing through a fake `npm` shim; pipe mode alone
+	// goes through auto-detect which may not recognize Jest output.
+	shim := filepath.Join(t.TempDir(), "npm")
+	body := `#!/bin/sh
+cat <<'RAW'
+  console.log
+    Session created for user_12345
+      at src/auth/session.ts:88:7
+
+Test Suites: 1 passed
+RAW
+`
+	if err := os.WriteFile(shim, []byte(body), 0755); err != nil {
+		t.Fatalf("write shim: %v", err)
+	}
+	stdout, _, code := run(t, bin, "", "exec", "--", shim)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stdout:\n%s", code, stdout)
+	}
+	if strings.Contains(stdout, "console.log") {
+		t.Errorf("console.log header should be stripped, got:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "at src/auth/session.ts:88:7") {
+		t.Errorf("`at path:line:col` trailer should be stripped, got:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Session created for user_12345") {
+		t.Errorf("message content must be preserved, got:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Test Suites: 1 passed") {
+		t.Errorf("summary must pass through, got:\n%s", stdout)
+	}
+}
+
+// Regression for issue #32: repeated `(node:PID) Warning: …` blocks from
+// multi-worker Jest runs differ only in the PID. The filter collapses them
+// into one original-line occurrence plus a count marker for the rest.
+func TestE2E_MultiWorkerNodeWarningsCollapsed(t *testing.T) {
+	bin := binary(t)
+	shim := filepath.Join(t.TempDir(), "npm")
+	body := `#!/bin/sh
+cat <<'RAW'
+(node:1001) Warning: something happened in a worker
+(Use ` + "`" + `node --trace-warnings ...` + "`" + ` to show where the warning was created)
+(node:1002) Warning: something happened in a worker
+(Use ` + "`" + `node --trace-warnings ...` + "`" + ` to show where the warning was created)
+(node:1003) Warning: something happened in a worker
+(Use ` + "`" + `node --trace-warnings ...` + "`" + ` to show where the warning was created)
+Test Suites: 3 passed
+RAW
+`
+	if err := os.WriteFile(shim, []byte(body), 0755); err != nil {
+		t.Fatalf("write shim: %v", err)
+	}
+	stdout, _, code := run(t, bin, "", "exec", "--", shim)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stdout:\n%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "(node:1001) Warning:") {
+		t.Errorf("first warning should be kept verbatim, got:\n%s", stdout)
+	}
+	for _, pid := range []string{"1002", "1003"} {
+		if strings.Contains(stdout, "(node:"+pid+")") {
+			t.Errorf("PID %s should have been collapsed, got:\n%s", pid, stdout)
+		}
+	}
+	if !strings.Contains(stdout, "2 identical warnings") {
+		t.Errorf("collapse marker should count remaining workers, got:\n%s", stdout)
+	}
+	if strings.Count(stdout, "trace-warnings") != 1 {
+		t.Errorf("hint should appear exactly once, got:\n%s", stdout)
+	}
+}
+
 func TestE2E_MaxLines_VeryLarge(t *testing.T) {
 	bin := binary(t)
 	// With a very large --max-lines value, no truncation should occur for small input

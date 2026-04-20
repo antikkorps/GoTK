@@ -43,14 +43,16 @@ type cmdEntry struct {
 // registry maps CmdType to its registration entry.
 // Filters are returned via a func to avoid init-order issues with package-level functions.
 var registry = map[CmdType]cmdEntry{
-	CmdGrep:      {name: "grep", binaries: []string{"grep", "rg", "ag", "ack"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput} }},
-	CmdFind:      {name: "find", binaries: []string{"find", "fd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressFindOutput} }},
-	CmdGit:       {name: "git", binaries: []string{"git", "gh"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressGitOutput} }},
-	CmdGoTool:    {name: "go", binaries: []string{"go"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGoOutput} }},
-	CmdLs:        {name: "ls", binaries: []string{"ls", "exa", "eza", "lsd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressLsOutput} }},
-	CmdDocker:    {name: "docker", binaries: []string{"docker", "docker-compose", "podman"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressDockerOutput} }},
-	CmdNpm:       {name: "npm", binaries: []string{"npm", "yarn", "pnpm", "bun"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressNpmOutput} }},
-	CmdNode:      {name: "node", binaries: []string{"node", "npx", "tsx", "ts-node", "deno"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressNodeOutput} }},
+	CmdGrep:   {name: "grep", binaries: []string{"grep", "rg", "ag", "ack"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput} }},
+	CmdFind:   {name: "find", binaries: []string{"find", "fd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressFindOutput} }},
+	CmdGit:    {name: "git", binaries: []string{"git", "gh"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressGitOutput} }},
+	CmdGoTool: {name: "go", binaries: []string{"go"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGoOutput} }},
+	CmdLs:     {name: "ls", binaries: []string{"ls", "exa", "eza", "lsd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressLsOutput} }},
+	CmdDocker: {name: "docker", binaries: []string{"docker", "docker-compose", "podman"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressDockerOutput} }},
+	CmdNpm: {name: "npm", binaries: []string{"npm", "yarn", "pnpm", "bun"}, filters: func() []filter.FilterFunc {
+		return []filter.FilterFunc{stripJestConsoleBlocks, compressNpmOutput, compressNodeOutput}
+	}},
+	CmdNode:      {name: "node", binaries: []string{"node", "npx", "tsx", "ts-node", "deno"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{stripJestConsoleBlocks, compressNodeOutput} }},
 	CmdCargo:     {name: "cargo", binaries: []string{"cargo", "rustc"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCargoOutput} }},
 	CmdMake:      {name: "make", binaries: []string{"make", "cmake", "ninja"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressMakeOutput} }},
 	CmdCurl:      {name: "curl", binaries: []string{"curl", "wget", "http", "httpie"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCurlOutput} }},

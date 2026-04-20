@@ -13,6 +13,10 @@ var (
 	nodeExperimentalWarn = regexp.MustCompile(`^\(node:\d+\) ExperimentalWarning:`)
 	// Node.js deprecation warnings (keep first, count rest)
 	nodeDeprecationWarn = regexp.MustCompile(`^\(node:\d+\) \[DEP\d+\] DeprecationWarning:`)
+	// Node.js generic process warnings (e.g. `process.emitWarning`) — repeat per worker
+	nodeGenericWarn = regexp.MustCompile(`^\(node:\d+\) Warning:`)
+	// Follow-up hint emitted after any node warning
+	nodeWarnHint = regexp.MustCompile(`^\(Use .node --trace-warnings`)
 	// Webpack/Vite/esbuild build noise
 	webpackProgress  = regexp.MustCompile(`^\s*\d+%\s+(building|sealing|emitting|optimizing)`)
 	webpackModule    = regexp.MustCompile(`^\s*(asset|chunk|modules by path|orphan modules|runtime modules|cacheable modules)`)
@@ -34,6 +38,13 @@ func compressNodeOutput(input string) string {
 	experimentalCount := 0
 	deprecationCount := 0
 	firstDeprecation := ""
+	genericWarnCount := 0
+	firstGenericWarn := ""
+	firstGenericWarnHint := ""
+	// True when the most recent non-blank line was a generic warning we collapsed;
+	// the very next `(Use \`node --trace-warnings\`...)` hint (if any) is associated
+	// with it and should be treated as part of the same block.
+	genericWarnPending := false
 	webpackProgressCount := 0
 	webpackModuleCount := 0
 	internalFrameCount := 0
@@ -42,7 +53,9 @@ func compressNodeOutput(input string) string {
 		trimmed := strings.TrimSpace(line)
 
 		if trimmed == "" {
+			genericWarnPending = false
 			flushNodeCounters(&result, &experimentalCount, &deprecationCount, &firstDeprecation,
+				&genericWarnCount, &firstGenericWarn, &firstGenericWarnHint,
 				&webpackProgressCount, &webpackModuleCount, &internalFrameCount)
 			result = append(result, line)
 			continue
@@ -51,6 +64,7 @@ func compressNodeOutput(input string) string {
 		// Count and skip experimental warnings
 		if nodeExperimentalWarn.MatchString(trimmed) {
 			experimentalCount++
+			genericWarnPending = false
 			continue
 		}
 
@@ -60,12 +74,35 @@ func compressNodeOutput(input string) string {
 			if deprecationCount == 1 {
 				firstDeprecation = line
 			}
+			genericWarnPending = false
 			continue
 		}
+
+		// Compress generic process warnings (repeat per worker on multi-worker runs)
+		if nodeGenericWarn.MatchString(trimmed) {
+			genericWarnCount++
+			if genericWarnCount == 1 {
+				firstGenericWarn = line
+			}
+			genericWarnPending = true
+			continue
+		}
+
+		// Absorb the `(Use \`node --trace-warnings\`...)` hint that follows a
+		// generic warning we already collapsed. Capture it once so the flush
+		// can re-emit the full block for the first occurrence.
+		if genericWarnPending && nodeWarnHint.MatchString(trimmed) {
+			if firstGenericWarnHint == "" {
+				firstGenericWarnHint = line
+			}
+			continue
+		}
+		genericWarnPending = false
 
 		// Skip webpack/vite build progress
 		if webpackProgress.MatchString(trimmed) {
 			webpackProgressCount++
+			genericWarnPending = false
 			continue
 		}
 
@@ -99,6 +136,7 @@ func compressNodeOutput(input string) string {
 
 		// Flush counters before real content
 		flushNodeCounters(&result, &experimentalCount, &deprecationCount, &firstDeprecation,
+			&genericWarnCount, &firstGenericWarn, &firstGenericWarnHint,
 			&webpackProgressCount, &webpackModuleCount, &internalFrameCount)
 
 		// Keep everything else: errors, app stack frames, build results, actual output
@@ -106,12 +144,14 @@ func compressNodeOutput(input string) string {
 	}
 
 	flushNodeCounters(&result, &experimentalCount, &deprecationCount, &firstDeprecation,
+		&genericWarnCount, &firstGenericWarn, &firstGenericWarnHint,
 		&webpackProgressCount, &webpackModuleCount, &internalFrameCount)
 
 	return strings.Join(result, "\n")
 }
 
 func flushNodeCounters(result *[]string, experimentalCount, deprecationCount *int, firstDeprecation *string,
+	genericWarnCount *int, firstGenericWarn, firstGenericWarnHint *string,
 	webpackProgressCount, webpackModuleCount, internalFrameCount *int) {
 	if *experimentalCount > 0 {
 		*result = append(*result, "("+strconv.Itoa(*experimentalCount)+" experimental warnings)")
@@ -124,6 +164,18 @@ func flushNodeCounters(result *[]string, experimentalCount, deprecationCount *in
 		}
 		*deprecationCount = 0
 		*firstDeprecation = ""
+	}
+	if *genericWarnCount > 0 {
+		*result = append(*result, *firstGenericWarn)
+		if *firstGenericWarnHint != "" {
+			*result = append(*result, *firstGenericWarnHint)
+		}
+		if *genericWarnCount > 1 {
+			*result = append(*result, "... and "+strconv.Itoa(*genericWarnCount-1)+" identical warnings from other workers")
+		}
+		*genericWarnCount = 0
+		*firstGenericWarn = ""
+		*firstGenericWarnHint = ""
 	}
 	if *webpackProgressCount > 0 {
 		*result = append(*result, "("+strconv.Itoa(*webpackProgressCount)+" build progress updates)")

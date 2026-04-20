@@ -122,3 +122,10 @@ func TestGolden_SSH(t *testing.T) {
 	dir := filepath.Join(testdataDir(), "ssh")
 	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdSSH))
 }
+
+func TestGolden_Jest(t *testing.T) {
+	// Jest output arrives through `npm test` / `yarn test` / `bun test`, so
+	// the CmdNpm chain (strip-jest-console + npm + node filters) is what runs.
+	dir := filepath.Join(testdataDir(), "jest")
+	testutil.RunGoldenTest(t, dir, applyFiltersFor(detect.CmdNpm))
+}
