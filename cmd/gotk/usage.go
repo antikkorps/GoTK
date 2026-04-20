@@ -27,6 +27,7 @@ Subcommands:
   config    Show loaded config files and effective settings
   daemon    Start a filtered shell session (gotk daemon)
   install   Configure GoTK integration (gotk install claude)
+  uninstall Remove GoTK integration or GoTK itself (gotk uninstall [claude])
   update    Self-upgrade to the latest release (gotk update [--check])
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
@@ -304,6 +305,37 @@ Examples:
   gotk install claude --global         Install to ~/.claude/settings.json (all projects)
   gotk install claude --status         Check installation status (--local by default)
   gotk install claude --uninstall      Remove hook (--local by default)`,
+
+		"uninstall": `gotk uninstall — Remove GoTK integrations or GoTK itself
+
+Usage:
+  gotk uninstall [flags]                Full cleanup (binary hint + configs)
+  gotk uninstall claude [scope flags]   Remove only the Claude Code hook
+
+"gotk uninstall claude" is the symmetric form of "gotk install claude --uninstall".
+Use it when you're switching LLM but want to keep gotk installed.
+
+"gotk uninstall" (no target) plans a full removal:
+  - Every Claude Code hook scope where gotk is installed (local/project/global)
+  - ~/.config/gotk/config.toml and its directory (if empty)
+  - ~/.local/share/gotk/measure.jsonl and its directory (if empty)
+  - Prints the exact "rm" command for the binary (gotk cannot delete itself
+    while running, so this step is explicit)
+
+Scope flags for "gotk uninstall claude" (pick one — default: --local):
+  --local       Remove hook from .claude/settings.local.json (DEFAULT)
+  --project     Remove hook from .claude/settings.json
+  --global      Remove hook from ~/.claude/settings.json
+
+Full-cleanup flags (only for "gotk uninstall" with no target):
+  --dry-run     Print the plan without touching anything
+  --yes, -y     Skip the [y/N] confirmation prompt
+
+Examples:
+  gotk uninstall claude                Remove Claude Code hook from local scope
+  gotk uninstall claude --global       Remove Claude Code hook from ~/.claude
+  gotk uninstall --dry-run             Preview what a full cleanup would remove
+  gotk uninstall --yes                 Full cleanup without prompting`,
 
 		"update": `gotk update — Self-upgrade to the latest release
 

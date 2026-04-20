@@ -179,6 +179,9 @@ func main() {
 	case "install":
 		runInstall(args[1:])
 		os.Exit(0)
+	case "uninstall":
+		runUninstall(args[1:])
+		os.Exit(0)
 	case "update":
 		runUpdate(args[1:])
 		os.Exit(0)
