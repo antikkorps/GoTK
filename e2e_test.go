@@ -683,7 +683,7 @@ func TestE2E_StatsLandsAtEndOfMergedStream(t *testing.T) {
 	if stdoutIdx < 0 || stderrIdx < 0 || statsIdx < 0 {
 		t.Fatalf("expected all three markers in merged output, got:\n%s", merged)
 	}
-	if !(stdoutIdx < stderrIdx && stderrIdx < statsIdx) {
+	if stdoutIdx >= stderrIdx || stderrIdx >= statsIdx {
 		t.Errorf("stats must land after stderr passthrough (stdout=%d, stderr=%d, stats=%d):\n%s",
 			stdoutIdx, stderrIdx, statsIdx, merged)
 	}
