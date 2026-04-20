@@ -364,7 +364,10 @@ func isTerminal(f *os.File) bool {
 }
 
 // setupSignalHandler catches SIGINT and SIGTERM for graceful shutdown.
-// It cleans up any running child processes and exits cleanly.
+// The cleanup of any running child processes is delegated to
+// signalChildProcesses, which has a platform-specific implementation —
+// Unix sends SIGTERM to the process group, Windows is a no-op because
+// the Go runtime already propagates Ctrl+C at the console level.
 func setupSignalHandler() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -373,14 +376,7 @@ func setupSignalHandler() {
 		sig := <-sigCh
 		fmt.Fprintf(os.Stderr, "\n[gotk] received signal %s, shutting down...\n", sig)
 
-		// Kill our entire process group so child processes are cleaned up.
-		// Use negative PID to signal the process group.
-		pgid, err := syscall.Getpgid(os.Getpid())
-		if err == nil {
-			// Send SIGTERM to the process group (excluding ourselves, since
-			// we are already shutting down).
-			_ = syscall.Kill(-pgid, syscall.SIGTERM)
-		}
+		signalChildProcesses()
 
 		// Exit with 128 + signal number (Unix convention)
 		switch sig {
