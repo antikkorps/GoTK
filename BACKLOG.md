@@ -443,6 +443,75 @@
 
 ---
 
+## Sprint 12 — Jest/Node Live-Install Feedback v2 (2026-04-20)
+
+> Second wave of real-world feedback from a large Jest suite (90+ files, 6 workers, 1620 tests).
+> All three issues come from the same run — residual noise and output ordering defects observed with `gotk -s npm test 2>&1`.
+
+### Build
+
+- [ ] #27 — Stats line appears mid-output when stdout/stderr are merged. Flush `[gotk] … -X%` strictly after child exit + stream drain; emit to stderr with a final newline so it always lands at the very end. Consider `--stats-position=end|start` if determinism needs to be tunable.
+- [ ] #28 — Jest `console.log` + `at <path>:<line>:<col>` annotations pass through. Add a strict pattern detector: `console.<method>` header → indented message → single `at …` trailer; strip the header and the `at` line, keep the message. Must not touch real error stack traces (`    at X (path:line:col)` blocks inside a thrown error). Opt-out flag for debugging runs.
+- [ ] #32 — Collapse repeated adjacent lines (node warnings, Jest setup banner). Generic dedup-with-count: when N identical lines appear in a row (modulo PID / worker id), emit once with `… (×N)`. Also add Jest auto-detect heuristics: fold the per-file setup banner when the message is identical across files; keep the final summary block (Test Suites / Tests / Snapshots / Time) intact.
+
+### Measure
+
+- [ ] Re-run the 118711→2956 baseline from #28 and report new reduction.
+- [ ] Benchmark on a multi-worker Jest fixture (6 workers, repeated warnings) — verify `(×N)` collapsing kicks in.
+- [ ] Confirm no regression on existing Jest golden files.
+
+### Deliver
+
+- [ ] Golden-file tests for each of #27, #28, #32.
+- [ ] Unit tests for the repeat-collapse filter (adjacency, PID normalization, interleaving safety).
+- [ ] Tag v1.5.0.
+
+---
+
+## Sprint 13 — Install/Uninstall UX (2026-04-20)
+
+> Symmetric install/uninstall surface. Two distinct uninstall flows: remove the gotk binary entirely, or just detach one integration (e.g. Claude) when the user switches LLM.
+
+### Build
+
+- [ ] `gotk uninstall claude` — symmetric alias for the existing `gotk install claude --uninstall`. Removes only the Claude Code hook from `.claude/settings.json` (or `~/.claude/settings.json` with `--global`); gotk binary stays installed. Keep the old `--uninstall` flag working for one release, then deprecate.
+- [ ] #29 — `gotk uninstall` (no args): full removal. Detect and remove the binary from common install locations (`/usr/local/bin`, `$GOBIN`, `$GOPATH/bin`, Homebrew prefix if present); remove any active integrations it finds (Claude hook, daemon shell init lines); optionally purge configs under `~/.config/gotk/` with a confirmation prompt. Refuse to self-delete while running — print the exact `rm` command and exit, or re-exec a detached cleanup.
+- [ ] #31 — Generalize `gotk install <agent>` for multiple agents. Start with one additional agent (Cursor or Continue.dev — whichever has the cleanest hook surface) to validate the abstraction. Scopes `--global` / `--project`, flags `--status` / `--uninstall`. Not scope-creep into `gotk install all` until the pattern is proven on 2+ agents.
+
+### Deliver
+
+- [ ] Unit tests for binary discovery, symlink handling, and the config-purge prompt.
+- [ ] Update `docs/quickstart.md` and README install/uninstall section.
+- [ ] Help text for `gotk uninstall` and `gotk uninstall <agent>`.
+
+---
+
+## Sprint 14 — Windows Support (2026-04-20)
+
+> Moves #30 out of the Icebox. Queued after the CI Node 20 bump per the current roadmap.
+
+### Build
+
+- [ ] Cross-compile check: `GOOS=windows GOARCH=amd64 go build` passes and binary runs under Windows 10/11 (CMD, PowerShell, Git Bash).
+- [ ] Audit `os/exec`, path handling, and temp-file code for Windows-specific quirks (backslashes, `\\?\` long paths, `CRLF` line endings in filters).
+- [ ] ANSI rendering: confirm stripping still works and consider enabling VT processing when output goes to a Windows console.
+- [ ] Daemon mode: decide support matrix. Zsh/bash interception doesn't apply — evaluate a PowerShell profile hook or mark daemon unsupported on Windows for this release.
+- [ ] `gotk update` self-replace: Windows can't rename a running executable. Implement the pending-replace pattern (write `.new`, spawn detached helper that swaps on exit).
+- [ ] `gotk install claude`: adjust `~/.claude/settings.json` path resolution for Windows user profile.
+
+### Measure
+
+- [ ] Run the full golden-file test suite on a Windows runner in CI.
+- [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus.
+
+### Deliver
+
+- [ ] Goreleaser config: add `windows/amd64` and `windows/arm64` targets, produce `.zip` archives.
+- [ ] README + `docs/quickstart.md`: Windows install and shell integration instructions.
+- [ ] Document the support matrix (what works, what is deliberately out of scope — e.g. daemon mode if deferred).
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
@@ -452,8 +521,8 @@
 - [x] Rate limiting in MCP server
 - [x] CI pipeline with automated benchmarks
 - [x] `gotk update` — self-upgrade command (shipped in v1.4.0). Hybrid: GitHub Releases self-replace with `go install @latest` fallback. `--check` for check-only, `--force`, `--from-source`.
-- [ ] CI maintenance: bump GitHub Actions off Node.js 20 (deprecated — forced to Node.js 24 on 2026-06-02, removed 2026-09-16). Affects `actions/checkout@v4`, `actions/setup-go@v5`, `goreleaser/goreleaser-action@v6` in `release.yml` and `ci.yml`. Check for newer majors or set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` as a short-term opt-in.
-- [ ] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum" on the release job because the project has zero external deps. Either add `cache: false` to the step or suppress by creating an empty `go.sum` at checkout. Non-blocking — just noise in the run log.
+- [x] CI maintenance: bump GitHub Actions off Node.js 20. `actions/checkout@v4→v6`, `actions/setup-go@v5→v6`, `goreleaser/goreleaser-action@v6→v7` — all three now on `node24`. Applied to both `ci.yml` and `release.yml`.
+- [x] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum". Fixed by adding `cache: false` on every `setup-go` step (zero external deps — no go.sum to cache).
 
 ---
 
