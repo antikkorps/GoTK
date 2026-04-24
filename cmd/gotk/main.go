@@ -13,6 +13,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
+	"github.com/antikkorps/GoTK/internal/filter"
 	"github.com/antikkorps/GoTK/internal/mcp"
 	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
@@ -265,7 +266,11 @@ func main() {
 	// That way the stats marker always lands at the very end of the merged stream.
 	fmt.Print(cleaned)
 	if result.Stderr != "" {
-		fmt.Fprint(os.Stderr, result.Stderr)
+		// Node.js emits `process.emitWarning` output to stderr, which means
+		// multi-worker warnings (jest/vitest parallel runs) slip past the
+		// stdout filter chain. Apply the PID-aware collapse here so stderr is
+		// quiet on parallel runs without swallowing anything else. See #37.
+		fmt.Fprint(os.Stderr, filter.CollapseNodeWarnings(result.Stderr))
 	}
 	emitStats(result.Stdout, cleaned)
 

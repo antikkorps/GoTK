@@ -44,8 +44,9 @@ func TestCollapseNodeWarnings(t *testing.T) {
 				// First block kept verbatim (with original PID).
 				"(node:96788) Warning: `--localstorage-file` was provided without a valid path",
 				"(Use `node --trace-warnings ...` to show where the warning was created)",
-				// Count marker for the remaining 5.
-				"... (repeated 5 more times, different PIDs)",
+				// Count marker for the remaining 5 (format aligned with existing
+				// compressNodeOutput to keep one canonical marker across paths).
+				"... and 5 identical warnings from other workers",
 			},
 			wantNotContain: []string{
 				"(node:96787)",
@@ -77,7 +78,7 @@ func TestCollapseNodeWarnings(t *testing.T) {
 				"(node:101) Warning: about deprecation B",
 			},
 			wantNotContain: []string{
-				"... (repeated",
+				"identical warnings from other workers",
 			},
 		},
 		{
@@ -93,7 +94,7 @@ func TestCollapseNodeWarnings(t *testing.T) {
 				"(node:2) Warning: same thing",
 			},
 			wantNotContain: []string{
-				"... (repeated",
+				"identical warnings from other workers",
 			},
 		},
 		{
@@ -108,22 +109,22 @@ func TestCollapseNodeWarnings(t *testing.T) {
 				"(node:5) Warning: B\n",
 			wantContains: []string{
 				"(node:1) Warning: A",
-				"... (repeated 2 more times, different PIDs)",
+				"... and 2 identical warnings from other workers",
 				"(node:4) Warning: B",
-				"... (repeated 1 more time, different PIDs)",
+				"... and 1 identical warning from other workers",
 			},
 		},
 		{
-			name: "two duplicates → 'time' singular",
+			name: "two duplicates → 'warning' singular",
 			input: "(node:1) Warning: msg\n" +
 				"(Use `node --trace-warnings ...` to show where the warning was created)\n" +
 				"(node:2) Warning: msg\n" +
 				"(Use `node --trace-warnings ...` to show where the warning was created)\n",
 			wantContains: []string{
-				"... (repeated 1 more time, different PIDs)",
+				"... and 1 identical warning from other workers",
 			},
 			wantNotContain: []string{
-				"1 more times",
+				"identical warnings from other workers",
 			},
 		},
 		{

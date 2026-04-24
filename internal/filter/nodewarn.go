@@ -63,11 +63,11 @@ func CollapseNodeWarnings(input string) string {
 		// Emit the first block verbatim, then a single count marker.
 		out = append(out, blocks[0]...)
 		extra := len(blocks) - 1
-		noun := "time"
+		noun := "warning"
 		if extra > 1 {
-			noun = "times"
+			noun = "warnings"
 		}
-		out = append(out, fmt.Sprintf("  ... (repeated %d more %s, different PIDs)", extra, noun))
+		out = append(out, fmt.Sprintf("... and %d identical %s from other workers", extra, noun))
 		i = next
 	}
 
