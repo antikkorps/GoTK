@@ -63,6 +63,40 @@ func formatNumber(n int) string {
 	return string(result)
 }
 
+// resolveResult picks PASS/FAIL/unknown from the strongest signal available.
+// Priority (most → least authoritative):
+//  1. Runner summary on stdout (Jest/pytest/go test/cargo test totals).
+//  2. Runner summary on stderr (Jest writes its reporter to stderr).
+//  3. Exit code 0 → PASS. Per issue #39, a clean exit means the command
+//     succeeded; any "error"-looking content is typically console output from
+//     inside tests that exercise error paths.
+//  4. Exit code > 0 → FAIL (the process itself reported failure).
+//  5. Exit code unknown (-1): fall back to heuristic FAIL/PASS anchors.
+func resolveResult(lines []string, exitCode int, stderr string, hasFail, hasPass bool) string {
+	if runnerResult, ok := detectRunnerResult(lines); ok {
+		return runnerResult
+	}
+	if stderr != "" {
+		stderrLines := strings.Split(stderr, "\n")
+		if runnerResult, ok := detectRunnerResult(stderrLines); ok {
+			return runnerResult
+		}
+	}
+	if exitCode == 0 {
+		return "PASS"
+	}
+	if exitCode > 0 {
+		return "FAIL"
+	}
+	if hasFail {
+		return "FAIL"
+	}
+	if hasPass {
+		return "PASS"
+	}
+	return "unknown"
+}
+
 // detectRunnerResult scans for an authoritative test-runner result marker.
 // Returns ("PASS"|"FAIL", true) when one is found; ("", false) otherwise.
 // When present, these markers override inferred pass/fail signals from
@@ -163,6 +197,22 @@ func isIsolatedStackFrame(lines []string, i int) bool {
 // Summarize analyzes the full output and prepends a structured summary.
 // Only activates when output exceeds SummaryThreshold lines.
 func Summarize(input string) string {
+	return summarize(input, -1, "")
+}
+
+// SummarizeWithContext returns a FilterFunc that analyzes output with the
+// command's exit code and stderr as additional context. When exit code is 0,
+// the summary result is forced to PASS unless a runner summary explicitly says
+// otherwise — this prevents false FAIL verdicts on runs where tests pass but
+// emit console.error output, or where the runner prints its totals to stderr
+// (e.g. Jest). Pass -1 as exitCode to disable exit-based inference.
+func SummarizeWithContext(exitCode int, stderr string) FilterFunc {
+	return func(input string) string {
+		return summarize(input, exitCode, stderr)
+	}
+}
+
+func summarize(input string, exitCode int, stderr string) string {
 	lines := strings.Split(input, "\n")
 
 	// Remove trailing empty line from split artifact
@@ -233,16 +283,7 @@ func Summarize(input string) string {
 		}
 	}
 
-	// Determine overall result. An authoritative test-runner marker (Jest,
-	// pytest, go test, cargo test) wins over heuristic anchor matching.
-	result := "unknown"
-	if runnerResult, ok := detectRunnerResult(lines); ok {
-		result = runnerResult
-	} else if hasFail {
-		result = "FAIL"
-	} else if hasPass {
-		result = "PASS"
-	}
+	result := resolveResult(lines, exitCode, stderr, hasFail, hasPass)
 
 	// Build the summary header
 	var sb strings.Builder

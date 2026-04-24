@@ -248,7 +248,7 @@ func main() {
 		cmdType = detect.Identify(mapped)
 	}
 	start := time.Now()
-	chain := proxy.BuildChain(cfg, cmdType, maxLines)
+	chain := proxy.BuildChainWithExit(cfg, cmdType, maxLines, result.ExitCode, result.Stderr)
 	logDebug("filter chain (%d filters): %v\n", chain.Len(), chain.Names())
 
 	// Apply filters

@@ -150,6 +150,40 @@ func TestTruncateWithEscalationManyAnchorsRespectsCap(t *testing.T) {
 	}
 }
 
+// Regression for #40 via the escalate path: a vitest run with failures that
+// also prints a summary footer (Test Files / Tests / Duration) must keep both
+// the failure window AND the summary footer lines, even when the footer lands
+// in the omitted middle.
+func TestTruncateWithEscalationWindowPinsSummary(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 60; i++ {
+		fmt.Fprintf(&b, "setup line %d\n", i)
+	}
+	b.WriteString(" Test Files  2 failed | 19 passed (21)\n")
+	b.WriteString("      Tests  2 failed | 282 passed (284)\n")
+	b.WriteString("   Duration  181.65s\n")
+	for i := 0; i < 30; i++ {
+		fmt.Fprintf(&b, "more stuff %d\n", i)
+	}
+	b.WriteString(" ❯ FAIL src/foo.test.ts > scenario\n")
+	b.WriteString("   TypeError: boom\n")
+	b.WriteString("     at run (src/foo.ts:10:5)\n")
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&b, "trailer %d\n", i)
+	}
+
+	got := TruncateWithEscalation(50, EscalateWindow, 5)(b.String())
+	for _, want := range []string{
+		"Test Files  2 failed | 19 passed (21)",
+		"Tests  2 failed | 282 passed (284)",
+		"TypeError: boom", // failure window must also survive
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in escalate-window output", want)
+		}
+	}
+}
+
 func TestParseAutoEscalate(t *testing.T) {
 	tests := []struct {
 		in   string
