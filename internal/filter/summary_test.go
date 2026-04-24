@@ -267,6 +267,59 @@ Tests:       1 failed, 1619 passed, 1620 total
 	}
 }
 
+// Regression for #39: a jest run that exits 0 but emits console.error
+// (tests exercise error paths) must not be reported as FAIL. Jest's own
+// "Tests: X passed, X total" line lands on stderr — gotk only reads stdout
+// via the filter chain, so the stderr totals and exit code must both feed
+// into the summary verdict.
+func TestSummarizeWithContext_Issue39(t *testing.T) {
+	// stdout: long info prefix + a jest console.error block (no runner totals).
+	var stdout strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&stdout, "info line %d\n", i)
+	}
+	stdout.WriteString("  console.error\n")
+	stdout.WriteString("    Erreur dans la routine SigemsOut: Error: SFTP connection failed\n")
+	stdout.WriteString("      at Object.<anonymous> (src/sigems.test.ts:144:69)\n")
+
+	// stderr: jest's reporter writes totals here by default.
+	stderr := "Test Suites: 4 passed, 4 total\nTests:       44 passed, 44 total\n"
+
+	tests := []struct {
+		name     string
+		exitCode int
+		stderr   string
+		want     string
+	}{
+		{"exit 0 + stderr totals → PASS", 0, stderr, "result: PASS"},
+		{"exit 0 + no stderr → PASS via exit code", 0, "", "result: PASS"},
+		{"stderr totals + unknown exit → PASS", -1, stderr, "result: PASS"},
+		{"exit 1 + stderr PASS totals → PASS (stderr wins)", 1, stderr, "result: PASS"},
+		{"exit 1 + no stderr → FAIL via exit code", 1, "", "result: FAIL"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SummarizeWithContext(tt.exitCode, tt.stderr)(stdout.String())
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("want %q in summary; got:\n%s", tt.want,
+					got[:min(len(got), 800)])
+			}
+			if tt.want == "result: PASS" && strings.Contains(got, "result: FAIL") {
+				t.Errorf("summary contains conflicting result: FAIL")
+			}
+		})
+	}
+}
+
+// Backward compat: plain Summarize (no context) must behave exactly as before
+// when no exit/stderr hints are supplied.
+func TestSummarize_BackwardCompat(t *testing.T) {
+	input := genLines(99, "running tests") + "FAIL something broke\n"
+	if !strings.Contains(Summarize(input), "result: FAIL") {
+		t.Error("Summarize without context should still honor heuristic FAIL anchor")
+	}
+}
+
 func TestFormatNumber(t *testing.T) {
 	tests := []struct {
 		input int

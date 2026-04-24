@@ -36,6 +36,42 @@ const DefaultEscalateWindow = 10
 // windows if the cap is hit.
 const escalateCapMultiplier = 2
 
+// summaryAnchors match lines that carry the authoritative result / totals /
+// duration for a test runner. These are the only lines an LLM needs to answer
+// "did this run pass?" and "how many tests?". They must survive truncation
+// regardless of position in the output. See issue #40.
+var summaryAnchors = []*regexp.Regexp{
+	// Jest: "Test Suites: 4 passed, 4 total" / "Tests: 44 passed, 44 total"
+	regexp.MustCompile(`^\s*Test Suites:\s`),
+	regexp.MustCompile(`^\s*Tests:\s+.*\btotal\b`),
+	regexp.MustCompile(`^\s*Snapshots:\s`),
+	regexp.MustCompile(`^\s*Time:\s+\d`),
+	// Vitest: "Test Files  2 failed | 19 passed (21)" / "Tests  2 failed | 282 passed (284)"
+	regexp.MustCompile(`^\s*Test Files\s+.*\b(passed|failed)\b`),
+	regexp.MustCompile(`^\s*Tests\s+.*\b(passed|failed)\b`),
+	regexp.MustCompile(`^\s*Duration\s+\d`),
+	// pytest: "======= 42 passed in 1.23s ======="
+	regexp.MustCompile(`^=+.*\b(passed|failed|error)\b.*=+$`),
+	// Go test: "ok  \tpkg/path\t0.123s" / "FAIL\tpkg/path"
+	regexp.MustCompile(`^(ok|FAIL)\s+\S+\s+[\d.]+s`),
+	// Cargo: "test result: ok. 42 passed; 0 failed; ..."
+	regexp.MustCompile(`^\s*test result:\s+(ok|FAILED)\.\s+\d+\s+passed`),
+}
+
+// findSummaryAnchors returns the indices of lines matching any summary anchor.
+func findSummaryAnchors(lines []string) []int {
+	var idx []int
+	for i, line := range lines {
+		for _, re := range summaryAnchors {
+			if re.MatchString(line) {
+				idx = append(idx, i)
+				break
+			}
+		}
+	}
+	return idx
+}
+
 // failureAnchors match lines that indicate a real test/build/runtime failure.
 // These are deliberately tight to avoid false positives (e.g. "FAIL" in code
 // strings): each anchor requires a language/tool-specific prefix or structure.
@@ -134,7 +170,11 @@ func TruncateWithEscalation(maxLines int, mode AutoEscalateMode, window int) Fil
 		}
 
 		anchors := findFailureAnchors(lines)
+		summaries := findSummaryAnchors(lines)
 		if len(anchors) == 0 {
+			// No failure anchors — legacy path already pins summaries. But if
+			// summaries exist, also use windowTruncate with an empty anchor set
+			// so they are preserved with context, matching the escalation UX.
 			return legacy(input)
 		}
 
@@ -144,16 +184,16 @@ func TruncateWithEscalation(maxLines int, mode AutoEscalateMode, window int) Fil
 		case EscalateConservative:
 			return input
 		case EscalateWindow:
-			return windowTruncate(lines, anchors, maxLines, window)
+			return windowTruncate(lines, anchors, summaries, maxLines, window)
 		}
 		return legacy(input)
 	}
 }
 
-// windowTruncate keeps head + tail + ±window lines around each anchor index,
-// producing the same "[... N lines omitted ...]" markers as TruncateWithLimit
-// between kept ranges.
-func windowTruncate(lines []string, anchors []int, maxLines, window int) string {
+// windowTruncate keeps head + tail + ±window lines around each failure anchor,
+// plus any summary anchors (as single-line pins). Same "[... N lines omitted
+// ...]" markers between kept ranges as TruncateWithLimit.
+func windowTruncate(lines []string, anchors, summaries []int, maxLines, window int) string {
 	n := len(lines)
 	keep := make([]bool, n)
 
@@ -201,6 +241,15 @@ func windowTruncate(lines []string, anchors []int, maxLines, window int) string 
 		markKeep(n-tailCount, n-1)
 		markKeep(anchors[0]-window, anchors[0]+window)
 		markKeep(anchors[len(anchors)-1]-window, anchors[len(anchors)-1]+window)
+	}
+
+	// Summary anchors are single-line pins: always kept, independent of the
+	// failure-window budget. This is cheap (a handful of lines) and preserves
+	// the test totals / duration that an LLM needs to interpret the run.
+	for _, s := range summaries {
+		if s >= 0 && s < n {
+			keep[s] = true
+		}
 	}
 
 	var out []string

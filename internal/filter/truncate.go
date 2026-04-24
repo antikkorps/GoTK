@@ -14,6 +14,11 @@ const HeadTailRatio = 0.7
 
 // TruncateWithLimit returns a FilterFunc that limits output to maxLines,
 // keeping head and tail with a summary. 0 or negative means no limit.
+//
+// Test-runner summary anchors (jest/vitest/pytest/cargo/go test totals and
+// duration) are pinned: if they would fall in the omitted middle, they are
+// inserted just after the head so the LLM always sees the final counts. See
+// issue #40.
 func TruncateWithLimit(maxLines int) FilterFunc {
 	return func(input string) string {
 		if maxLines <= 0 {
@@ -33,12 +38,27 @@ func TruncateWithLimit(maxLines int) FilterFunc {
 
 		headCount := int(float64(maxLines) * HeadTailRatio)
 		tailCount := maxLines - headCount
-		omitted := len(lines) - headCount - tailCount
+		tailStart := len(lines) - tailCount
 
+		// Collect summary anchors that land in the omitted middle.
+		var pinned []string
+		for _, idx := range findSummaryAnchors(lines) {
+			if idx >= headCount && idx < tailStart {
+				pinned = append(pinned, lines[idx])
+			}
+		}
+
+		omitted := tailStart - headCount
 		var result []string
 		result = append(result, lines[:headCount]...)
-		result = append(result, fmt.Sprintf("\n[... %d lines omitted ...]\n", omitted))
-		result = append(result, lines[len(lines)-tailCount:]...)
+		if len(pinned) > 0 {
+			result = append(result, fmt.Sprintf("\n[... %d lines omitted; summary pinned below ...]", omitted))
+			result = append(result, pinned...)
+			result = append(result, "\n")
+		} else {
+			result = append(result, fmt.Sprintf("\n[... %d lines omitted ...]\n", omitted))
+		}
+		result = append(result, lines[tailStart:]...)
 
 		return strings.Join(result, "\n") + "\n"
 	}

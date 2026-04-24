@@ -18,6 +18,18 @@ import (
 
 // BuildChain creates a filter chain controlled by config, command type, and max lines.
 func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filter.Chain {
+	return buildChain(cfg, cmdType, maxLines, filter.Summarize)
+}
+
+// BuildChainWithExit is like BuildChain but feeds the command's exit code and
+// stderr into the summary step, so `result: PASS/FAIL` reflects authoritative
+// signals (exit code, stderr-side runner totals) instead of only heuristic
+// anchor matching on stdout.
+func BuildChainWithExit(cfg *config.Config, cmdType detect.CmdType, maxLines int, exitCode int, stderr string) *filter.Chain {
+	return buildChain(cfg, cmdType, maxLines, filter.SummarizeWithContext(exitCode, stderr))
+}
+
+func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summarize filter.FilterFunc) *filter.Chain {
 	chain := filter.NewChain()
 
 	// Blacklist: remove matching lines early, before any other processing
@@ -57,7 +69,7 @@ func BuildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int) *filte
 	}
 
 	// Summary goes before truncation so LLM always sees the overview
-	chain.AddNamed("summarize", filter.Summarize)
+	chain.AddNamed("summarize", summarize)
 
 	if cfg.Filters.Truncate {
 		mode := filter.ParseAutoEscalate(cfg.General.AutoEscalate)
@@ -133,11 +145,15 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 		}
 	}
 
-	chain := BuildChainWithKeep(cfg, cmdType, maxLines, raw)
+	exitCode := exitCodeFromResult(result, err)
+	chain := BuildChainWithExit(cfg, cmdType, maxLines, exitCode, result.Stderr)
+	if len(cfg.Rules.AlwaysKeep) > 0 {
+		chain.AddNamed("always_keep", filter.KeepByRules(cfg.Rules.AlwaysKeep, raw))
+	}
 	cleaned := chain.Apply(raw)
 	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 
-	return exitCodeFromResult(result, err)
+	return exitCode
 }
 
 // RunShell starts an interactive-ish proxy shell that reads commands from
