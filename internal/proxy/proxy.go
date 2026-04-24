@@ -45,6 +45,11 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 	}
 	if cfg.Filters.Dedup {
 		chain.AddNamed("dedup", filter.Dedup)
+		// Collapse Node.js worker warnings that differ only by PID. Runs
+		// after Dedup because the generic dedup cannot see through the PID;
+		// this filter normalizes PIDs and collapses consecutive blocks. See
+		// issue #37.
+		chain.AddNamed("node_warnings", filter.CollapseNodeWarnings)
 	}
 
 	// Command-specific filters (CompressPaths is included via detect.FiltersFor
