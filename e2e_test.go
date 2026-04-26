@@ -1,3 +1,11 @@
+//go:build !windows
+
+// The e2e suite drives the compiled gotk binary through scenarios that rely
+// on a POSIX shell (`sh -c "..."`, `#!/bin/sh` scripts, signal forwarding to
+// child processes). Porting this to Windows is its own effort — for now the
+// build tag keeps the suite POSIX-only. Cross-platform code is exercised by
+// per-package unit tests; the Linux + macOS CI jobs run e2e here.
+
 package gotk_test
 
 import (
