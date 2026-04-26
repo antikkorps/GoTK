@@ -16,6 +16,8 @@ Results vary by output size and content. Use `--stats` to see exact savings per 
 
 ## Installation
 
+### Linux / macOS
+
 ```bash
 go install github.com/antikkorps/GoTK/cmd/gotk@latest
 ```
@@ -26,15 +28,24 @@ Or build from source:
 git clone https://github.com/antikkorps/GoTK.git
 cd GoTK
 go build -o gotk ./cmd/gotk/
-```
-
-To make `gotk` available system-wide:
-
-```bash
 sudo ln -s $(pwd)/gotk /usr/local/bin/gotk
 ```
 
-Quick setup for Claude Code:
+### Windows
+
+Pre-built binaries are published as `gotk_<version>_windows_<arch>.zip` on
+the [Releases](https://github.com/antikkorps/GoTK/releases/latest) page.
+Unzip and put `gotk.exe` somewhere on your `PATH` (e.g. `%USERPROFILE%\bin`).
+See [docs/quickstart.md](docs/quickstart.md#install) for a PowerShell snippet
+that adds the directory to your user `PATH`.
+
+Daemon mode is not available on Windows — use `gotk install claude` (Claude
+Code hook) or pipe commands through `gotk` directly. See the [platform
+support matrix](docs/quickstart.md#platform-support-matrix).
+
+### Claude Code
+
+Quick setup:
 
 ```bash
 gotk install claude

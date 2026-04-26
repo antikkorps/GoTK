@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -540,7 +541,9 @@ func runDaemon(args []string) {
 	case "start":
 		if err := daemon.Start(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "gotk daemon: %v\n", err)
-			fmt.Fprintln(os.Stderr, "  hint: ensure your shell is bash or zsh, set GOTK_SHELL if needed")
+			if !errors.Is(err, daemon.ErrUnsupportedOS) {
+				fmt.Fprintln(os.Stderr, "  hint: ensure your shell is bash or zsh, set GOTK_SHELL if needed")
+			}
 			os.Exit(1)
 		}
 

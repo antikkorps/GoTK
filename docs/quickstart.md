@@ -4,6 +4,8 @@ Get started in 30 seconds. GoTK cleans command output before sending to LLMs —
 
 ## Install
 
+### Linux / macOS
+
 ```bash
 go build -o /usr/local/bin/gotk ./cmd/gotk/
 ```
@@ -13,6 +15,24 @@ Or keep it local to your project:
 ```bash
 go build -o gotk ./cmd/gotk/
 export PATH="$PWD:$PATH"
+```
+
+### Windows
+
+Download the matching `gotk_<version>_windows_<arch>.zip` from
+[GitHub Releases](https://github.com/antikkorps/GoTK/releases/latest), unzip,
+and place `gotk.exe` somewhere on your `PATH` — typical choices are
+`%USERPROFILE%\bin` (create the directory if needed) or `C:\Tools\gotk\`.
+
+```powershell
+# PowerShell example, after unzipping into C:\Tools\gotk\
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Tools\gotk", "User")
+```
+
+Or build from source if you have a Go toolchain:
+
+```powershell
+go build -o gotk.exe ./cmd/gotk/
 ```
 
 ## Verify
@@ -29,9 +49,30 @@ gotk update --check    # Is a newer release out?
 gotk update            # Download, verify SHA256, replace this binary
 ```
 
-The default flow uses the GitHub Releases artifacts matching your OS/arch.
-On platforms with no pre-built binary (e.g. Windows today), or with
-`--from-source`, `gotk update` falls back to `go install …@latest`.
+The default flow uses the GitHub Releases artifacts matching your OS/arch
+(`.tar.gz` on Linux/macOS, `.zip` on Windows). With `--from-source`, or when
+no pre-built binary is published, `gotk update` falls back to
+`go install …@latest`.
+
+On Windows, the running `gotk.exe` cannot be overwritten while it executes,
+so `gotk update` renames it to `gotk.exe.old` and writes the new binary in
+its place. The `.old` file is cleaned up automatically the next time
+`gotk update` runs.
+
+## Platform support matrix
+
+| Feature               | Linux | macOS | Windows |
+| --------------------- | :---: | :---: | :-----: |
+| Pipe / direct / shell |   ✓   |   ✓   |    ✓    |
+| `gotk install claude` |   ✓   |   ✓   |    ✓    |
+| `gotk update`         |   ✓   |   ✓   |    ✓    |
+| MCP server            |   ✓   |   ✓   |    ✓    |
+| `gotk daemon`         |   ✓   |   ✓   |    —    |
+
+`gotk daemon` hooks into zsh / bash through shell-specific integration
+points (zsh ZLE, bash `extdebug` DEBUG trap); neither has a Windows
+equivalent. On Windows, prefer `gotk install claude` for transparent
+filtering, or pipe individual commands through `gotk` directly.
 
 ---
 

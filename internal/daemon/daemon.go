@@ -4,11 +4,13 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -16,6 +18,13 @@ import (
 	"github.com/antikkorps/GoTK/internal/cmdclass"
 	"github.com/antikkorps/GoTK/internal/config"
 )
+
+// ErrUnsupportedOS is returned by Start and Init on platforms where daemon
+// mode does not apply. Daemon mode hooks into zsh / bash via shell-specific
+// integration points (zsh ZLE, bash extdebug DEBUG trap); neither exists on
+// Windows. Use the Claude Code hook (gotk install claude) or pipe mode
+// (cmd | gotk) for transparent filtering on Windows.
+var ErrUnsupportedOS = errors.New("daemon mode is not supported on this platform — use `gotk install claude` or pipe commands through `gotk` instead")
 
 // InteractiveCommands is an alias for backward compatibility.
 // Use cmdclass.InteractiveCommands for new code.
@@ -109,7 +118,11 @@ func prepareSession() (*sessionSetup, error) {
 
 // Start launches a daemon shell session. It spawns the user's shell with
 // custom init scripts that intercept commands and pipe them through gotk.
+// Returns ErrUnsupportedOS on Windows.
 func Start(cfg *config.Config) error {
+	if runtime.GOOS == "windows" {
+		return ErrUnsupportedOS
+	}
 	setup, err := prepareSession()
 	if err != nil {
 		return err
@@ -188,7 +201,11 @@ func Status() {
 }
 
 // Init prints the shell init code for manual eval.
+// Returns ErrUnsupportedOS on Windows.
 func Init(shell string) error {
+	if runtime.GOOS == "windows" {
+		return ErrUnsupportedOS
+	}
 	gotkBin, err := findGotkBin()
 	if err != nil {
 		return err

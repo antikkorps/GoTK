@@ -512,11 +512,10 @@
 
 ### Tranche 3 — Daemon, CI, docs
 
-- [ ] Daemon mode: decide support matrix. Zsh/bash interception doesn't apply — evaluate a PowerShell profile hook or mark daemon unsupported on Windows for this release.
+- [x] Daemon mode: marked unsupported on Windows. `daemon.Start` and `daemon.Init` return `ErrUnsupportedOS` early; the CLI prints a message pointing users to `gotk install claude` or pipe mode. PowerShell hook deferred — no concrete user demand yet.
+- [x] README + `docs/quickstart.md`: Windows install instructions (.zip from Releases, PATH setup) and platform support matrix.
 - [ ] Run the full golden-file test suite on a Windows runner in CI.
 - [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus.
-- [ ] README + `docs/quickstart.md`: Windows install and shell integration instructions.
-- [ ] Document the support matrix (what works, what is deliberately out of scope — e.g. daemon mode if deferred).
 
 ---
 
