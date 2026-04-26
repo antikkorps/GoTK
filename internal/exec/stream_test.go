@@ -32,6 +32,13 @@ func TestRunStream_Echo(t *testing.T) {
 }
 
 func TestRunStream_MultipleLines(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows printf doesn't interpret backslash escapes — "\n" stays
+		// literal, so the command emits a single line. Skipping here keeps
+		// the test POSIX-only; line splitting itself is exercised by
+		// per-package unit tests on bufio.Scanner.
+		t.Skip("printf escape semantics differ on Windows")
+	}
 	// Use printf to emit multiple lines.
 	ch, wait := RunStream(context.Background(), "printf", "line1\nline2\nline3\n")
 
