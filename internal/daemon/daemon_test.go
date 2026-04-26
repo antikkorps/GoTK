@@ -1,3 +1,9 @@
+//go:build !windows
+
+// Daemon mode is not supported on Windows (zsh / bash interception has no
+// equivalent). The Windows-side guard is exercised by
+// unsupported_windows_test.go.
+
 package daemon
 
 import (

@@ -64,6 +64,33 @@ jobs:
             exit 1
           fi
 
+  test-windows:
+    runs-on: windows-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: false
+
+      # Smoke-build the Windows binary so a regression on cross-compile
+      # surfaces immediately. Coverage gate stays on the Linux job; the
+      # goal here is platform parity on build + tests.
+      - name: Build
+        shell: pwsh
+        run: |
+          $version = (git describe --tags --always --dirty)
+          go build -ldflags "-s -w -X main.Version=$version" -o gotk.exe ./cmd/gotk/
+          .\gotk.exe --version
+
+      # -race needs CGO_ENABLED=1 on Windows; the Linux job already
+      # exercises the race detector, so we run plain `go test` here.
+      - name: Test
+        shell: pwsh
+        run: go test ./...
+
   bench:
     runs-on: ubuntu-latest
     needs: test
