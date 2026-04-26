@@ -6,7 +6,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// buildHookCmd builds the Claude Code hook command string from a binary
+// path. Paths containing spaces (typical on Windows when gotk is installed
+// under C:\Program Files\...) are wrapped in double quotes so the shell
+// invoked by Claude Code parses the argv correctly. Double quotes work in
+// both POSIX shells and cmd.exe / PowerShell.
+func buildHookCmd(gotkPath string) string {
+	if strings.ContainsRune(gotkPath, ' ') {
+		return `"` + gotkPath + `" hook`
+	}
+	return gotkPath + " hook"
+}
 
 // Scope determines where the hook is installed.
 //
@@ -52,7 +65,7 @@ func claudeInstallAt(settingsPath, gotkPath string) error {
 		return err
 	}
 
-	hookCmd := gotkPath + " hook"
+	hookCmd := buildHookCmd(gotkPath)
 
 	// Check if already installed
 	if isHookInstalled(settings, hookCmd) {
@@ -93,7 +106,7 @@ func claudeUninstallAt(settingsPath, gotkPath string) error {
 		return err
 	}
 
-	hookCmd := gotkPath + " hook"
+	hookCmd := buildHookCmd(gotkPath)
 
 	if removeHook(settings, hookCmd) {
 		if err := writeSettings(settingsPath, settings); err != nil {
@@ -128,7 +141,7 @@ func claudeStatusAt(settingsPath, gotkPath string) error {
 		return nil
 	}
 
-	hookCmd := gotkPath + " hook"
+	hookCmd := buildHookCmd(gotkPath)
 	if isHookInstalled(settings, hookCmd) {
 		fmt.Fprintf(os.Stderr, "Settings file: %s\n", settingsPath)
 		fmt.Fprintf(os.Stderr, "GoTK hook: installed\n")

@@ -503,11 +503,12 @@
 - [x] Platform-aware config + data dirs: new `internal/paths` package keeps `~/.config/gotk` + `~/.local/share/gotk` on Unix (no breaking change for existing users) but resolves to `%AppData%/gotk` on Windows via `os.UserConfigDir`. Migrated 6 call sites (config, install, update, measure).
 - [x] Goreleaser config: add `windows/amd64` and `windows/arm64` targets, produce `.zip` archives.
 
-### Tranche 2 — Install & update (next)
+### Tranche 2 — Install & update `DONE`
 
-- [ ] `gotk install claude`: adjust `~/.claude/settings.json` path resolution for Windows user profile.
-- [ ] `gotk update` self-replace: Windows can't rename a running executable. Implement the pending-replace pattern (write `.new`, spawn detached helper that swaps on exit).
-- [ ] Audit remaining `os/exec` paths in `internal/install/` and `internal/update/` for Windows-specific quirks.
+- [x] `gotk install claude` path resolution: `os.UserHomeDir()` already returns `%USERPROFILE%` on Windows so existing `filepath.Join(home, ".claude", ...)` is correct. Added `buildHookCmd` to wrap the binary path in double quotes when it contains a space (covers `C:\Program Files\gotk\gotk.exe`).
+- [x] `gotk update` self-replace: split `replaceBinary` per platform via build tags. Unix keeps the rename-into-place flow. Windows uses pending-replace: rename running `gotk.exe` to `gotk.exe.old`, move new binary into place; `sweepStaleReplacements` cleans up the `.old` on the next `gotk update` run.
+- [x] `PickAsset` recognizes `.zip` for `goos=windows`, `.tar.gz` for everything else.
+- [x] `downloadAndExtract` dispatches on archive extension: tar.gz extraction (existing) or zip extraction (new), and matches both `gotk` and `gotk.exe` archive entries.
 
 ### Tranche 3 — Daemon, CI, docs
 

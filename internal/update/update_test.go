@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -44,6 +45,26 @@ func buildTarball(t *testing.T, binary []byte) ([]byte, string) {
 		t.Fatal(err)
 	}
 
+	sum := sha256.Sum256(buf.Bytes())
+	return buf.Bytes(), hex.EncodeToString(sum[:])
+}
+
+// buildZip wraps `binary` in a zip archive matching the goreleaser layout for
+// Windows releases. The entry is named "gotk.exe" to mirror the real artifact.
+func buildZip(t *testing.T, binary []byte) ([]byte, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("gotk.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(binary); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
 	sum := sha256.Sum256(buf.Bytes())
 	return buf.Bytes(), hex.EncodeToString(sum[:])
 }
@@ -277,6 +298,36 @@ func TestRunDownloadReplacesBinary(t *testing.T) {
 	}
 }
 
+func TestDownloadAndExtractFromZipForWindows(t *testing.T) {
+	binaryContent := []byte("windows-binary-bytes")
+	zipBytes, sum := buildZip(t, binaryContent)
+
+	assetName := "gotk_1.6.0_windows_amd64.zip"
+	srv := fakeGitHub(t, "v1.6.0", map[string][]byte{assetName: zipBytes})
+	rel, err := FetchLatest(context.Background(), srv.URL, "antikkorps/GoTK", srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset, ok := PickAsset(rel.Assets, "1.6.0", "windows", "amd64")
+	if !ok {
+		t.Fatal("windows asset not found")
+	}
+
+	tmpPath, err := downloadAndExtract(context.Background(), asset, sum, srv.Client())
+	if err != nil {
+		t.Fatalf("downloadAndExtract returned error: %v", err)
+	}
+	defer os.Remove(tmpPath) //nolint:errcheck
+
+	got, err := os.ReadFile(tmpPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, binaryContent) {
+		t.Errorf("extracted binary mismatch: got %q, want %q", got, binaryContent)
+	}
+}
+
 func TestDownloadAndExtractRejectsBadChecksum(t *testing.T) {
 	binaryContent := []byte("hi")
 	tarBytes, _ := buildTarball(t, binaryContent)
@@ -382,6 +433,33 @@ func TestPickAssetMatchesGoreleaserTemplate(t *testing.T) {
 				t.Errorf("PickAsset failed for %s/%s: want %s, got %s/%v", os, arch, want, got.Name, ok)
 			}
 		}
+	}
+}
+
+func TestPickAssetMatchesWindowsZip(t *testing.T) {
+	version := "1.6.0"
+	for _, arch := range []string{"amd64", "arm64"} {
+		want := fmt.Sprintf("gotk_%s_windows_%s.zip", version, arch)
+		assets := []Asset{
+			{Name: fmt.Sprintf("gotk_%s_linux_amd64.tar.gz", version)},
+			{Name: want},
+		}
+		got, ok := PickAsset(assets, version, "windows", arch)
+		if !ok {
+			t.Errorf("PickAsset for windows/%s failed: zip asset not found", arch)
+			continue
+		}
+		if got.Name != want {
+			t.Errorf("PickAsset for windows/%s: got %s, want %s", arch, got.Name, want)
+		}
+	}
+}
+
+func TestPickAssetIgnoresTarGzOnWindows(t *testing.T) {
+	// A release that only ships .tar.gz must not be picked for Windows.
+	assets := []Asset{{Name: "gotk_1.6.0_windows_amd64.tar.gz"}}
+	if _, ok := PickAsset(assets, "1.6.0", "windows", "amd64"); ok {
+		t.Error("PickAsset should not match .tar.gz on Windows")
 	}
 }
 
