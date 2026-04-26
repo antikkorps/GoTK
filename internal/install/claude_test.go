@@ -4,8 +4,34 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestBuildHookCmd_NoSpaces(t *testing.T) {
+	got := buildHookCmd("/usr/local/bin/gotk")
+	if got != "/usr/local/bin/gotk hook" {
+		t.Errorf("buildHookCmd = %q", got)
+	}
+}
+
+func TestBuildHookCmd_WindowsExe(t *testing.T) {
+	got := buildHookCmd(`C:\Users\foo\bin\gotk.exe`)
+	if got != `C:\Users\foo\bin\gotk.exe hook` {
+		t.Errorf("buildHookCmd = %q", got)
+	}
+}
+
+func TestBuildHookCmd_PathWithSpaces(t *testing.T) {
+	got := buildHookCmd(`C:\Program Files\gotk\gotk.exe`)
+	want := `"C:\Program Files\gotk\gotk.exe" hook`
+	if got != want {
+		t.Errorf("buildHookCmd = %q, want %q", got, want)
+	}
+	if !strings.HasPrefix(got, `"`) {
+		t.Errorf("expected leading quote: %q", got)
+	}
+}
 
 func TestClaudeInstall_NewFile(t *testing.T) {
 	dir := t.TempDir()

@@ -15,6 +15,8 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -170,6 +172,10 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("resolve executable symlinks: %w", err)
 	}
 
+	// Clean up a stale .old left over by a previous Windows update before we
+	// stage the new one. No-op on Unix.
+	sweepStaleReplacements(exePath)
+
 	if err := replaceBinary(tmpBin, exePath); err != nil {
 		return fmt.Errorf("replace %s: %w", exePath, err)
 	}
@@ -216,9 +222,15 @@ func FetchLatest(ctx context.Context, baseURL, repo string, client *http.Client)
 }
 
 // PickAsset returns the asset matching the given version, OS, and arch.
-// Asset names follow goreleaser's default: gotk_<version>_<os>_<arch>.tar.gz.
+// Asset names follow goreleaser's default:
+//   - Unix: gotk_<version>_<os>_<arch>.tar.gz
+//   - Windows: gotk_<version>_<os>_<arch>.zip
 func PickAsset(assets []Asset, version, goos, goarch string) (Asset, bool) {
-	wanted := fmt.Sprintf("gotk_%s_%s_%s.tar.gz", version, goos, goarch)
+	ext := "tar.gz"
+	if goos == "windows" {
+		ext = "zip"
+	}
+	wanted := fmt.Sprintf("gotk_%s_%s_%s.%s", version, goos, goarch, ext)
 	for _, a := range assets {
 		if a.Name == wanted {
 			return a, true
@@ -265,9 +277,10 @@ func fetchChecksum(ctx context.Context, assets []Asset, filename string, client 
 	return "", fmt.Errorf("checksum for %q not found in checksums.txt", filename)
 }
 
-// downloadAndExtract streams the release tarball, verifies its SHA256 against
-// the supplied hex digest, extracts the `gotk` entry to a temp file, and
-// returns the temp file path. The caller is responsible for removing it.
+// downloadAndExtract streams the release archive, verifies its SHA256 against
+// the supplied hex digest, extracts the `gotk` (or `gotk.exe`) entry to a temp
+// file, and returns the temp file path. The caller is responsible for removing
+// it. Dispatches on the asset filename: .tar.gz for Unix, .zip for Windows.
 func downloadAndExtract(ctx context.Context, asset Asset, wantSHA256 string, client *http.Client) (string, error) {
 	body, err := httpGet(ctx, asset.DownloadURL, client)
 	if err != nil {
@@ -275,14 +288,18 @@ func downloadAndExtract(ctx context.Context, asset Asset, wantSHA256 string, cli
 	}
 	defer body.Close() //nolint:errcheck
 
+	// Read the full archive so we can verify its SHA256 before extracting.
+	// Release archives are small (a few MB at most), so buffering is fine.
 	hasher := sha256.New()
-	gz, err := gzip.NewReader(io.TeeReader(body, hasher))
-	if err != nil {
-		return "", fmt.Errorf("gzip reader: %w", err)
+	var buf bytes.Buffer
+	if _, err := io.Copy(io.MultiWriter(&buf, hasher), body); err != nil {
+		return "", fmt.Errorf("read archive: %w", err)
 	}
-	defer gz.Close() //nolint:errcheck
+	gotSHA := hex.EncodeToString(hasher.Sum(nil))
+	if !strings.EqualFold(gotSHA, wantSHA256) {
+		return "", fmt.Errorf("sha256 mismatch: want %s got %s", wantSHA256, gotSHA)
+	}
 
-	tr := tar.NewReader(gz)
 	tmp, err := os.CreateTemp("", "gotk-update-*.bin")
 	if err != nil {
 		return "", err
@@ -293,52 +310,16 @@ func downloadAndExtract(ctx context.Context, asset Asset, wantSHA256 string, cli
 		os.Remove(tmpPath) //nolint:errcheck
 	}
 
-	found := false
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
+	if strings.HasSuffix(asset.Name, ".zip") {
+		if err := extractGotkFromZip(buf.Bytes(), tmp); err != nil {
 			cleanup()
-			return "", fmt.Errorf("tar read: %w", err)
+			return "", err
 		}
-		if hdr.Typeflag != tar.TypeReg {
-			continue
-		}
-		// The goreleaser archive places the binary at the top level as
-		// simply "gotk" — match the basename to be defensive against
-		// future layout changes.
-		if filepath.Base(hdr.Name) != "gotk" {
-			continue
-		}
-		if _, err := io.Copy(tmp, tr); err != nil {
+	} else {
+		if err := extractGotkFromTarGz(&buf, tmp); err != nil {
 			cleanup()
-			return "", fmt.Errorf("write temp binary: %w", err)
+			return "", err
 		}
-		found = true
-		break
-	}
-	if !found {
-		cleanup()
-		return "", errors.New("archive did not contain a `gotk` binary")
-	}
-
-	// Drain the rest of the stream so the hash covers the full tarball.
-	if _, err := io.Copy(io.Discard, tr); err != nil {
-		cleanup()
-		return "", fmt.Errorf("drain tar: %w", err)
-	}
-	// Pull any remaining gzip framing bytes through the hasher.
-	if _, err := io.Copy(io.Discard, gz); err != nil {
-		cleanup()
-		return "", fmt.Errorf("drain gzip: %w", err)
-	}
-
-	gotSHA := hex.EncodeToString(hasher.Sum(nil))
-	if !strings.EqualFold(gotSHA, wantSHA256) {
-		cleanup()
-		return "", fmt.Errorf("sha256 mismatch: want %s got %s", wantSHA256, gotSHA)
 	}
 
 	if err := tmp.Chmod(0o755); err != nil {
@@ -352,28 +333,70 @@ func downloadAndExtract(ctx context.Context, asset Asset, wantSHA256 string, cli
 	return tmpPath, nil
 }
 
-// replaceBinary atomically places the binary at tmpPath at exePath, preserving
-// the original mode. On Unix os.Rename replaces the inode while the running
-// process keeps executing from the old in-memory image — safe to call from
-// within the running gotk.
-func replaceBinary(tmpPath, exePath string) error {
-	// Try to preserve the current mode (e.g. user-only exec if the binary
-	// lives in a restricted directory).
-	if info, err := os.Stat(exePath); err == nil {
-		_ = os.Chmod(tmpPath, info.Mode().Perm())
+// extractGotkFromTarGz copies the gotk binary entry out of a goreleaser-style
+// gzip-compressed tarball. Returns an error if no matching entry is found.
+func extractGotkFromTarGz(r io.Reader, dst io.Writer) error {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("gzip reader: %w", err)
 	}
+	defer gz.Close() //nolint:errcheck
 
-	// Move to a sibling path first so the final rename is a same-filesystem
-	// operation (os.Rename across filesystems fails with EXDEV).
-	stagePath := exePath + ".new"
-	if err := moveFile(tmpPath, stagePath); err != nil {
-		return err
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return errors.New("archive did not contain a `gotk` binary")
+		}
+		if err != nil {
+			return fmt.Errorf("tar read: %w", err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		if !isGotkBinary(filepath.Base(hdr.Name)) {
+			continue
+		}
+		if _, err := io.Copy(dst, tr); err != nil {
+			return fmt.Errorf("write temp binary: %w", err)
+		}
+		return nil
 	}
-	if err := os.Rename(stagePath, exePath); err != nil {
-		os.Remove(stagePath) //nolint:errcheck
-		return err
+}
+
+// extractGotkFromZip copies the gotk binary entry out of a goreleaser-style
+// zip archive. archive/zip needs a ReaderAt and a known size, so the caller
+// passes the full archive bytes.
+func extractGotkFromZip(data []byte, dst io.Writer) error {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("zip reader: %w", err)
 	}
-	return nil
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if !isGotkBinary(filepath.Base(f.Name)) {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("open zip entry: %w", err)
+		}
+		_, err = io.Copy(dst, rc)
+		rc.Close() //nolint:errcheck
+		if err != nil {
+			return fmt.Errorf("write temp binary: %w", err)
+		}
+		return nil
+	}
+	return errors.New("archive did not contain a `gotk` binary")
+}
+
+// isGotkBinary returns true for archive entries that should be treated as the
+// gotk executable. Matches "gotk" (Unix) and "gotk.exe" (Windows).
+func isGotkBinary(name string) bool {
+	return name == "gotk" || name == "gotk.exe"
 }
 
 // moveFile renames src → dst, falling back to copy+remove when src and dst
