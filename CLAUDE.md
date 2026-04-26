@@ -53,6 +53,15 @@ go test ./...
 - Stderr passes through unmodified
 - `--quiet` suppresses info/warning messages, `--debug` shows config/detection/chain details
 
+## Code Conventions
+
+- **Search before creating new files.** Before writing a new filter, helper,
+  or utility, grep / Agent-search the codebase for existing implementations
+  with similar names or purposes. Prefer extending an existing one over
+  creating a parallel implementation. Past pain: `compressNodeOutput` already
+  existed when `CollapseNodeWarnings` was added — the duplication had to be
+  reconciled later.
+
 ## Quality-First Filtering
 
 **Output quality is the #1 priority — token reduction is secondary.**
