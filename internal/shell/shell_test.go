@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"os"
 	"runtime"
 	"testing"
 )
@@ -48,8 +47,8 @@ func TestDefaultFallback(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix fallback path")
 	}
-	os.Unsetenv("GOTK_SHELL")
-	os.Unsetenv("SHELL")
+	t.Setenv("GOTK_SHELL", "")
+	t.Setenv("SHELL", "")
 	path, _ := Default()
 	if path == "" {
 		t.Errorf("path is empty")
