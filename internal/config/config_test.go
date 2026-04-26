@@ -4,7 +4,26 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
+
+// fakeHomeAndGlobalConfigPath redirects every place gotk looks up the
+// user's home or global config to a single temp directory and returns the
+// platform-correct path of the global config.toml. Honors the env vars that
+// os.UserHomeDir / os.UserConfigDir consult on Windows so the tests land
+// where Load() will look for them.
+func fakeHomeAndGlobalConfigPath(t *testing.T, home string) string {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	cfgPath, ok := paths.ConfigFile()
+	if !ok {
+		t.Fatal("paths.ConfigFile() failed")
+	}
+	return cfgPath
+}
 
 func TestDefault_ReturnsExpectedValues(t *testing.T) {
 	cfg := Default()
@@ -815,10 +834,10 @@ max_lines = 200
 
 func TestConfigPrecedence_ProjectOverridesGlobal(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	globalCfg := fakeHomeAndGlobalConfigPath(t, tmp)
 
 	// Global config
-	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[general]
+	writeConfig(t, globalCfg, `[general]
 max_lines = 30
 
 [security]
@@ -848,10 +867,10 @@ max_lines = 75
 
 func TestConfigPrecedence_MergesSections(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	globalCfg := fakeHomeAndGlobalConfigPath(t, tmp)
 
 	// Global: filters section
-	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[filters]
+	writeConfig(t, globalCfg, `[filters]
 strip_ansi = false
 `)
 
@@ -889,10 +908,10 @@ max_lines = 25
 
 func TestConfigPrecedence_RulesAppendOrOverride(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	globalCfg := fakeHomeAndGlobalConfigPath(t, tmp)
 
 	// Global: rules with always_keep = ["ERROR"]
-	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[rules]
+	writeConfig(t, globalCfg, `[rules]
 always_keep = ["ERROR"]
 `)
 
@@ -922,10 +941,10 @@ always_keep = ["WARN", "FATAL"]
 
 func TestConfigPrecedence_TruncationMerge(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	globalCfg := fakeHomeAndGlobalConfigPath(t, tmp)
 
 	// Global: truncation for grep
-	writeConfig(t, filepath.Join(tmp, ".config", "gotk", "config.toml"), `[truncation]
+	writeConfig(t, globalCfg, `[truncation]
 grep = 30
 `)
 

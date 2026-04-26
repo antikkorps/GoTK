@@ -55,8 +55,12 @@ func TestRunBenchmarksReturnsAllResults(t *testing.T) {
 		if r.CleanBytes <= 0 {
 			t.Errorf("result %q: CleanBytes should be positive, got %d", r.Name, r.CleanBytes)
 		}
-		if r.Duration <= 0 {
-			t.Errorf("result %q: Duration should be positive, got %v", r.Name, r.Duration)
+		// Duration uses time.Now diffs, which has ~15ms resolution on
+		// Windows — small fixtures legitimately measure 0. RawBytes /
+		// LinesRaw already prove the benchmark ran; Duration < 0 is the
+		// only real bug.
+		if r.Duration < 0 {
+			t.Errorf("result %q: Duration should be non-negative, got %v", r.Name, r.Duration)
 		}
 		if r.LinesRaw <= 0 {
 			t.Errorf("result %q: LinesRaw should be positive, got %d", r.Name, r.LinesRaw)

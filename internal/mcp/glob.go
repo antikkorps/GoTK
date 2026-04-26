@@ -3,10 +3,15 @@ package mcp
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 )
+
+// pathMatch is path.Match — aliased so the call site reads naturally next
+// to filepath operations and signals intent (slash-based matching).
+var pathMatch = path.Match
 
 // globExcludeDirs are directories skipped entirely during glob walk.
 // Kept in sync with internal/ctx/walk.go (local copy to avoid import cycle).
@@ -69,12 +74,16 @@ func runGlob(pattern, root string, max int) ([]string, error) {
 			if relErr != nil {
 				return nil
 			}
-			candidate = rel
+			// Normalize to forward slashes so patterns like "src/cmd/*.go"
+			// match on Windows where filepath.Rel returns backslashes.
+			candidate = filepath.ToSlash(rel)
 		} else {
 			candidate = d.Name()
 		}
 
-		ok, _ := filepath.Match(pat, candidate)
+		// path.Match uses '/' as separator on every OS, matching the user
+		// pattern syntax. filepath.Match would split on backslash on Windows.
+		ok, _ := pathMatch(pat, candidate)
 		if !ok {
 			return nil
 		}
@@ -115,13 +124,15 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 			if err != nil {
 				rel = m
 			}
-			b.WriteString(rel)
+			b.WriteString(filepath.ToSlash(rel))
 			b.WriteByte('\n')
 		}
 		return b.String()
 	}
 
-	// Group by parent directory (relative to root).
+	// Group by parent directory (relative to root). Normalize to forward
+	// slashes so output stays consistent across OSes — this is LLM-facing
+	// text, not a filesystem reference.
 	groups := make(map[string][]string)
 	var order []string
 	for _, m := range matches {
@@ -129,7 +140,8 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 		if err != nil {
 			rel = m
 		}
-		dir := filepath.Dir(rel)
+		rel = filepath.ToSlash(rel)
+		dir := path.Dir(rel)
 		if dir == "." {
 			dir = "./"
 		} else {
@@ -138,7 +150,7 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 		if _, seen := groups[dir]; !seen {
 			order = append(order, dir)
 		}
-		groups[dir] = append(groups[dir], filepath.Base(rel))
+		groups[dir] = append(groups[dir], path.Base(rel))
 	}
 	sort.Strings(order)
 

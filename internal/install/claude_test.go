@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -218,6 +219,12 @@ func TestReadSettings_InvalidJSON(t *testing.T) {
 }
 
 func TestWriteSettings_Permissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows ignores Unix file mode bits; os.Stat returns 0666 by
+		// default and there's no equivalent ACL check at this level. The
+		// 0600 mode is still set in the source for Unix correctness.
+		t.Skip("Unix file permissions are not meaningful on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".claude", "settings.json")
 

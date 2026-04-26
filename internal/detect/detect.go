@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -173,14 +174,19 @@ func splitGrepLine(line string) (file, rest string, ok bool) {
 	return file, remaining, true
 }
 
-// compressFindOutput factorizes common path prefix.
+// compressFindOutput factorizes common path prefix. Operates on
+// forward-slash paths; Windows backslash inputs are normalized at the
+// boundary so the rest of the function can stay platform-agnostic.
 func compressFindOutput(input string) string {
 	lines := strings.Split(input, "\n")
 
 	var paths []string
 	for _, l := range lines {
 		if strings.TrimSpace(l) != "" {
-			paths = append(paths, l)
+			// Normalize separators so prefix stripping below works on
+			// Windows-style paths and the output stays consistent across
+			// platforms.
+			paths = append(paths, filepath.ToSlash(l))
 		}
 	}
 
@@ -188,11 +194,19 @@ func compressFindOutput(input string) string {
 		return input
 	}
 
-	// Find common directory prefix
-	prefix := filepath.Dir(paths[0])
+	// Find common directory prefix using slash-only path operations
+	// (path.Dir, not filepath.Dir) so the loop's "did the parent change?"
+	// invariant holds on Windows where filepath.Dir hits a fixed point at
+	// drive roots like "D:\\".
+	prefix := path.Dir(paths[0])
 	for _, p := range paths[1:] {
 		for !strings.HasPrefix(p, prefix+"/") && prefix != "." && prefix != "/" && prefix != "" {
-			prefix = filepath.Dir(prefix)
+			next := path.Dir(prefix)
+			if next == prefix {
+				prefix = "."
+				break
+			}
+			prefix = next
 		}
 	}
 
