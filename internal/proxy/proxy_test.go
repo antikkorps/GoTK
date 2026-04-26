@@ -110,67 +110,6 @@ func TestBuildChain_DifferentCmdTypes(t *testing.T) {
 	}
 }
 
-func TestFindShell_RespectsGOTK_SHELL(t *testing.T) {
-	// Save and restore env
-	origGOTK := os.Getenv("GOTK_SHELL")
-	origSHELL := os.Getenv("SHELL")
-	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
-	}()
-
-	os.Setenv("GOTK_SHELL", "/usr/local/bin/custom-shell") //nolint:errcheck
-	got := findShell()
-	if got != "/usr/local/bin/custom-shell" {
-		t.Errorf("findShell() = %q, want /usr/local/bin/custom-shell", got)
-	}
-}
-
-func TestFindShell_AvoidsGotkRecursion(t *testing.T) {
-	origGOTK := os.Getenv("GOTK_SHELL")
-	origSHELL := os.Getenv("SHELL")
-	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
-	}()
-
-	os.Unsetenv("GOTK_SHELL")                 //nolint:errcheck
-	os.Setenv("SHELL", "/usr/local/bin/gotk") //nolint:errcheck
-
-	got := findShell()
-	if got == "/usr/local/bin/gotk" {
-		t.Error("findShell() returned gotk, should avoid recursion")
-	}
-	// Should fall back to /bin/bash, /bin/sh, or "sh"
-	if got == "" {
-		t.Error("findShell() returned empty string")
-	}
-}
-
-func TestFindShell_UsesSHELL(t *testing.T) {
-	origGOTK := os.Getenv("GOTK_SHELL")
-	origSHELL := os.Getenv("SHELL")
-	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
-	}()
-
-	os.Unsetenv("GOTK_SHELL")       //nolint:errcheck
-	os.Setenv("SHELL", "/bin/bash") //nolint:errcheck
-
-	got := findShell()
-	if got != "/bin/bash" {
-		t.Errorf("findShell() = %q, want /bin/bash", got)
-	}
-}
-
-func TestFindShell_ReturnsValidPath(t *testing.T) {
-	got := findShell()
-	if got == "" {
-		t.Fatal("findShell() returned empty string")
-	}
-}
-
 func TestExitCode_NilError(t *testing.T) {
 	if got := exitCode(nil); got != 0 {
 		t.Errorf("exitCode(nil) = %d, want 0", got)

@@ -379,13 +379,7 @@ func setupSignalHandler() {
 		fmt.Fprintf(os.Stderr, "\n[gotk] received signal %s, shutting down...\n", sig)
 
 		// Kill our entire process group so child processes are cleaned up.
-		// Use negative PID to signal the process group.
-		pgid, err := syscall.Getpgid(os.Getpid())
-		if err == nil {
-			// Send SIGTERM to the process group (excluding ourselves, since
-			// we are already shutting down).
-			_ = syscall.Kill(-pgid, syscall.SIGTERM)
-		}
+		terminateProcessGroup()
 
 		// Exit with 128 + signal number (Unix convention)
 		switch sig {

@@ -60,3 +60,23 @@ func TestChain(t *testing.T) {
 		})
 	}
 }
+
+// TestChainNormalizesCRLF verifies Windows-style line endings are normalized
+// to LF at chain entry, so downstream filters that split on "\n" don't see
+// trailing "\r" characters.
+func TestChainNormalizesCRLF(t *testing.T) {
+	c := NewChain()
+	// A filter that asserts no \r leaks through.
+	c.Add(func(s string) string {
+		if strings.Contains(s, "\r") {
+			t.Errorf("filter received input containing \\r: %q", s)
+		}
+		return s
+	})
+
+	got := c.Apply("line1\r\nline2\r\nline3")
+	want := "line1\nline2\nline3"
+	if got != want {
+		t.Errorf("Chain.Apply with CRLF = %q, want %q", got, want)
+	}
+}

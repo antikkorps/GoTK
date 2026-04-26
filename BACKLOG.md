@@ -491,24 +491,29 @@
 ## Sprint 14 — Windows Support (2026-04-20)
 
 > Moves #30 out of the Icebox. Queued after the CI Node 20 bump per the current roadmap.
+> Split into three tranches so it lands incrementally.
 
-### Build
+### Tranche 1 — Build & core portability `DONE`
 
-- [ ] Cross-compile check: `GOOS=windows GOARCH=amd64 go build` passes and binary runs under Windows 10/11 (CMD, PowerShell, Git Bash).
-- [ ] Audit `os/exec`, path handling, and temp-file code for Windows-specific quirks (backslashes, `\\?\` long paths, `CRLF` line endings in filters).
-- [ ] ANSI rendering: confirm stripping still works and consider enabling VT processing when output goes to a Windows console.
-- [ ] Daemon mode: decide support matrix. Zsh/bash interception doesn't apply — evaluate a PowerShell profile hook or mark daemon unsupported on Windows for this release.
-- [ ] `gotk update` self-replace: Windows can't rename a running executable. Implement the pending-replace pattern (write `.new`, spawn detached helper that swaps on exit).
+- [x] Cross-compile check: `GOOS=windows GOARCH=amd64 go build` and `GOOS=windows GOARCH=arm64 go build` both pass.
+- [x] Split POSIX-only signal handling: `cmd/gotk/process_{unix,windows}.go` with build tags so `syscall.Getpgid`/`syscall.Kill` only compile on Unix.
+- [x] Cross-platform shell discovery: new `internal/shell` package returns `(path, flag)` — `/bin/bash -c` on Unix, `cmd.exe /c` on Windows. Removes duplicated `findShell` from `internal/proxy` and `internal/mcp`.
+- [x] Path-compression separator: `internal/filter/paths.go` and `internal/filter/stream.go` now use `os.PathSeparator` instead of hardcoded `/`.
+- [x] CRLF normalization: `Chain.Apply` strips `\r\n` → `\n` at chain entry so filters that split on `\n` are CRLF-safe (streaming mode already handled by `bufio.Scanner`).
+- [x] Platform-aware config + data dirs: new `internal/paths` package keeps `~/.config/gotk` + `~/.local/share/gotk` on Unix (no breaking change for existing users) but resolves to `%AppData%/gotk` on Windows via `os.UserConfigDir`. Migrated 6 call sites (config, install, update, measure).
+- [x] Goreleaser config: add `windows/amd64` and `windows/arm64` targets, produce `.zip` archives.
+
+### Tranche 2 — Install & update (next)
+
 - [ ] `gotk install claude`: adjust `~/.claude/settings.json` path resolution for Windows user profile.
+- [ ] `gotk update` self-replace: Windows can't rename a running executable. Implement the pending-replace pattern (write `.new`, spawn detached helper that swaps on exit).
+- [ ] Audit remaining `os/exec` paths in `internal/install/` and `internal/update/` for Windows-specific quirks.
 
-### Measure
+### Tranche 3 — Daemon, CI, docs
 
+- [ ] Daemon mode: decide support matrix. Zsh/bash interception doesn't apply — evaluate a PowerShell profile hook or mark daemon unsupported on Windows for this release.
 - [ ] Run the full golden-file test suite on a Windows runner in CI.
 - [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus.
-
-### Deliver
-
-- [ ] Goreleaser config: add `windows/amd64` and `windows/arm64` targets, produce `.zip` archives.
 - [ ] README + `docs/quickstart.md`: Windows install and shell integration instructions.
 - [ ] Document the support matrix (what works, what is deliberately out of scope — e.g. daemon mode if deferred).
 

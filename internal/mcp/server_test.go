@@ -1113,47 +1113,6 @@ func TestExecArgs_DefaultTimeout(t *testing.T) {
 	}
 }
 
-// --- findShell tests (mcp-local copy) ---
-
-func TestFindShell_RespectsGOTK_SHELL(t *testing.T) {
-	origGOTK := os.Getenv("GOTK_SHELL")
-	origSHELL := os.Getenv("SHELL")
-	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
-	}()
-
-	os.Setenv("GOTK_SHELL", "/usr/local/bin/test-shell") //nolint:errcheck
-	got := findShell()
-	if got != "/usr/local/bin/test-shell" {
-		t.Errorf("findShell() = %q, want /usr/local/bin/test-shell", got)
-	}
-}
-
-func TestFindShell_AvoidsRecursion(t *testing.T) {
-	origGOTK := os.Getenv("GOTK_SHELL")
-	origSHELL := os.Getenv("SHELL")
-	defer func() {
-		os.Setenv("GOTK_SHELL", origGOTK) //nolint:errcheck
-		os.Setenv("SHELL", origSHELL)     //nolint:errcheck
-	}()
-
-	os.Unsetenv("GOTK_SHELL")           //nolint:errcheck
-	os.Setenv("SHELL", "/usr/bin/gotk") //nolint:errcheck
-
-	got := findShell()
-	if got == "/usr/bin/gotk" {
-		t.Error("findShell() should not return gotk to avoid recursion")
-	}
-}
-
-func TestFindShell_ReturnsNonEmpty(t *testing.T) {
-	got := findShell()
-	if got == "" {
-		t.Error("findShell() should never return an empty string")
-	}
-}
-
 // --- handleToolCall dispatch tests ---
 
 func TestHandleToolCall_UnknownTool(t *testing.T) {

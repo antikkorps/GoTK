@@ -18,6 +18,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
+	"github.com/antikkorps/GoTK/internal/shell"
 )
 
 // Version is set by the CLI entrypoint before calling Serve.
@@ -738,7 +739,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 
 	// Execute via shell with timeout
-	shell := findShell()
+	sh, shFlag := shell.Default()
 	timeout := defaultMCPTimeout
 	if cfg.Security.CommandTimeout > 0 {
 		timeout = time.Duration(cfg.Security.CommandTimeout) * time.Second
@@ -748,7 +749,7 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result, err := exec.RunWithTimeout(ctx, shell, "-c", args.Command)
+	result, err := exec.RunWithTimeout(ctx, sh, shFlag, args.Command)
 	if err != nil {
 		sendError(id, -32603, "execution failed: "+err.Error())
 		return
@@ -1043,14 +1044,14 @@ func handleGrep(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 	logErr("GREP: %s", command)
 
 	// Execute grep
-	shell := findShell()
+	sh, shFlag := shell.Default()
 	timeout := defaultMCPTimeout
 	if cfg.Security.CommandTimeout > 0 {
 		timeout = time.Duration(cfg.Security.CommandTimeout) * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result, err := exec.RunWithTimeout(ctx, shell, "-c", command)
+	result, err := exec.RunWithTimeout(ctx, sh, shFlag, command)
 	if err != nil {
 		sendError(id, -32603, "grep failed: "+err.Error())
 		return
@@ -1407,24 +1408,3 @@ func auditLog(event, detail string) {
 	}
 }
 
-// findShell returns a shell suitable for command execution.
-func findShell() string {
-	if s := os.Getenv("GOTK_SHELL"); s != "" {
-		return s
-	}
-	if s := os.Getenv("SHELL"); s != "" {
-		base := s
-		if idx := strings.LastIndexByte(s, '/'); idx >= 0 {
-			base = s[idx+1:]
-		}
-		if base != "gotk" {
-			return s
-		}
-	}
-	for _, sh := range []string{"/bin/bash", "/bin/sh"} {
-		if _, err := os.Stat(sh); err == nil {
-			return sh
-		}
-	}
-	return "sh"
-}

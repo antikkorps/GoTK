@@ -131,11 +131,11 @@ func (sf *StreamFilter) Flush() string {
 // compressLine shortens absolute paths in a single line.
 func (sf *StreamFilter) compressLine(line string) string {
 	if sf.cwd != "" {
-		line = strings.ReplaceAll(line, sf.cwd+"/", "./")
+		line = strings.ReplaceAll(line, sf.cwd+pathSep, "."+pathSep)
 		line = strings.ReplaceAll(line, sf.cwd, ".")
 	}
 	if sf.home != "" {
-		line = strings.ReplaceAll(line, sf.home+"/", "~/")
+		line = strings.ReplaceAll(line, sf.home+pathSep, "~"+pathSep)
 		line = strings.ReplaceAll(line, sf.home, "~")
 	}
 	return line
