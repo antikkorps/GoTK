@@ -1407,4 +1407,3 @@ func auditLog(event, detail string) {
 		fmt.Fprintf(auditFile, "%s [SECURITY] %s: %s\n", ts, event, detail) //nolint:errcheck
 	}
 }
-
