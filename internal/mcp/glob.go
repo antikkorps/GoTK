@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+// pathMatch is path.Match — aliased so the call site reads naturally next
+// to filepath operations and signals intent (slash-based matching).
+var pathMatch = path.Match
+
 // globExcludeDirs are directories skipped entirely during glob walk.
 // Kept in sync with internal/ctx/walk.go (local copy to avoid import cycle).
 var globExcludeDirs = map[string]bool{
@@ -70,12 +74,16 @@ func runGlob(pattern, root string, max int) ([]string, error) {
 			if relErr != nil {
 				return nil
 			}
-			candidate = rel
+			// Normalize to forward slashes so patterns like "src/cmd/*.go"
+			// match on Windows where filepath.Rel returns backslashes.
+			candidate = filepath.ToSlash(rel)
 		} else {
 			candidate = d.Name()
 		}
 
-		ok, _ := filepath.Match(pat, candidate)
+		// path.Match uses '/' as separator on every OS, matching the user
+		// pattern syntax. filepath.Match would split on backslash on Windows.
+		ok, _ := pathMatch(pat, candidate)
 		if !ok {
 			return nil
 		}

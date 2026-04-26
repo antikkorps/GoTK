@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -838,6 +839,12 @@ func TestValidatePath_AllowsProjectPaths(t *testing.T) {
 }
 
 func TestHandleRead_BlocksTraversal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// "/etc/passwd" isn't an absolute path on Windows (no drive letter),
+		// so it resolves to a non-existent file *inside* projectRoot rather
+		// than triggering the outside-root branch this test asserts.
+		t.Skip("POSIX absolute-path semantics")
+	}
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
 	os.Stdout = w
@@ -864,6 +871,11 @@ func TestHandleRead_BlocksTraversal(t *testing.T) {
 }
 
 func TestHandleGrep_BlocksTraversal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// "/etc" isn't an absolute path on Windows (no drive letter); see
+		// TestHandleRead_BlocksTraversal for the same reasoning.
+		t.Skip("POSIX absolute-path semantics")
+	}
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
 	os.Stdout = w

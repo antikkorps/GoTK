@@ -8,6 +8,15 @@ import (
 	"testing"
 )
 
+// normalizeLineEndings strips carriage returns so Windows checkouts that
+// converted LF to CRLF (via Git's autocrlf default) compare cleanly against
+// filter output, which is always LF after Chain.Apply's normalization. The
+// .gitattributes file pins golden fixtures to LF; this is the second line
+// of defense.
+func normalizeLineEndings(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
 // RunGoldenTest reads .input files from dir, applies filterFn, and compares
 // the result with the corresponding .expected file.
 // If the UPDATE_GOLDEN=1 environment variable is set, it overwrites the
@@ -57,7 +66,7 @@ func RunGoldenTest(t *testing.T, dir string, filterFn func(string) string) {
 				t.Fatalf("failed to read expected file %s (run with UPDATE_GOLDEN=1 to create): %v", expectedPath, err)
 			}
 
-			want := string(expectedData)
+			want := normalizeLineEndings(string(expectedData))
 
 			if got != want {
 				t.Errorf("golden mismatch for %s\n--- want ---\n%s\n--- got ---\n%s\n--- diff ---\n%s",
@@ -93,7 +102,7 @@ func RunGoldenTestSingle(t *testing.T, name, inputPath, expectedPath string, fil
 			t.Fatalf("failed to read expected file %s (run with UPDATE_GOLDEN=1 to create): %v", expectedPath, err)
 		}
 
-		want := string(expectedData)
+		want := normalizeLineEndings(string(expectedData))
 
 		if got != want {
 			t.Errorf("golden mismatch for %s\n--- want ---\n%s\n--- got ---\n%s\n--- diff ---\n%s",

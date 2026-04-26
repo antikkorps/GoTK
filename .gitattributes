@@ -1,0 +1,18 @@
+# Golden-file fixtures must keep LF line endings on every platform. Without
+# this, Git on Windows (default core.autocrlf=true) converts them to CRLF
+# on checkout, and the golden tests fail because the filter chain normalizes
+# CRLF -> LF in chain.Apply but the .expected file still has CRLF.
+testdata/golden/**/*.input  text eol=lf
+testdata/golden/**/*.expected text eol=lf
+
+# Same logic for .gotk.toml fixtures used by config-precedence tests.
+testdata/config/**/*.toml text eol=lf
+
+# Source code: enforce LF so Windows contributors can't accidentally
+# commit CRLF that would later trip the gofmt check.
+*.go        text eol=lf
+*.toml      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+*.sh        text eol=lf
