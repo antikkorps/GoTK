@@ -6,13 +6,27 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
+
+// fakeHome redirects every place gotk looks up the user's home or config
+// dir to a single temp directory. Honors the platform-specific env vars
+// that os.UserHomeDir and os.UserConfigDir consult on Windows so the tests
+// land in the same place across platforms.
+func fakeHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	return home
+}
 
 func TestPlanUninstall_DetectsPresentHooks(t *testing.T) {
 	// Set up a fake HOME that contains a Claude settings file with a gotk
 	// hook already installed, plus GoTK config files.
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := fakeHome(t)
 
 	globalSettings := filepath.Join(home, ".claude", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(globalSettings), 0755); err != nil {
@@ -26,22 +40,31 @@ func TestPlanUninstall_DetectsPresentHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hookCmd := exe + " hook"
+	hookCmd := buildHookCmd(exe)
 	addHook(settings, hookCmd)
 	if err := writeSettings(globalSettings, settings); err != nil {
 		t.Fatal(err)
 	}
 
-	// Config file + measure log.
-	cfgPath := filepath.Join(home, ".config", "gotk", "config.toml")
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+	// Config file + measure log — use paths package so the test lands in
+	// the same platform-specific location PlanUninstall scans.
+	cfgDir, ok := paths.ConfigDir()
+	if !ok {
+		t.Fatal("paths.ConfigDir() failed")
+	}
+	cfgPath := filepath.Join(cfgDir, "config.toml")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(cfgPath, []byte("# test"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	logPath := filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
-	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+	dataDir, ok := paths.DataDir()
+	if !ok {
+		t.Fatal("paths.DataDir() failed")
+	}
+	logPath := filepath.Join(dataDir, "measure.jsonl")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(logPath, []byte(""), 0600); err != nil {
@@ -72,14 +95,13 @@ func TestPlanUninstall_DetectsPresentHooks(t *testing.T) {
 }
 
 func TestExecuteUninstall_RemovesOnlyPresent(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	_ = fakeHome(t)
 
 	exe, err := findGotkPath()
 	if err != nil {
 		t.Fatal(err)
 	}
-	hookCmd := exe + " hook"
+	hookCmd := buildHookCmd(exe)
 
 	// Run the test from a temp cwd so settingsFilePath(ScopeLocal) resolves
 	// to a directory we control (it's a CWD-relative path).
@@ -126,11 +148,14 @@ func TestExecuteUninstall_RemovesOnlyPresent(t *testing.T) {
 }
 
 func TestExecuteUninstall_RemovesConfigFilesAndDirs(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	_ = fakeHome(t)
 
-	cfgPath := filepath.Join(home, ".config", "gotk", "config.toml")
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+	cfgDir, ok := paths.ConfigDir()
+	if !ok {
+		t.Fatal("paths.ConfigDir() failed")
+	}
+	cfgPath := filepath.Join(cfgDir, "config.toml")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(cfgPath, []byte("# test"), 0600); err != nil {
@@ -155,12 +180,14 @@ func TestExecuteUninstall_RemovesConfigFilesAndDirs(t *testing.T) {
 }
 
 func TestExecuteUninstall_LeavesNonEmptyConfigDir(t *testing.T) {
-	// If the user has other files in ~/.config/gotk/ that we don't manage,
-	// the uninstall must not remove the directory itself.
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	// If the user has other files in their gotk config dir that we don't
+	// manage, the uninstall must not remove the directory itself.
+	_ = fakeHome(t)
 
-	cfgDir := filepath.Join(home, ".config", "gotk")
+	cfgDir, ok := paths.ConfigDir()
+	if !ok {
+		t.Fatal("paths.ConfigDir() failed")
+	}
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
 		t.Fatal(err)
 	}

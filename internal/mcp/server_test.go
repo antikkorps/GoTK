@@ -414,6 +414,16 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
+	// tools/list emits a JSON payload large enough to overrun the OS pipe
+	// buffer on Windows (default ~64KB). Drain the read side concurrently
+	// so handleRequest's write doesn't block.
+	doneCh := make(chan []byte, 1)
+	go func() {
+		var b bytes.Buffer
+		io.Copy(&b, r) //nolint:errcheck
+		doneCh <- b.Bytes()
+	}()
+
 	cfg := config.Default()
 	req := jsonRPCRequest{
 		JSONRPC: "2.0",
@@ -426,7 +436,7 @@ func TestHandleRequest_ToolsList(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r) //nolint:errcheck
+	buf.Write(<-doneCh)
 
 	var resp jsonRPCResponse
 	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {

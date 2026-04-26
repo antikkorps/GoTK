@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -115,13 +116,15 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 			if err != nil {
 				rel = m
 			}
-			b.WriteString(rel)
+			b.WriteString(filepath.ToSlash(rel))
 			b.WriteByte('\n')
 		}
 		return b.String()
 	}
 
-	// Group by parent directory (relative to root).
+	// Group by parent directory (relative to root). Normalize to forward
+	// slashes so output stays consistent across OSes — this is LLM-facing
+	// text, not a filesystem reference.
 	groups := make(map[string][]string)
 	var order []string
 	for _, m := range matches {
@@ -129,7 +132,8 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 		if err != nil {
 			rel = m
 		}
-		dir := filepath.Dir(rel)
+		rel = filepath.ToSlash(rel)
+		dir := path.Dir(rel)
 		if dir == "." {
 			dir = "./"
 		} else {
@@ -138,7 +142,7 @@ func formatGlobResults(matches []string, root string, forceCluster *bool) string
 		if _, seen := groups[dir]; !seen {
 			order = append(order, dir)
 		}
-		groups[dir] = append(groups[dir], filepath.Base(rel))
+		groups[dir] = append(groups[dir], path.Base(rel))
 	}
 	sort.Strings(order)
 
