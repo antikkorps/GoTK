@@ -1,5 +1,7 @@
 package filter
 
+import "strings"
+
 // FilterFunc takes raw output and returns cleaned output.
 type FilterFunc func(string) string
 
@@ -29,9 +31,12 @@ func (c *Chain) AddNamed(name string, f FilterFunc) {
 	c.filters = append(c.filters, namedFilter{name: name, fn: f})
 }
 
-// Apply runs all filters in sequence.
+// Apply runs all filters in sequence. CRLF line endings (from Windows-emitted
+// output) are normalized to LF at entry so downstream filters can split on
+// "\n" without leaving trailing "\r" characters. Streaming mode already handles
+// this via bufio.Scanner's default split function.
 func (c *Chain) Apply(input string) string {
-	result := input
+	result := strings.ReplaceAll(input, "\r\n", "\n")
 	for _, nf := range c.filters {
 		result = nf.fn(result)
 	}

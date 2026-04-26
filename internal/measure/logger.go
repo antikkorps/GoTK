@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
 
 // Logger writes measurement entries as JSONL to a file.
@@ -173,9 +175,8 @@ func parseEntries(data string) ([]Entry, error) {
 
 // DefaultLogPath returns the default measurement log path.
 func DefaultLogPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = "."
+	if dir, ok := paths.DataDir(); ok {
+		return filepath.Join(dir, "measure.jsonl")
 	}
-	return filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
+	return "measure.jsonl"
 }

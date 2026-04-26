@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
 
 // UninstallPlan describes every GoTK artifact we can remove — the binary
@@ -54,27 +56,24 @@ func PlanUninstall() (*UninstallPlan, error) {
 		plan.ClaudeHooks = append(plan.ClaudeHooks, target)
 	}
 
-	home, err := os.UserHomeDir()
-	if err == nil {
-		// Config file (global, under XDG_CONFIG_HOME-style path).
-		cfgFile := filepath.Join(home, ".config", "gotk", "config.toml")
-		if fileExists(cfgFile) {
-			plan.ConfigFiles = append(plan.ConfigFiles, cfgFile)
-		}
-		// Measurement log (XDG_DATA_HOME-style path).
-		measureLog := filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
+	if cfgFile, ok := paths.ConfigFile(); ok && fileExists(cfgFile) {
+		plan.ConfigFiles = append(plan.ConfigFiles, cfgFile)
+	}
+	if dataDir, ok := paths.DataDir(); ok {
+		measureLog := filepath.Join(dataDir, "measure.jsonl")
 		if fileExists(measureLog) {
 			plan.ConfigFiles = append(plan.ConfigFiles, measureLog)
 		}
-		// Their parent directories — only if they are GoTK-specific and
-		// will end up empty after the files above are removed.
-		for _, dir := range []string{
-			filepath.Join(home, ".config", "gotk"),
-			filepath.Join(home, ".local", "share", "gotk"),
-		} {
-			if dirExists(dir) {
-				plan.ConfigDirs = append(plan.ConfigDirs, dir)
-			}
+	}
+	// Parent directories — only if they are gotk-specific and will end up
+	// empty after the files above are removed. On Windows, ConfigDir and
+	// DataDir collapse to the same %AppData%/gotk path; the dedup happens
+	// implicitly because dirExists guards the second append.
+	seen := map[string]bool{}
+	for _, fn := range []func() (string, bool){paths.ConfigDir, paths.DataDir} {
+		if dir, ok := fn(); ok && !seen[dir] && dirExists(dir) {
+			plan.ConfigDirs = append(plan.ConfigDirs, dir)
+			seen[dir] = true
 		}
 	}
 

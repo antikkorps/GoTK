@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
 
 // FilterMode controls how aggressively GoTK filters output.
@@ -146,8 +148,7 @@ func Load() *Config {
 	cfg := Default()
 
 	// 1. Global config
-	if home, err := os.UserHomeDir(); err == nil {
-		globalPath := filepath.Join(home, ".config", "gotk", "config.toml")
+	if globalPath, ok := paths.ConfigFile(); ok {
 		if data, err := os.ReadFile(globalPath); err == nil {
 			applyTOML(cfg, string(data))
 			cfg.LoadedFiles = append(cfg.LoadedFiles, globalPath)
@@ -408,8 +409,8 @@ func expandHome(path string) string {
 
 // defaultMeasureLogPath returns the default path for measurement logs.
 func defaultMeasureLogPath() string {
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".local", "share", "gotk", "measure.jsonl")
+	if dir, ok := paths.DataDir(); ok {
+		return filepath.Join(dir, "measure.jsonl")
 	}
 	return "measure.jsonl"
 }

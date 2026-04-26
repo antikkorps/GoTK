@@ -8,6 +8,7 @@ import (
 var (
 	cachedCwd  string
 	cachedHome string
+	pathSep    = string(os.PathSeparator)
 )
 
 func init() {
@@ -23,12 +24,12 @@ func CompressPaths(input string) string {
 	}
 
 	// Replace cwd prefix with "./"
-	result := strings.ReplaceAll(input, cachedCwd+"/", "./")
+	result := strings.ReplaceAll(input, cachedCwd+pathSep, "."+pathSep)
 	result = strings.ReplaceAll(result, cachedCwd, ".")
 
 	// Also compress home directory
 	if cachedHome != "" {
-		result = strings.ReplaceAll(result, cachedHome+"/", "~/")
+		result = strings.ReplaceAll(result, cachedHome+pathSep, "~"+pathSep)
 		result = strings.ReplaceAll(result, cachedHome, "~")
 	}
 

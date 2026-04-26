@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/antikkorps/GoTK/internal/paths"
 )
 
 // cacheTTL defines how long a cached "latest release" lookup stays fresh
@@ -93,13 +95,12 @@ func shouldCheck(current string, stderrIsTTY bool) bool {
 }
 
 func cachePath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		// Fall back to cwd so behavior is deterministic; a write failure
-		// will simply mean no cache, which is fine.
-		return ".gotk-update-check.json"
+	if dir, ok := paths.DataDir(); ok {
+		return filepath.Join(dir, "update_check.json")
 	}
-	return filepath.Join(home, ".local", "share", "gotk", "update_check.json")
+	// Fall back to cwd so behavior is deterministic; a write failure
+	// will simply mean no cache, which is fine.
+	return ".gotk-update-check.json"
 }
 
 func readCache(path string) (cacheEntry, error) {
