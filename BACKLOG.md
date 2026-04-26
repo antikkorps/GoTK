@@ -514,6 +514,43 @@
 
 ---
 
+## Sprint 15 — Filter Tech Debt (from 2026-04-24 assessment)
+
+> Three quality bugs shipped this week (#37 / #39 / #40 → v1.5.2) surfaced recurring structural issues. None are urgent, but leaving them to rot makes future filter work slower. Take this slice before (or alongside) Sprint 14 Windows so the Windows port lands on a cleaner core.
+
+### Build — Stderr parity pass
+
+- [ ] Catalogue every filter and decide its stderr policy (apply / skip / apply a narrow subset). Bugs rooted in "stdout-only filtering" so far: #37 (node warnings), #39 (jest totals that live on stderr), partially #40. Likely next: `RedactSecrets` on stderr — a secret written to stderr today leaks unredacted.
+- [ ] Introduce a single place that decides how stderr is handled instead of the current ad-hoc patches (`SummarizeWithContext(...stderr)`, `detectRunnerResult(stderrLines)`, `CollapseNodeWarnings` called directly from `cmd/gotk/main.go`). Candidate: a `StderrPolicy` on each filter, or a second mini-chain applied to stderr before pass-through.
+- [ ] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering, which accidentally covers some of these cases. Document this or align both paths.
+
+### Build — Consolidate duplicate implementations
+
+- [ ] Node worker-warning collapse: two implementations now coexist — `CollapseNodeWarnings` in `internal/filter/nodewarn.go` (generic, runs in the main chain + on stderr) and the `genericWarnCount` branch inside `compressNodeOutput` in `internal/detect/filters_node.go` (runs only on `CmdNpm`/`CmdNode`). Markers are aligned, but the duplication will drift. Pick `CollapseNodeWarnings` as canonical, remove the `compressNodeOutput` branch, and migrate its unit tests.
+- [ ] Test-runner summary anchors: `detectRunnerResult` in `internal/filter/summary.go` and `summaryAnchors` in `internal/filter/escalate.go` use near-identical regex sets (jest / vitest / pytest / cargo / go test). Extract a shared `runnerAnchors` package / file and have both call sites consume it.
+- [ ] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`.
+
+### Build — Detection robustness
+
+- [ ] Detection currently keys off `parts[0]` via `filepath.Base` — wrappers (`pnpm exec jest`, `npx vitest`, scripts that `exec` node) slip through as `CmdGeneric`. Look into a lightweight auto-detect from output signature (already partly done in `detect.AutoDetect` for pipe mode) and consider running it when the CLI path yields `CmdGeneric`.
+- [ ] Expose detection in `--debug` output so users can see why a filter didn't fire (already partially there via `logDebug`).
+
+### Build — Package review
+
+- [ ] Check whether `internal/learn/`, `internal/classify/`, `internal/cache/`, `internal/cmdclass/` are earning their keep. Evidence-driven: query `gotk measure` data for measurable wins (token savings, cache hit rate, classifier agreement). Merge or drop what doesn't clear the bar. Goal is scope discipline, not a rewrite — be conservative.
+
+### Measure
+
+- [ ] Before touching stderr filtering, add a benchmark fixture that puts test-runner totals on stderr (mirrors the real jest shape). Gate any refactor on: (a) existing golden tests still pass, (b) new stderr fixture produces the expected summary verdict.
+- [ ] Track reduction ratio on that fixture before/after consolidation — must not regress.
+
+### Deliver
+
+- [ ] Tag `v1.5.3` after the stderr pass + Node warning consolidation (pure cleanup, no user-visible API change). Summary anchors unification can land in the same tag or the next.
+- [ ] Document the stderr policy in `docs/architecture.md`.
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
