@@ -209,3 +209,57 @@ func TestBuildChain_TruncateToggle(t *testing.T) {
 		t.Errorf("Expected 100 content lines, got %d (truncation happened despite being disabled)", contentLines)
 	}
 }
+
+func TestBuildStderrChain_RedactsSecrets(t *testing.T) {
+	cfg := config.Default()
+	chain := BuildStderrChain(cfg)
+
+	stderr := "ERROR: connection refused with token=ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx\n"
+	got := chain.Apply(stderr)
+
+	if strings.Contains(got, "ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx") {
+		t.Errorf("stderr chain leaked a GitHub token: %q", got)
+	}
+	if !strings.Contains(got, "connection refused") {
+		t.Errorf("stderr chain should preserve the diagnostic text, got: %q", got)
+	}
+}
+
+func TestBuildStderrChain_CollapsesNodeWorkerWarnings(t *testing.T) {
+	cfg := config.Default()
+	chain := BuildStderrChain(cfg)
+
+	stderr := strings.Repeat(
+		"(node:1) Warning: --localstorage-file was provided without a valid path\n"+
+			"(Use `node --trace-warnings ...` to show where the warning was created)\n",
+		1,
+	) + "(node:2) Warning: --localstorage-file was provided without a valid path\n" +
+		"(Use `node --trace-warnings ...` to show where the warning was created)\n" +
+		"(node:3) Warning: --localstorage-file was provided without a valid path\n" +
+		"(Use `node --trace-warnings ...` to show where the warning was created)\n"
+
+	got := chain.Apply(stderr)
+
+	if !strings.Contains(got, "(node:1) Warning:") {
+		t.Errorf("first warning must be preserved, got:\n%s", got)
+	}
+	if strings.Contains(got, "(node:2)") || strings.Contains(got, "(node:3)") {
+		t.Errorf("duplicate worker PIDs must be collapsed, got:\n%s", got)
+	}
+	if !strings.Contains(got, "identical warnings from other workers") {
+		t.Errorf("collapse marker missing, got:\n%s", got)
+	}
+}
+
+func TestBuildStderrChain_RespectsRedactSecretsToggle(t *testing.T) {
+	cfg := config.Default()
+	cfg.Security.RedactSecrets = false
+	chain := BuildStderrChain(cfg)
+
+	stderr := "API_KEY=sk-fake00test00000000000000000000000000\n"
+	got := chain.Apply(stderr)
+
+	if !strings.Contains(got, "sk-fake00test00000000000000000000000000") {
+		t.Errorf("redaction was disabled, value should pass through, got: %q", got)
+	}
+}
