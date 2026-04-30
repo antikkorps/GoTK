@@ -149,60 +149,6 @@ func TestStripJestConsoleBlocks_AllMethods(t *testing.T) {
 	}
 }
 
-func TestCompressNodeOutput_CollapsesGenericWorkerWarnings(t *testing.T) {
-	input := strings.Join([]string{
-		"(node:43294) Warning: --localstorage-file was provided without a valid path",
-		"(Use `node --trace-warnings ...` to show where the warning was created)",
-		"(node:43295) Warning: --localstorage-file was provided without a valid path",
-		"(Use `node --trace-warnings ...` to show where the warning was created)",
-		"(node:43296) Warning: --localstorage-file was provided without a valid path",
-		"(Use `node --trace-warnings ...` to show where the warning was created)",
-		"Test Suites: 1 passed",
-	}, "\n")
-
-	got := compressNodeOutput(input)
-
-	// First occurrence (with original PID) must remain visible.
-	if !strings.Contains(got, "(node:43294) Warning:") {
-		t.Errorf("first warning line should be preserved, got:\n%s", got)
-	}
-	// Remaining PIDs must be collapsed away.
-	for _, pid := range []string{"43295", "43296"} {
-		if strings.Contains(got, "(node:"+pid+")") {
-			t.Errorf("PID %s should have been collapsed, got:\n%s", pid, got)
-		}
-	}
-	// The collapse marker must report the right count (2 additional workers).
-	if !strings.Contains(got, "2 identical warnings") {
-		t.Errorf("collapse marker should count remaining workers, got:\n%s", got)
-	}
-	// The `(Use \`node --trace-warnings\`...)` hint is emitted once alongside the first.
-	if strings.Count(got, "trace-warnings") != 1 {
-		t.Errorf("hint should appear exactly once, got:\n%s", got)
-	}
-	// Summary must be preserved.
-	if !strings.Contains(got, "Test Suites: 1 passed") {
-		t.Errorf("summary must survive, got:\n%s", got)
-	}
-}
-
-func TestCompressNodeOutput_SingleGenericWarningUnchanged(t *testing.T) {
-	// A single (non-repeated) generic warning must be kept intact without
-	// any collapse marker.
-	input := strings.Join([]string{
-		"(node:100) Warning: something happened",
-		"(Use `node --trace-warnings ...` to show where the warning was created)",
-		"done",
-	}, "\n")
-
-	got := compressNodeOutput(input)
-	if !strings.Contains(got, "(node:100) Warning: something happened") {
-		t.Errorf("single warning should be preserved, got:\n%s", got)
-	}
-	if !strings.Contains(got, "trace-warnings") {
-		t.Errorf("hint should be preserved, got:\n%s", got)
-	}
-	if strings.Contains(got, "identical warnings") {
-		t.Errorf("collapse marker should not appear for single occurrence, got:\n%s", got)
-	}
-}
+// Generic `(node:PID) Warning:` collapse is owned by filter.CollapseNodeWarnings;
+// see internal/filter/nodewarn_test.go for coverage of the consecutive-block
+// case, single-warning passthrough, and signature mismatch behavior.
