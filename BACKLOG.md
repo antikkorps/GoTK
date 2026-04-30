@@ -525,14 +525,14 @@
 
 ### Build — Stderr parity pass
 
-- [ ] Catalogue every filter and decide its stderr policy (apply / skip / apply a narrow subset). Bugs rooted in "stdout-only filtering" so far: #37 (node warnings), #39 (jest totals that live on stderr), partially #40. Likely next: `RedactSecrets` on stderr — a secret written to stderr today leaks unredacted.
-- [ ] Introduce a single place that decides how stderr is handled instead of the current ad-hoc patches (`SummarizeWithContext(...stderr)`, `detectRunnerResult(stderrLines)`, `CollapseNodeWarnings` called directly from `cmd/gotk/main.go`). Candidate: a `StderrPolicy` on each filter, or a second mini-chain applied to stderr before pass-through.
+- [x] Catalogue every filter and decide its stderr policy. Result: a narrow shared chain (strip ANSI, redact secrets, collapse node worker warnings) covers stderr; structural / summarizing / truncating filters intentionally don't run on stderr. Fixes the `RedactSecrets`-on-stderr leak — a secret written to stderr no longer slips past gotk.
+- [x] Introduce a single place for stderr handling: `proxy.BuildStderrChain` is now the single source of truth, used from both `cmd/gotk/main.go` and `proxy.RunCommand` (replaces the ad-hoc `filter.CollapseNodeWarnings(stderr)` call). Streaming mode still forwards stderr line-by-line — documented as a known limitation in the new chain's godoc.
 - [ ] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering, which accidentally covers some of these cases. Document this or align both paths.
 
 ### Build — Consolidate duplicate implementations
 
-- [ ] Node worker-warning collapse: two implementations now coexist — `CollapseNodeWarnings` in `internal/filter/nodewarn.go` (generic, runs in the main chain + on stderr) and the `genericWarnCount` branch inside `compressNodeOutput` in `internal/detect/filters_node.go` (runs only on `CmdNpm`/`CmdNode`). Markers are aligned, but the duplication will drift. Pick `CollapseNodeWarnings` as canonical, remove the `compressNodeOutput` branch, and migrate its unit tests.
-- [ ] Test-runner summary anchors: `detectRunnerResult` in `internal/filter/summary.go` and `summaryAnchors` in `internal/filter/escalate.go` use near-identical regex sets (jest / vitest / pytest / cargo / go test). Extract a shared `runnerAnchors` package / file and have both call sites consume it.
+- [x] Node worker-warning collapse: `CollapseNodeWarnings` is now canonical. The `genericWarnCount` branch was removed from `compressNodeOutput`. Golden Jest test wrapper now applies `CollapseNodeWarnings` so the per-cmdtype golden suite mirrors the production chain.
+- [x] Test-runner summary anchors: extracted into `internal/filter/runner_anchors.go` — a single `runnerAnchor` list with optional per-anchor verdict funcs. `detectRunnerResult` (verdict) and `findSummaryAnchors` (must-keep tracking) both consume it; can no longer drift.
 - [ ] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`.
 
 ### Build — Detection robustness
@@ -551,7 +551,8 @@
 
 ### Deliver
 
-- [ ] Tag `v1.7.0` after the stderr pass + Node warning consolidation (pure cleanup, no user-visible API change). Summary anchors unification can land in the same tag or the next.
+- [x] PR #51 merged — stderr pass + Node warning consolidation + summary anchors unification all landed together. Pure cleanup, no user-visible API change.
+- [ ] Tag `v1.7.0` after the remaining detection-robustness work or as-is if we ship the cleanup standalone.
 - [ ] Document the stderr policy in `docs/architecture.md`.
 
 ---
