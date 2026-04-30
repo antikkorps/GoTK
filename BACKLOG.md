@@ -175,8 +175,8 @@
 
 ### Deliver
 
-- [ ] Tag v1.0.0
-- [ ] Full documentation update
+- [x] Tag (skipped to v1.2.0 — see Sprint 8)
+- [x] Full documentation update
 - [x] End-to-end integration tests (17 e2e tests on compiled binary)
 
 ---
@@ -191,7 +191,7 @@
 ### Deliver
 
 - [x] Tag v0.2.0, v0.3.0, v0.4.0, v0.5.0, v0.6.0 (catch-up)
-- [ ] Tag v1.0.0 (after final review)
+- [x] v1.0.0 / v1.1.0 skipped — first stable shipped as v1.2.0 in Sprint 8
 - [x] Project landing page (Astro site in `site/`, i18n EN/FR, GitHub Pages deploy)
 
 ---
@@ -288,7 +288,7 @@
 - [x] `gotk help ctx` with examples
 - [x] Unit tests for all components (14 tests: ParseFlags, WalkFiles, Search, all 5 formatters, merge windows)
 - [x] Integration tests for all 5 modes (8 E2E tests: scan, detail, def, tree, summary, stats, no-match, help)
-- [ ] Tag v1.1.0
+- [x] Tag (rolled into v1.2.0 along with Sprint 8)
 
 ---
 
@@ -342,7 +342,7 @@
 - [x] Unit tests for daemon (14 tests: skip logic, script generation, init files)
 - [x] Updated `examples/claude-code-hook.sh` to new PreToolUse format
 - [x] Help text for `gotk help install`, `gotk help hook`, `gotk help daemon`
-- [ ] Tag v1.3.0
+- [x] Tag (rolled into v1.4.0 with Sprint 11 fixes)
 
 ---
 
@@ -420,7 +420,7 @@
 
 - [x] All security fixes applied and tested
 - [x] CI green with linting + coverage gates
-- [ ] Tag v1.3.0
+- [x] Tag (rolled into v1.4.0 with Sprint 11 fixes)
 
 ---
 
@@ -465,7 +465,7 @@
 - [x] Golden-file test for Jest output (`testdata/golden/jest/npm_test.input|expected`).
 - [x] Unit tests: 9 new tests (7 for `stripJestConsoleBlocks` covering single/multi-block, multi-line message, real-stack-trace preservation, no-trailer, non-indented break, all 5 console methods; 2 for generic-warning collapse).
 - [x] E2E tests: `TestE2E_StatsLandsAtEndOfMergedStream`, `TestE2E_JestConsoleBlocksStripped`, `TestE2E_MultiWorkerNodeWarningsCollapsed`.
-- [ ] Tag v1.5.0.
+- [x] Tag v1.5.0.
 
 ---
 
@@ -514,8 +514,8 @@
 
 - [x] Daemon mode: marked unsupported on Windows. `daemon.Start` and `daemon.Init` return `ErrUnsupportedOS` early; the CLI prints a message pointing users to `gotk install claude` or pipe mode. PowerShell hook deferred — no concrete user demand yet.
 - [x] README + `docs/quickstart.md`: Windows install instructions (.zip from Releases, PATH setup) and platform support matrix.
-- [ ] Run the full golden-file test suite on a Windows runner in CI.
-- [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus.
+- [x] Run the full test suite on a Windows runner in CI (test-windows job in .github/workflows/ci.yml; golden suite green after the v1.6.1 round of CRLF / path / clock fixes).
+- [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (deferred — bench job stays on Linux for now).
 
 ---
 
@@ -551,7 +551,7 @@
 
 ### Deliver
 
-- [ ] Tag `v1.5.3` after the stderr pass + Node warning consolidation (pure cleanup, no user-visible API change). Summary anchors unification can land in the same tag or the next.
+- [ ] Tag `v1.7.0` after the stderr pass + Node warning consolidation (pure cleanup, no user-visible API change). Summary anchors unification can land in the same tag or the next.
 - [ ] Document the stderr policy in `docs/architecture.md`.
 
 ---
