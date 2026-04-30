@@ -20,18 +20,12 @@ var resultFailPattern = regexp.MustCompile(`(?i)\b(FAIL|FAILED|(?:^|\s)ERROR(?:\
 // resultPassPattern detects success signals in output.
 var resultPassPattern = regexp.MustCompile(`(?i)\b(PASS|(?:^|\s)ok(?:\s|$)|SUCCESS|0 errors)\b`)
 
-// Test-runner summary anchors (authoritative when present, see detectRunnerResult).
+// Test-runner summary anchors live in runner_anchors.go (single source of
+// truth shared with escalate.go's must-keep tracking). Helpers below cover
+// the patterns specific to summary heuristics that aren't anchors per se.
 var (
-	// Jest: "Tests:       5 failed, 1615 passed, 1620 total"
-	jestTotalsLine = regexp.MustCompile(`^\s*Tests:\s+.*\btotal\b`)
-	// Cargo: "test result: ok. 42 passed; 0 failed; ..."
-	cargoResultLine = regexp.MustCompile(`^\s*test result:\s+(ok|FAILED)\.\s+\d+\s+passed;\s+(\d+)\s+failed`)
-	// Go test: "ok  \tpkg/path\t0.123s" (pass), "FAIL\tpkg/path" (fail at EOL of test run)
-	goTestOkLine   = regexp.MustCompile(`^ok\s+\S+\s+[\d.]+s`)
-	goTestFailLine = regexp.MustCompile(`^FAIL\s+\S+\s`)
-	// pytest: "======= 42 passed in 1.23s =======" or "==== 3 failed, 40 passed in 2s ===="
-	pytestSummaryLine = regexp.MustCompile(`^=+.*\b(passed|failed|error)\b.*=+$`)
-	// Shared counters used to extract numbers from Jest / pytest summary lines.
+	// Shared counter used to extract failure counts from Jest / Vitest /
+	// pytest summary lines. Public to runner_anchors.go's verdict funcs.
 	failedCount = regexp.MustCompile(`(\d+)\s+(?:failed|failures|errors)`)
 
 	// Jest's "console.<method>" block header (appears above console.log output).
@@ -101,45 +95,38 @@ func resolveResult(lines []string, exitCode int, stderr string, hasFail, hasPass
 // Returns ("PASS"|"FAIL", true) when one is found; ("", false) otherwise.
 // When present, these markers override inferred pass/fail signals from
 // generic anchor-word matching, since they are emitted by the runner itself.
+//
+// The scan walks bottom-up because runner totals are always emitted at the
+// end of the run. A FAIL hit short-circuits the scan; a PASS hit is held as
+// a tentative result and only returned if no later (= earlier in scan) line
+// upgrades the verdict to FAIL. This preserves the original go-test
+// semantic where a FAIL line later in the output overrides earlier OK lines.
 func detectRunnerResult(lines []string) (string, bool) {
-	result := ""
+	tentative := ""
 	found := false
 
-	// Scan from the end backwards — runner totals are emitted at the bottom.
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := lines[i]
-
-		if jestTotalsLine.MatchString(line) {
-			if m := failedCount.FindStringSubmatch(line); m != nil && m[1] != "0" {
+		for _, anchor := range runnerAnchors {
+			if anchor.verdict == nil || !anchor.re.MatchString(line) {
+				continue
+			}
+			v, ok := anchor.verdict(line)
+			if !ok {
+				continue
+			}
+			if v == "FAIL" {
 				return "FAIL", true
 			}
-			return "PASS", true
-		}
-		if m := cargoResultLine.FindStringSubmatch(line); m != nil {
-			if m[1] == "ok" && m[2] == "0" {
-				return "PASS", true
+			if !found {
+				tentative = v
+				found = true
 			}
-			return "FAIL", true
-		}
-		if pytestSummaryLine.MatchString(line) {
-			if failedCount.MatchString(line) {
-				return "FAIL", true
-			}
-			if strings.Contains(line, "passed") {
-				return "PASS", true
-			}
-		}
-		if goTestFailLine.MatchString(line) {
-			return "FAIL", true
-		}
-		if goTestOkLine.MatchString(line) && !found {
-			// Keep scanning — a later FAIL would override.
-			result = "PASS"
-			found = true
+			break
 		}
 	}
 
-	return result, found
+	return tentative, found
 }
 
 // isJestConsoleTrailer reports whether line i is a stack-frame line that
