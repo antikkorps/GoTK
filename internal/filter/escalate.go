@@ -36,34 +36,15 @@ const DefaultEscalateWindow = 10
 // windows if the cap is hit.
 const escalateCapMultiplier = 2
 
-// summaryAnchors match lines that carry the authoritative result / totals /
-// duration for a test runner. These are the only lines an LLM needs to answer
-// "did this run pass?" and "how many tests?". They must survive truncation
-// regardless of position in the output. See issue #40.
-var summaryAnchors = []*regexp.Regexp{
-	// Jest: "Test Suites: 4 passed, 4 total" / "Tests: 44 passed, 44 total"
-	regexp.MustCompile(`^\s*Test Suites:\s`),
-	regexp.MustCompile(`^\s*Tests:\s+.*\btotal\b`),
-	regexp.MustCompile(`^\s*Snapshots:\s`),
-	regexp.MustCompile(`^\s*Time:\s+\d`),
-	// Vitest: "Test Files  2 failed | 19 passed (21)" / "Tests  2 failed | 282 passed (284)"
-	regexp.MustCompile(`^\s*Test Files\s+.*\b(passed|failed)\b`),
-	regexp.MustCompile(`^\s*Tests\s+.*\b(passed|failed)\b`),
-	regexp.MustCompile(`^\s*Duration\s+\d`),
-	// pytest: "======= 42 passed in 1.23s ======="
-	regexp.MustCompile(`^=+.*\b(passed|failed|error)\b.*=+$`),
-	// Go test: "ok  \tpkg/path\t0.123s" / "FAIL\tpkg/path"
-	regexp.MustCompile(`^(ok|FAIL)\s+\S+\s+[\d.]+s`),
-	// Cargo: "test result: ok. 42 passed; 0 failed; ..."
-	regexp.MustCompile(`^\s*test result:\s+(ok|FAILED)\.\s+\d+\s+passed`),
-}
-
-// findSummaryAnchors returns the indices of lines matching any summary anchor.
+// findSummaryAnchors returns the indices of lines matching any test-runner
+// summary anchor. The anchor set lives in runner_anchors.go and is shared
+// with detectRunnerResult so verdict detection and must-keep tracking can't
+// drift apart. See issue #40.
 func findSummaryAnchors(lines []string) []int {
 	var idx []int
 	for i, line := range lines {
-		for _, re := range summaryAnchors {
-			if re.MatchString(line) {
+		for _, anchor := range runnerAnchors {
+			if anchor.re.MatchString(line) {
 				idx = append(idx, i)
 				break
 			}

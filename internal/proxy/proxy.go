@@ -85,6 +85,38 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 	return chain
 }
 
+// BuildStderrChain returns a conservative filter chain to apply to a
+// command's stderr before emitting it. The stderr policy is deliberately
+// narrow: only filters that strip pure noise or redact dangerous content
+// run, never structural / summarizing / truncating filters. Stderr is the
+// channel where diagnostics live, so we must not mangle its structure or
+// drop any signal an LLM (or a human) needs to debug.
+//
+// Filters applied (in order):
+//   - strip_ansi: remove ANSI escape codes (cosmetic; safe on any text).
+//   - redact_secrets: same redaction policy as stdout, so a secret written
+//     to stderr can't leak past gotk. Was the canonical missing piece
+//     before this chain existed.
+//   - node_warnings: PID-aware collapse of repeated worker warnings.
+//     Node emits these via process.emitWarning to stderr, so multi-worker
+//     test runs flood the channel. See issue #37.
+//
+// Streaming mode (cmd/gotk runStreaming) does not currently apply this
+// chain because stderr is forwarded line-by-line as it arrives; batching
+// it through the chain would defer output. Live stderr stays best-effort
+// passthrough for now.
+func BuildStderrChain(cfg *config.Config) *filter.Chain {
+	chain := filter.NewChain()
+	if cfg.Filters.StripANSI {
+		chain.AddNamed("strip_ansi", filter.StripANSI)
+	}
+	if cfg.Security.RedactSecrets {
+		chain.AddNamed("redact_secrets", filter.RedactSecrets)
+	}
+	chain.AddNamed("node_warnings", filter.CollapseNodeWarnings)
+	return chain
+}
+
 // BuildChainWithKeep creates a filter chain and wraps it to enforce always_keep rules.
 // Use this instead of BuildChain when the original input is available.
 func BuildChainWithKeep(cfg *config.Config, cmdType detect.CmdType, maxLines int, originalInput string) *filter.Chain {
@@ -135,9 +167,11 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 		return exitCodeFromResult(result, err)
 	}
 
-	// Pass stderr through unmodified
+	// Apply the stderr policy chain (strip ANSI, redact secrets, collapse
+	// node worker warnings). Without this, secrets in stderr would leak.
 	if result.Stderr != "" {
-		fmt.Fprint(os.Stderr, result.Stderr)
+		stderrChain := BuildStderrChain(cfg)
+		fmt.Fprint(os.Stderr, stderrChain.Apply(result.Stderr))
 	}
 
 	// Detect command type from the first word

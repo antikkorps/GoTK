@@ -17,7 +17,9 @@ func testdataDir() string {
 }
 
 // applyFiltersFor builds a filter function that applies all command-specific
-// filters for the given command type.
+// filters for the given command type, plus filter.CollapseNodeWarnings which
+// runs in the production chain (proxy.BuildChain) for every command type and
+// is a no-op on output without (node:PID) blocks.
 func applyFiltersFor(cmdType detect.CmdType) func(string) string {
 	return func(input string) string {
 		filters := detect.FiltersFor(cmdType)
@@ -25,6 +27,7 @@ func applyFiltersFor(cmdType detect.CmdType) func(string) string {
 		for _, f := range filters {
 			chain.Add(f)
 		}
+		chain.Add(filter.CollapseNodeWarnings)
 		return chain.Apply(input)
 	}
 }
