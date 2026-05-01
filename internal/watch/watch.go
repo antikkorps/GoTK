@@ -118,10 +118,13 @@ func runCommand(ctx context.Context, cfg Config) {
 		return
 	}
 
-	// Build filter chain and apply.
-	cmdType := detect.Identify(cfg.Command[0])
+	// Build filter chain and apply. Falls back to AutoDetect on output for
+	// wrappers not in the binary registry.
+	var cmdType detect.CmdType
 	if mapped, ok := cfg.GoTKConfig.Commands[cfg.Command[0]]; ok {
 		cmdType = detect.Identify(mapped)
+	} else {
+		cmdType, _ = detect.IdentifyOrDetect(cfg.Command[0], result.Stdout)
 	}
 	chain := proxy.BuildChain(cfg.GoTKConfig, cmdType, cfg.MaxLines)
 	cleaned := chain.Apply(result.Stdout)

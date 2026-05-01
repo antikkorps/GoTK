@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -249,6 +250,75 @@ func TestBuildStderrChain_CollapsesNodeWorkerWarnings(t *testing.T) {
 	if !strings.Contains(got, "identical warnings from other workers") {
 		t.Errorf("collapse marker missing, got:\n%s", got)
 	}
+}
+
+// TestBuildStderrChain_RealisticJestStderr_RegressionGuard mirrors a
+// real multi-worker jest run where stderr carries the bulk of the output:
+// node deprecation warnings from each worker, an ANSI-colored verbose
+// trace, an accidental token leak, and the test-runner totals emitted on
+// stderr. Acts as a regression fixture for the stderr policy chain — if
+// future stderr work silently stops redacting, stops collapsing duplicate
+// worker warnings, or starts mangling the totals line, this test fails.
+func TestBuildStderrChain_RealisticJestStderr_RegressionGuard(t *testing.T) {
+	cfg := config.Default()
+	chain := BuildStderrChain(cfg)
+
+	// Build a realistic 4-worker stderr stream.
+	const warnBlock = "(node:%d) Warning: --experimental-vm-modules was provided\n" +
+		"(Use `node --trace-warnings ...` to show where the warning was created)\n"
+	stderr := ""
+	for _, pid := range []int{1234, 1235, 1236, 1237} {
+		stderr += fmt.Sprintf(warnBlock, pid)
+	}
+	// ANSI-colored failure trace + accidental token leak.
+	stderr += "\x1b[31mFAIL\x1b[0m  src/auth/token.test.js\n"
+	stderr += "  at fetchToken (src/auth/token.ts:42:11)\n"
+	stderr += "  GITHUB_TOKEN=ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx\n"
+	// Some runners emit totals on stderr too.
+	stderr += "Tests:       1 failed, 23 passed, 24 total\n"
+	stderr += "Test Suites: 1 failed, 5 passed, 6 total\n"
+
+	got := chain.Apply(stderr)
+
+	// Signal that MUST survive.
+	for _, must := range []string{
+		"FAIL",                                  // verdict
+		"src/auth/token.test.js",                // failing file
+		"src/auth/token.ts:42:11",               // stack frame with line:col
+		"Tests:       1 failed, 23 passed",      // totals
+		"Test Suites: 1 failed, 5 passed",       // suite totals
+		"(node:1234)",                           // first worker warning preserved
+		"identical warnings from other workers", // collapse marker
+	} {
+		if !strings.Contains(got, must) {
+			t.Errorf("stderr chain dropped required signal %q\nGot:\n%s", must, got)
+		}
+	}
+
+	// Noise / dangerous content that MUST NOT survive.
+	for _, mustNot := range []string{
+		"\x1b[31m", // ANSI escape
+		"ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx", // token leak
+		"(node:1235)", // collapsed worker
+		"(node:1236)", // collapsed worker
+		"(node:1237)", // collapsed worker
+	} {
+		if strings.Contains(got, mustNot) {
+			t.Errorf("stderr chain leaked content that should be filtered: %q\nGot:\n%s", mustNot, got)
+		}
+	}
+
+	// Reduction ratio: must stay within a known band so future refactors
+	// don't silently regress (low) or over-aggressively trim signal (high).
+	rawBytes := len(stderr)
+	cleanBytes := len(got)
+	reduction := float64(rawBytes-cleanBytes) / float64(rawBytes) * 100
+	const minReduction, maxReduction = 30.0, 70.0
+	if reduction < minReduction || reduction > maxReduction {
+		t.Errorf("stderr reduction %.1f%% outside expected band [%.0f%%, %.0f%%] — raw=%d clean=%d",
+			reduction, minReduction, maxReduction, rawBytes, cleanBytes)
+	}
+	t.Logf("stderr fixture: %d → %d bytes (%.1f%% reduction)", rawBytes, cleanBytes, reduction)
 }
 
 func TestBuildStderrChain_RespectsRedactSecretsToggle(t *testing.T) {

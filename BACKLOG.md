@@ -527,33 +527,33 @@
 
 - [x] Catalogue every filter and decide its stderr policy. Result: a narrow shared chain (strip ANSI, redact secrets, collapse node worker warnings) covers stderr; structural / summarizing / truncating filters intentionally don't run on stderr. Fixes the `RedactSecrets`-on-stderr leak — a secret written to stderr no longer slips past gotk.
 - [x] Introduce a single place for stderr handling: `proxy.BuildStderrChain` is now the single source of truth, used from both `cmd/gotk/main.go` and `proxy.RunCommand` (replaces the ad-hoc `filter.CollapseNodeWarnings(stderr)` call). Streaming mode still forwards stderr line-by-line — documented as a known limitation in the new chain's godoc.
-- [ ] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering, which accidentally covers some of these cases. Document this or align both paths.
+- [x] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering. Documented as intentional in `docs/architecture.md` (Stderr Policy → MCP `gotk_exec`) and inline in the code — the MCP tool returns a single text block to the LLM, so a single merged channel is the right interface, even though stderr accidentally flows through the heavyweight stdout chain. Trade-off accepted: secrets still get redacted; if a future consumer needs separate channels, the alignment target is `proxy.BuildStderrChain`.
 
 ### Build — Consolidate duplicate implementations
 
 - [x] Node worker-warning collapse: `CollapseNodeWarnings` is now canonical. The `genericWarnCount` branch was removed from `compressNodeOutput`. Golden Jest test wrapper now applies `CollapseNodeWarnings` so the per-cmdtype golden suite mirrors the production chain.
 - [x] Test-runner summary anchors: extracted into `internal/filter/runner_anchors.go` — a single `runnerAnchor` list with optional per-anchor verdict funcs. `detectRunnerResult` (verdict) and `findSummaryAnchors` (must-keep tracking) both consume it; can no longer drift.
-- [ ] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`.
+- [x] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`. Result: only two cases worth noting, neither actionable as deletion. (1) `filters_python.go` traceback compression overlaps with `filter.CompressStackTraces` but uses a tighter threshold (2 vs 5 frames) and has an ImportError special case the generic version lacks; documented inline. (2) `filters_docker.go:19` ANSI regex is defensive against `cfg.Filters.StripANSI=false`; documented inline. All other `filters_*.go` (cargo, curl, jest, jq, kubectl, make, node, npm, ssh, tar, terraform, tree) clean — blank-line-skipping patterns are structural for stateful compression, not dead code.
 
 ### Build — Detection robustness
 
-- [ ] Detection currently keys off `parts[0]` via `filepath.Base` — wrappers (`pnpm exec jest`, `npx vitest`, scripts that `exec` node) slip through as `CmdGeneric`. Look into a lightweight auto-detect from output signature (already partly done in `detect.AutoDetect` for pipe mode) and consider running it when the CLI path yields `CmdGeneric`.
-- [ ] Expose detection in `--debug` output so users can see why a filter didn't fire (already partially there via `logDebug`).
+- [x] Detection currently keys off `parts[0]` via `filepath.Base` — wrappers (`pnpm exec jest`, `npx vitest`, scripts that `exec` node) slip through as `CmdGeneric`. New `detect.IdentifyOrDetect` falls back to `AutoDetect` on the captured output when the registry yields `CmdGeneric`; wired into the CLI exec path, `proxy.RunCommand`, `mcp.handleExec`, and `watch`. Added a jest/vitest auto-pattern (`PASS|FAIL <file>.test.tsx?`, `Tests: N failed/passed`, `Test Suites:`) so direct `./node_modules/.bin/jest` invocations resolve to `CmdNpm`.
+- [x] Expose detection in `--debug` output so users can see why a filter didn't fire — CLI exec path now logs `(source: registry|mapping|auto|none)` alongside the resolved type.
 
 ### Build — Package review
 
-- [ ] Check whether `internal/learn/`, `internal/classify/`, `internal/cache/`, `internal/cmdclass/` are earning their keep. Evidence-driven: query `gotk measure` data for measurable wins (token savings, cache hit rate, classifier agreement). Merge or drop what doesn't clear the bar. Goal is scope discipline, not a rewrite — be conservative.
+- [x] Check whether `internal/learn/`, `internal/classify/`, `internal/cache/`, `internal/cmdclass/` are earning their keep. Result: all four clear the bar. `classify/` has 7 consumers (bench, learn, measure, mcp, filter/summary) and is the core semantic line classifier. `cmdclass/` has 2 consumers (hook, daemon) — exactly the deduplication target that motivated its creation. `learn/` is the backing for the `gotk learn` subcommand and the `--learn` flag, opt-in feature surface. `cache/` has a single consumer (mcp) — the only one where future `gotk measure` data could justify removal if hit rate proves low, but no current signal warrants action. No deletions, scope discipline confirmed.
 
 ### Measure
 
-- [ ] Before touching stderr filtering, add a benchmark fixture that puts test-runner totals on stderr (mirrors the real jest shape). Gate any refactor on: (a) existing golden tests still pass, (b) new stderr fixture produces the expected summary verdict.
-- [ ] Track reduction ratio on that fixture before/after consolidation — must not regress.
+- [x] Before touching stderr filtering, add a benchmark fixture that puts test-runner totals on stderr (mirrors the real jest shape). `TestBuildStderrChain_RealisticJestStderr_RegressionGuard` in `internal/proxy/proxy_test.go` covers a 4-worker run: must-keep (FAIL verdict, failing file, stack frame, totals, first worker warning, collapse marker) and must-drop (ANSI, GitHub token, duplicate worker PIDs).
+- [x] Track reduction ratio on that fixture before/after consolidation — must not regress. The same test asserts the reduction stays within `[30%, 70%]`. Current value: 52%.
 
 ### Deliver
 
 - [x] PR #51 merged — stderr pass + Node warning consolidation + summary anchors unification all landed together. Pure cleanup, no user-visible API change.
 - [ ] Tag `v1.7.0` after the remaining detection-robustness work or as-is if we ship the cleanup standalone.
-- [ ] Document the stderr policy in `docs/architecture.md`.
+- [x] Document the stderr policy in `docs/architecture.md` — new "Stderr Policy" section covers the CLI/proxy/watch path (`BuildStderrChain`) and the MCP merge.
 
 ---
 

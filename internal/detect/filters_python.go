@@ -88,8 +88,16 @@ func compressPythonOutput(input string) string {
 			firstDeprecation = ""
 		}
 
-		// Condense Python tracebacks: keep header, first frame, last frame + error
-		// Exception: ImportError/ModuleNotFoundError keeps ALL frames (import chain is critical)
+		// Condense Python tracebacks: keep header, first frame, last frame + error.
+		// Exception: ImportError/ModuleNotFoundError keeps ALL frames (import chain is critical).
+		//
+		// Overlaps with filter.CompressStackTraces (which also handles Python).
+		// Both are kept on purpose: the generic one runs later in the chain
+		// at a 5-frame threshold and has no ImportError special case; this
+		// one runs first at a 2-frame threshold and preserves import chains.
+		// Once specific compression has emitted "  ... N more frames ..." the
+		// generic pass no longer sees raw "  File" frames, so they don't
+		// conflict. Don't unify without porting the ImportError logic.
 		if pyTracebackHeader.MatchString(trimmed) {
 			result = append(result, line)
 			i++

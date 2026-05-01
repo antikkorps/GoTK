@@ -35,6 +35,11 @@ var (
 	autoTerraformPattern = regexp.MustCompile(`^(\S+\.\S+: (Refreshing|Creating|Modifying|Destroying|Reading)|Plan: \d+ to add)`)
 	// kubectl output: resource lines with NAME/READY/STATUS headers or YAML with apiVersion/kind
 	autoKubectlPattern = regexp.MustCompile(`^(NAME\s+READY\s+STATUS|apiVersion:\s|kind:\s|metadata:\s)`)
+	// jest/vitest test runner output: distinctive PASS/FAIL prefixes on test files,
+	// or the "Tests: N failed, N passed" summary, or vitest's "✓"/"✗" markers.
+	// Catches direct invocations like `./node_modules/.bin/jest` that don't go
+	// through pnpm/npm/yarn/npx (which are already in the binary registry).
+	autoJestPattern = regexp.MustCompile(`^(PASS|FAIL)\s+\S+\.(test|spec)\.[jt]sx?|^Tests:\s+\d+\s+(failed|passed|skipped)|^Test Suites:\s+\d+`)
 )
 
 // AutoDetect analyzes output content to guess the source command type.
@@ -73,6 +78,9 @@ func AutoDetect(output string) CmdType {
 		}
 		if autoKubectlPattern.MatchString(line) {
 			return CmdKubectl
+		}
+		if autoJestPattern.MatchString(line) {
+			return CmdNpm
 		}
 	}
 

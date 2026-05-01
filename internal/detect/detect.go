@@ -97,6 +97,44 @@ func Identify(command string) CmdType {
 	return CmdGeneric
 }
 
+// DetectionSource describes how a CmdType was decided.
+type DetectionSource string
+
+const (
+	// SourceRegistry: matched a known binary name in the registry.
+	SourceRegistry DetectionSource = "registry"
+	// SourceAuto: registry lookup yielded CmdGeneric, AutoDetect on the
+	// captured output recovered a specific type (e.g. wrappers like
+	// `./node_modules/.bin/jest` that aren't in the binary registry).
+	SourceAuto DetectionSource = "auto"
+	// SourceMapping: matched via the user's [commands] config mapping.
+	SourceMapping DetectionSource = "mapping"
+	// SourceNone: no match — fell through to CmdGeneric.
+	SourceNone DetectionSource = "none"
+)
+
+// IdentifyOrDetect resolves a command type from the binary name first, then
+// falls back to AutoDetect on the captured output when the binary doesn't
+// match anything in the registry. This catches wrapper invocations like
+// `./node_modules/.bin/jest`, scripts that exec another tool, or anything
+// that landed in CmdGeneric purely because parts[0] was unfamiliar.
+//
+// Returns the resolved CmdType and the source so callers can surface it via
+// --debug. If `output` is empty the auto step is skipped.
+func IdentifyOrDetect(command, output string) (CmdType, DetectionSource) {
+	cmdType := Identify(command)
+	if cmdType != CmdGeneric {
+		return cmdType, SourceRegistry
+	}
+	if output == "" {
+		return CmdGeneric, SourceNone
+	}
+	if auto := AutoDetect(output); auto != CmdGeneric {
+		return auto, SourceAuto
+	}
+	return CmdGeneric, SourceNone
+}
+
 // FiltersFor returns command-specific filters for the given command type.
 func FiltersFor(cmdType CmdType) []filter.FilterFunc {
 	if entry, ok := registry[cmdType]; ok {
