@@ -546,8 +546,8 @@
 
 ### Measure
 
-- [ ] Before touching stderr filtering, add a benchmark fixture that puts test-runner totals on stderr (mirrors the real jest shape). Gate any refactor on: (a) existing golden tests still pass, (b) new stderr fixture produces the expected summary verdict.
-- [ ] Track reduction ratio on that fixture before/after consolidation — must not regress.
+- [x] Before touching stderr filtering, add a benchmark fixture that puts test-runner totals on stderr (mirrors the real jest shape). `TestBuildStderrChain_RealisticJestStderr_RegressionGuard` in `internal/proxy/proxy_test.go` covers a 4-worker run: must-keep (FAIL verdict, failing file, stack frame, totals, first worker warning, collapse marker) and must-drop (ANSI, GitHub token, duplicate worker PIDs).
+- [x] Track reduction ratio on that fixture before/after consolidation — must not regress. The same test asserts the reduction stays within `[30%, 70%]`. Current value: 52%.
 
 ### Deliver
 
