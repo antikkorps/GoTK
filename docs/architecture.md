@@ -135,9 +135,12 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `CmdNode` | node, npx, tsx, ts-node, deno |
 | `CmdGeneric` | everything else |
 
-### Auto-detection (pipe mode)
+### Auto-detection (pipe mode and wrapper fallback)
 
-`detect.AutoDetect(output)` samples the first 50 non-empty lines and matches them against regex patterns:
+`detect.AutoDetect(output)` samples the first 50 non-empty lines and matches them against regex patterns. It runs in two situations:
+
+1. **Pipe mode** (`cmd | gotk`): there is no command to identify, so AutoDetect is the only option.
+2. **Wrapper fallback** (`detect.IdentifyOrDetect`): when the registry yields `CmdGeneric` for the captured binary name, AutoDetect runs on the captured output. This catches direct invocations like `./node_modules/.bin/jest`, scripts that `exec` another tool, or any CI wrapper not in the binary registry. The CLI exec path, `proxy.RunCommand`, `mcp.handleExec`, and `gotk watch` all use this fallback. `--debug` reports the source as `registry`, `mapping`, `auto`, or `none`.
 
 | Pattern | Detected type |
 |---------|--------------|
@@ -151,6 +154,7 @@ GoTK identifies the command type to select command-specific filters. There are t
 | `Traceback (most recent call last):` | python (high-confidence) |
 | `resource.name: Refreshing/Creating/...` | terraform (high-confidence) |
 | `NAME  READY  STATUS` or `apiVersion:` | kubectl (high-confidence) |
+| `PASS|FAIL <file>.test.tsx?`, `Tests: N failed/passed`, `Test Suites:` | jest/vitest (high-confidence, resolves to `CmdNpm`) |
 
 A command type is selected only if it matches more than 40% of sampled lines (minimum 2 matches). This prevents false positives on mixed output. High-confidence patterns (git, docker, python, terraform, kubectl) require only a single match.
 
@@ -203,6 +207,30 @@ Guidelines:
 4. Write the command-specific filter function(s) in a `filters_<name>.go` file
 
 The filter function receives fully deduplicated, whitespace-normalized, ANSI-stripped text. It should focus on structural compression (grouping, prefix factoring, metadata stripping) rather than basic cleanup.
+
+## Stderr Policy
+
+GoTK treats stderr conservatively. Stderr is the channel where diagnostics, warnings, and errors live — mangling its structure or dropping its signal is far more costly than letting some noise through. The policy depends on which path runs:
+
+### CLI exec, `proxy.RunCommand`, `gotk watch`
+
+Stderr passes through `proxy.BuildStderrChain` — a deliberately narrow chain. It is the single source of truth for stderr filtering across these paths.
+
+Filters applied (in order):
+
+1. `strip_ansi` — cosmetic, safe on any text.
+2. `redact_secrets` — same redaction as stdout. Without this, a secret accidentally written to stderr would leak past gotk. This was the canonical missing piece before the chain existed (Sprint 15).
+3. `node_warnings` — PID-aware collapse of repeated `(node:PID) Warning:` blocks from multi-worker test runs (issue #37).
+
+What is **not** in the chain: structural / summarizing / truncating filters, command-specific filters, dedup, whitespace normalization. None of these are safe on diagnostic output.
+
+**Streaming mode** (`gotk --stream`) does not apply this chain. Stderr is forwarded line-by-line as it arrives, so batching it through filters would defer output. Live stderr stays best-effort passthrough; a future iteration could apply a per-line subset (`strip_ansi` + `redact_secrets` only).
+
+### MCP `gotk_exec`
+
+The MCP path is intentionally different. The tool returns a single `text` content block to the LLM consumer — the LLM has no way to read separate stdout / stderr streams. So `mcp.handleExec` concatenates stderr after stdout and runs the **full stdout chain** on the merged result. This means stderr accidentally picks up the heavyweight filters (truncation, summarization, command-specific compression) — which is acceptable for an LLM-facing single-channel interface and ensures secret redaction still happens. The exit code is appended as a separate `[exit code: N]` line so the LLM can distinguish failure from output content.
+
+If a future MCP consumer needs separate channels, the right move would be to align with `BuildStderrChain` rather than splitting the merge.
 
 ## Config Merging
 

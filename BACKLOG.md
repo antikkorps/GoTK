@@ -527,7 +527,7 @@
 
 - [x] Catalogue every filter and decide its stderr policy. Result: a narrow shared chain (strip ANSI, redact secrets, collapse node worker warnings) covers stderr; structural / summarizing / truncating filters intentionally don't run on stderr. Fixes the `RedactSecrets`-on-stderr leak — a secret written to stderr no longer slips past gotk.
 - [x] Introduce a single place for stderr handling: `proxy.BuildStderrChain` is now the single source of truth, used from both `cmd/gotk/main.go` and `proxy.RunCommand` (replaces the ad-hoc `filter.CollapseNodeWarnings(stderr)` call). Streaming mode still forwards stderr line-by-line — documented as a known limitation in the new chain's godoc.
-- [ ] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering, which accidentally covers some of these cases. Document this or align both paths.
+- [x] Decide the MCP path explicitly: `internal/mcp/server.go` concatenates stdout+stderr into `raw` before filtering. Documented as intentional in `docs/architecture.md` (Stderr Policy → MCP `gotk_exec`) and inline in the code — the MCP tool returns a single text block to the LLM, so a single merged channel is the right interface, even though stderr accidentally flows through the heavyweight stdout chain. Trade-off accepted: secrets still get redacted; if a future consumer needs separate channels, the alignment target is `proxy.BuildStderrChain`.
 
 ### Build — Consolidate duplicate implementations
 
@@ -553,7 +553,7 @@
 
 - [x] PR #51 merged — stderr pass + Node warning consolidation + summary anchors unification all landed together. Pure cleanup, no user-visible API change.
 - [ ] Tag `v1.7.0` after the remaining detection-robustness work or as-is if we ship the cleanup standalone.
-- [ ] Document the stderr policy in `docs/architecture.md`.
+- [x] Document the stderr policy in `docs/architecture.md` — new "Stderr Policy" section covers the CLI/proxy/watch path (`BuildStderrChain`) and the MCP merge.
 
 ---
 
