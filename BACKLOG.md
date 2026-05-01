@@ -515,11 +515,11 @@
 - [x] Daemon mode: marked unsupported on Windows. `daemon.Start` and `daemon.Init` return `ErrUnsupportedOS` early; the CLI prints a message pointing users to `gotk install claude` or pipe mode. PowerShell hook deferred — no concrete user demand yet.
 - [x] README + `docs/quickstart.md`: Windows install instructions (.zip from Releases, PATH setup) and platform support matrix.
 - [x] Run the full test suite on a Windows runner in CI (test-windows job in .github/workflows/ci.yml; golden suite green after the v1.6.1 round of CRLF / path / clock fixes).
-- [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (deferred — bench job stays on Linux for now).
+- [~] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (branch `sprint-14/windows-bench-parity`, started 2026-05-02). Approach: enable a Windows bench job in CI on the same fixtures, capture the JSON report, diff against the Linux baseline, fail the job if any per-fixture reduction drifts > 5 percentage points or total avg moves more than 5%. Stretch: surface platform-specific outliers in the report.
 
 ---
 
-## Sprint 15 — Filter Tech Debt (from 2026-04-24 assessment)
+## Sprint 15 — Filter Tech Debt (from 2026-04-24 assessment) `DONE`
 
 > Three quality bugs shipped this week (#37 / #39 / #40 → v1.5.2) surfaced recurring structural issues. None are urgent, but leaving them to rot makes future filter work slower. Take this slice before (or alongside) Sprint 14 Windows so the Windows port lands on a cleaner core.
 
@@ -552,7 +552,8 @@
 ### Deliver
 
 - [x] PR #51 merged — stderr pass + Node warning consolidation + summary anchors unification all landed together. Pure cleanup, no user-visible API change.
-- [ ] Tag `v1.7.0` after the remaining detection-robustness work or as-is if we ship the cleanup standalone.
+- [x] PR #53 merged — detection robustness (`IdentifyOrDetect` wrapper fallback), `--debug` source field, jest/vitest auto-pattern, stderr policy doc, regression guard, filter overlap audit, package review.
+- [x] Tagged **v1.6.2** (2026-05-01) — chose patch over minor. Sprint 15 was 80% internal cleanup; the wrapper-detection fallback is the only user-visible improvement and isn't substantial enough for a minor bump. v1.7.0 stays reserved for the next feature release (multi-agent install / setup wizard).
 - [x] Document the stderr policy in `docs/architecture.md` — new "Stderr Policy" section covers the CLI/proxy/watch path (`BuildStderrChain`) and the MCP merge.
 
 ---
