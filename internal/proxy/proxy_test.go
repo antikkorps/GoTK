@@ -282,13 +282,13 @@ func TestBuildStderrChain_RealisticJestStderr_RegressionGuard(t *testing.T) {
 
 	// Signal that MUST survive.
 	for _, must := range []string{
-		"FAIL",                                     // verdict
-		"src/auth/token.test.js",                   // failing file
-		"src/auth/token.ts:42:11",                  // stack frame with line:col
-		"Tests:       1 failed, 23 passed",         // totals
-		"Test Suites: 1 failed, 5 passed",          // suite totals
-		"(node:1234)",                              // first worker warning preserved
-		"identical warnings from other workers",    // collapse marker
+		"FAIL",                                  // verdict
+		"src/auth/token.test.js",                // failing file
+		"src/auth/token.ts:42:11",               // stack frame with line:col
+		"Tests:       1 failed, 23 passed",      // totals
+		"Test Suites: 1 failed, 5 passed",       // suite totals
+		"(node:1234)",                           // first worker warning preserved
+		"identical warnings from other workers", // collapse marker
 	} {
 		if !strings.Contains(got, must) {
 			t.Errorf("stderr chain dropped required signal %q\nGot:\n%s", must, got)
@@ -297,11 +297,11 @@ func TestBuildStderrChain_RealisticJestStderr_RegressionGuard(t *testing.T) {
 
 	// Noise / dangerous content that MUST NOT survive.
 	for _, mustNot := range []string{
-		"\x1b[31m",                                          // ANSI escape
-		"ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx",      // token leak
-		"(node:1235)",                                       // collapsed worker
-		"(node:1236)",                                       // collapsed worker
-		"(node:1237)",                                       // collapsed worker
+		"\x1b[31m", // ANSI escape
+		"ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx", // token leak
+		"(node:1235)", // collapsed worker
+		"(node:1236)", // collapsed worker
+		"(node:1237)", // collapsed worker
 	} {
 		if strings.Contains(got, mustNot) {
 			t.Errorf("stderr chain leaked content that should be filtered: %q\nGot:\n%s", mustNot, got)
