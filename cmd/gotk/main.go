@@ -240,13 +240,19 @@ func main() {
 		}
 	}
 
-	// Build filter chain based on detected command, using config
-	cmdType := detect.Identify(cmdArgs[0])
-	logDebug("detected command type: %q for %q\n", cmdType, cmdArgs[0])
-	// Check custom command mappings
+	// Build filter chain based on detected command, using config.
+	// Custom command mappings take precedence; otherwise resolve via the
+	// registry, then fall back to AutoDetect on captured output so wrappers
+	// like `./node_modules/.bin/jest` don't slip through as CmdGeneric.
+	var cmdType detect.CmdType
+	var source detect.DetectionSource
 	if mapped, ok := cfg.Commands[cmdArgs[0]]; ok {
 		cmdType = detect.Identify(mapped)
+		source = detect.SourceMapping
+	} else {
+		cmdType, source = detect.IdentifyOrDetect(cmdArgs[0], result.Stdout)
 	}
+	logDebug("detected command type: %q for %q (source: %s)\n", cmdType, cmdArgs[0], source)
 	start := time.Now()
 	chain := proxy.BuildChainWithExit(cfg, cmdType, maxLines, result.ExitCode, result.Stderr)
 	logDebug("filter chain (%d filters): %v\n", chain.Len(), chain.Names())

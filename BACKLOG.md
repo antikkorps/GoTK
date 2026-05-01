@@ -537,8 +537,8 @@
 
 ### Build — Detection robustness
 
-- [ ] Detection currently keys off `parts[0]` via `filepath.Base` — wrappers (`pnpm exec jest`, `npx vitest`, scripts that `exec` node) slip through as `CmdGeneric`. Look into a lightweight auto-detect from output signature (already partly done in `detect.AutoDetect` for pipe mode) and consider running it when the CLI path yields `CmdGeneric`.
-- [ ] Expose detection in `--debug` output so users can see why a filter didn't fire (already partially there via `logDebug`).
+- [x] Detection currently keys off `parts[0]` via `filepath.Base` — wrappers (`pnpm exec jest`, `npx vitest`, scripts that `exec` node) slip through as `CmdGeneric`. New `detect.IdentifyOrDetect` falls back to `AutoDetect` on the captured output when the registry yields `CmdGeneric`; wired into the CLI exec path, `proxy.RunCommand`, `mcp.handleExec`, and `watch`. Added a jest/vitest auto-pattern (`PASS|FAIL <file>.test.tsx?`, `Tests: N failed/passed`, `Test Suites:`) so direct `./node_modules/.bin/jest` invocations resolve to `CmdNpm`.
+- [x] Expose detection in `--debug` output so users can see why a filter didn't fire — CLI exec path now logs `(source: registry|mapping|auto|none)` alongside the resolved type.
 
 ### Build — Package review
 

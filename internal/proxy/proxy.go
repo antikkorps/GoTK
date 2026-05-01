@@ -174,14 +174,16 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 		fmt.Fprint(os.Stderr, stderrChain.Apply(result.Stderr))
 	}
 
-	// Detect command type from the first word
+	// Detect command type from the first word; fall back to AutoDetect on
+	// captured output so wrappers (jest, vitest, etc.) that aren't in the
+	// binary registry still pick up the right filters.
 	parts := strings.Fields(command)
 	cmdType := detect.CmdGeneric
 	if len(parts) > 0 {
-		cmdType = detect.Identify(parts[0])
-		// Check custom command mappings
 		if mapped, ok := cfg.Commands[parts[0]]; ok {
 			cmdType = detect.Identify(mapped)
+		} else {
+			cmdType, _ = detect.IdentifyOrDetect(parts[0], raw)
 		}
 	}
 

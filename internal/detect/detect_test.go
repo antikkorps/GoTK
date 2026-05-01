@@ -123,6 +123,50 @@ func TestIdentify(t *testing.T) {
 	}
 }
 
+func TestIdentifyOrDetect(t *testing.T) {
+	jestOutput := `PASS  src/foo.test.js
+console.log
+  hello world
+    at Object.<anonymous> (src/foo.test.js:3:11)
+FAIL  src/bar.test.js
+  ● bar test › fails
+    Expected: 1
+    Received: 2
+Tests:       1 failed, 1 passed, 2 total
+`
+	pythonOutput := `Traceback (most recent call last):
+  File "app.py", line 10, in <module>
+    main()
+ValueError: bad input
+`
+
+	tests := []struct {
+		name       string
+		command    string
+		output     string
+		wantType   CmdType
+		wantSource DetectionSource
+	}{
+		{"registry match wins", "git", jestOutput, CmdGit, SourceRegistry},
+		{"wrapper falls back to auto", "./node_modules/.bin/jest", jestOutput, CmdNpm, SourceAuto},
+		{"unknown binary, python output", "run-tests.sh", pythonOutput, CmdPython, SourceAuto},
+		{"unknown binary, no output", "weird-tool", "", CmdGeneric, SourceNone},
+		{"unknown binary, generic output", "weird-tool", "hello world\n", CmdGeneric, SourceNone},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotType, gotSource := IdentifyOrDetect(tt.command, tt.output)
+			if gotType != tt.wantType {
+				t.Errorf("IdentifyOrDetect type = %v, want %v", gotType, tt.wantType)
+			}
+			if gotSource != tt.wantSource {
+				t.Errorf("IdentifyOrDetect source = %q, want %q", gotSource, tt.wantSource)
+			}
+		})
+	}
+}
+
 func TestFiltersFor(t *testing.T) {
 	tests := []struct {
 		name    string
