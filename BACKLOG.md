@@ -533,7 +533,7 @@
 
 - [x] Node worker-warning collapse: `CollapseNodeWarnings` is now canonical. The `genericWarnCount` branch was removed from `compressNodeOutput`. Golden Jest test wrapper now applies `CollapseNodeWarnings` so the per-cmdtype golden suite mirrors the production chain.
 - [x] Test-runner summary anchors: extracted into `internal/filter/runner_anchors.go` — a single `runnerAnchor` list with optional per-anchor verdict funcs. `detectRunnerResult` (verdict) and `findSummaryAnchors` (must-keep tracking) both consume it; can no longer drift.
-- [ ] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`.
+- [x] Audit the rest of `internal/detect/filters_*.go` for similar overlap with the generic chain in `internal/filter/`. Result: only two cases worth noting, neither actionable as deletion. (1) `filters_python.go` traceback compression overlaps with `filter.CompressStackTraces` but uses a tighter threshold (2 vs 5 frames) and has an ImportError special case the generic version lacks; documented inline. (2) `filters_docker.go:19` ANSI regex is defensive against `cfg.Filters.StripANSI=false`; documented inline. All other `filters_*.go` (cargo, curl, jest, jq, kubectl, make, node, npm, ssh, tar, terraform, tree) clean — blank-line-skipping patterns are structural for stateful compression, not dead code.
 
 ### Build — Detection robustness
 
@@ -542,7 +542,7 @@
 
 ### Build — Package review
 
-- [ ] Check whether `internal/learn/`, `internal/classify/`, `internal/cache/`, `internal/cmdclass/` are earning their keep. Evidence-driven: query `gotk measure` data for measurable wins (token savings, cache hit rate, classifier agreement). Merge or drop what doesn't clear the bar. Goal is scope discipline, not a rewrite — be conservative.
+- [x] Check whether `internal/learn/`, `internal/classify/`, `internal/cache/`, `internal/cmdclass/` are earning their keep. Result: all four clear the bar. `classify/` has 7 consumers (bench, learn, measure, mcp, filter/summary) and is the core semantic line classifier. `cmdclass/` has 2 consumers (hook, daemon) — exactly the deduplication target that motivated its creation. `learn/` is the backing for the `gotk learn` subcommand and the `--learn` flag, opt-in feature surface. `cache/` has a single consumer (mcp) — the only one where future `gotk measure` data could justify removal if hit rate proves low, but no current signal warrants action. No deletions, scope discipline confirmed.
 
 ### Measure
 

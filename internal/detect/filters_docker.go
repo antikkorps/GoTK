@@ -15,7 +15,11 @@ var (
 	dockerRemoving  = regexp.MustCompile(`^Removing intermediate container [0-9a-f]+`)
 	// Docker pull layer progress lines (e.g., "abc123: Pulling fs layer", "abc123: Downloading  [==>  ]")
 	dockerLayerProgress = regexp.MustCompile(`^[0-9a-f]{12}: (Waiting|Pulling fs layer|Downloading|Extracting|Verifying Checksum|Download complete|Pull complete)`)
-	// ANSI spinner/progress (common in docker compose)
+	// ANSI spinner/progress (common in docker compose). Defensive: when
+	// cfg.Filters.StripANSI is disabled the generic StripANSI step is
+	// skipped, so docker-compose progress lines (pure ANSI, no text) would
+	// otherwise survive into the cleaned output. Used only to test whether
+	// a line is "ANSI-only" — the original line is what gets emitted.
 	ansiProgressLine = regexp.MustCompile(`\x1b\[[0-9;]*[mGKHJ]`)
 )
 
