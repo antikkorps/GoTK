@@ -13,6 +13,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/bench"
 	gotkctx "github.com/antikkorps/GoTK/internal/ctx"
 	"github.com/antikkorps/GoTK/internal/daemon"
+	"github.com/antikkorps/GoTK/internal/dashboard"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
 	"github.com/antikkorps/GoTK/internal/filter"
@@ -328,6 +329,30 @@ func runBench(args []string) {
 		fmt.Print(bench.FormatReportJSON(report))
 	} else {
 		fmt.Print(bench.FormatReport(report))
+	}
+}
+
+// runDashboard handles the "gotk dashboard" subcommand: a live TUI
+// summarising gotk activity sourced from the measurement log.
+func runDashboard(args []string) {
+	logPath := cfg.Measure.LogPath
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--log":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "gotk dashboard --log requires a path")
+				os.Exit(2)
+			}
+			logPath = args[i+1]
+			i++
+		case "-h", "--help":
+			printSubcommandHelp("dashboard")
+			return
+		}
+	}
+	if err := dashboard.Run(logPath); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 

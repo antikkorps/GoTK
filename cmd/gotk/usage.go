@@ -32,6 +32,7 @@ Subcommands:
   exec      Execute a command explicitly (gotk exec -- cmd args...)
   watch     Re-run command on file changes (gotk watch -- make test)
   bench     Run benchmark suite
+  dashboard Live TUI summarising gotk activity
   measure   Token consumption metrics (report, last, status, clear)
   help      Show help for a subcommand (gotk help watch)
 
@@ -185,6 +186,30 @@ Examples:
   gotk bench --abtest
   gotk bench --json
   gotk bench --compare linux.json windows.json --baseline-label linux --candidate-label windows`,
+
+		"dashboard": `gotk dashboard — Live TUI summarising gotk activity
+
+Usage:
+  gotk dashboard [flags]
+
+Reads the measurement log written by --measure and shows totals,
+top filtered commands, recent invocations, and quality insights.
+Refreshes every 2s. Requires --measure to have been logging entries.
+
+Keys:
+  1   period: today
+  7   period: last 7 days
+  3   period: last 30 days
+  a   period: all time
+  r   refresh now
+  q   quit
+
+Flags:
+  --log PATH   Read from PATH instead of the configured measure log
+
+Examples:
+  gotk dashboard
+  gotk dashboard --log /tmp/measure.jsonl`,
 
 		"measure": `gotk measure — Token consumption metrics
 

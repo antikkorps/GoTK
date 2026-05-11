@@ -168,6 +168,9 @@ func main() {
 	case "bench":
 		runBench(args[1:])
 		os.Exit(0)
+	case "dashboard":
+		runDashboard(args[1:])
+		os.Exit(0)
 	case "ctx":
 		runCtx(args[1:])
 		os.Exit(0)
