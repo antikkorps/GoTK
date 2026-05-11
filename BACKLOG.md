@@ -516,6 +516,8 @@
 - [x] README + `docs/quickstart.md`: Windows install instructions (.zip from Releases, PATH setup) and platform support matrix.
 - [x] Run the full test suite on a Windows runner in CI (test-windows job in .github/workflows/ci.yml; golden suite green after the v1.6.1 round of CRLF / path / clock fixes).
 - [~] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (branch `sprint-14/windows-bench-parity`, started 2026-05-02). Approach: enable a Windows bench job in CI on the same fixtures, capture the JSON report, diff against the Linux baseline, fail the job if any per-fixture reduction drifts > 5 percentage points or total avg moves more than 5%. Stretch: surface platform-specific outliers in the report.
+  - [x] `gotk bench --compare A.json B.json` (internal/bench/compare.go): parity diff with 5pp per-fixture / 5pp total-avg drift thresholds, outlier-first ordering, JSON + text formats, non-zero exit on FAIL. Unit-tested for identical reports, per-fixture drift, avg drift, and missing-fixture cases.
+  - [x] CI: `bench` job (Linux) uploads `bench-linux.json`; new `bench-windows` job runs the same fixtures on `windows-latest` and uploads `bench-windows.json`; new `bench-parity` job downloads both and runs `gotk bench --compare`, failing on drift.
 
 ---
 

@@ -173,13 +173,18 @@ Flags:
   --per-filter    Show per-filter contribution breakdown
   --quality       Measure quality score (% of important lines preserved)
   --abtest        Compare conservative/balanced/aggressive modes side by side
+  --compare A B   Diff two bench --json reports (A=baseline, B=candidate).
+                  Exits non-zero on >5pp per-fixture drift or >5pp total-avg drift.
+  --baseline-label NAME    Label for the baseline report (default "baseline")
+  --candidate-label NAME   Label for the candidate report (default "candidate")
 
 Examples:
   gotk bench
   gotk bench --per-filter
   gotk bench --quality
   gotk bench --abtest
-  gotk bench --json`,
+  gotk bench --json
+  gotk bench --compare linux.json windows.json --baseline-label linux --candidate-label windows`,
 
 		"measure": `gotk measure — Token consumption metrics
 
