@@ -86,6 +86,25 @@ var (
 
 	// ansiStripPattern is used to strip ANSI escape sequences for content check.
 	ansiStripPattern = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+	// sourceGrepPrefix matches `path.<ext>:LINE[:COL]:` where the path ends
+	// in a recognised source-code extension. Used to detect grep matches
+	// over source code, where bare-word tokens like "error" or "TODO" are
+	// usually identifiers / comments, not diagnostics.
+	sourceGrepPrefix = regexp.MustCompile(`^[^\s:]+\.(?:go|rs|py|js|jsx|ts|tsx|mjs|cjs|java|kt|scala|c|cc|cpp|cxx|h|hpp|hxx|m|mm|rb|php|swift|ex|exs|erl|hs|ml|clj|cljs|cljc|dart|lua|sh|bash|zsh|fish|ps1|md|markdown|astro|svelte|vue|css|scss|sass|less|html|xml|yaml|yml|toml|json|jsonc|sql|proto|graphql|gql):\d+(?::\d+)?:\s*`)
+
+	// strictErrorPrefix only matches structured diagnostic forms inside
+	// source-grep content (e.g. "error: undefined" from a compiler), not
+	// bare-word occurrences like `func DoX(err error) error`.
+	strictErrorPrefix   = regexp.MustCompile(`^(?:error|fatal):\s`)
+	strictWarningPrefix = regexp.MustCompile(`^(?:warning|warn):\s`)
+
+	// strictCompilerDiag matches compiler-diagnostic messages that conventionally
+	// appear as the first token of the content after `path:line:col:` — e.g.
+	// `cannot use x (type int)`, `undefined: doStuff`, `expected ';' before '}'`.
+	// Requires the verb at line start so it doesn't fire on identifiers like
+	// `cannotDoX` or assignments like `undefined := nil`.
+	strictCompilerDiag = regexp.MustCompile(`^(?:cannot |undefined: |undefined reference|not found|syntax error|expected |missing )`)
 )
 
 // Classify returns the semantic importance level of a line.
@@ -108,6 +127,14 @@ func Classify(line string) Level {
 		if strings.TrimSpace(stripped) == "" {
 			return Noise
 		}
+	}
+
+	// Source-code grep matches (e.g. `internal/foo.go:42:func DoX(err error) error {`):
+	// classify the content with stricter rules, so identifiers like `error`,
+	// `Warning`, or comment markers like `TODO:` don't get promoted to
+	// Error/Warning just because they appear as substrings of source code.
+	if m := sourceGrepPrefix.FindString(trimmed); m != "" {
+		return classifySourceMatch(trimmed[len(m):])
 	}
 
 	// Critical: always checked first (highest priority)
@@ -199,6 +226,68 @@ func Classify(line string) Level {
 	}
 
 	// Default: Info
+	return Info
+}
+
+// classifySourceMatch is the stricter classifier used for content extracted
+// from `path.<ext>:LINE[:COL]:` grep matches over source code.
+//
+// In source files, bare-word tokens like `error`, `warning`, `TODO`, `FAIL`
+// almost always appear as identifiers, type names, comments, or test fixtures
+// — not as diagnostics. So we only elevate above Info when the content carries
+// a structural signal: a stack-frame shape, a compiler-style `error:` prefix,
+// or a panic/fatal marker.
+func classifySourceMatch(content string) Level {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return Noise
+	}
+
+	// Critical structural signals survive: a grep'd line that itself is a
+	// stack frame, a panic header, etc., is genuinely important.
+	if panicPrefix.MatchString(trimmed) {
+		return Critical
+	}
+	if fatalPrefix.MatchString(trimmed) || fatalUpper.MatchString(trimmed) {
+		return Critical
+	}
+	if goStackHeader.MatchString(trimmed) {
+		return Critical
+	}
+	if pythonTraceback.MatchString(trimmed) {
+		return Critical
+	}
+	if segfault.MatchString(trimmed) {
+		return Critical
+	}
+
+	// Compiler-diagnostic form: `error: <msg>` / `fatal: <msg>` at start.
+	// Matches gcc/clang/rustc/go output even when shown via a grep that left
+	// the path:line: prefix intact (we've already stripped it).
+	if strictErrorPrefix.MatchString(trimmed) {
+		return Error
+	}
+	if strictWarningPrefix.MatchString(trimmed) {
+		return Warning
+	}
+
+	// Go/Rust/C compiler diagnostics often start with a verb like `cannot use`
+	// or `undefined: foo` rather than an `error:` keyword. Anchored at start
+	// to avoid firing on source identifiers (`func cannotDoX`).
+	if strictCompilerDiag.MatchString(trimmed) {
+		return Error
+	}
+
+	// JSON/YAML parse errors are explicit enough to keep.
+	if jsonParseError.MatchString(trimmed) || jsonUnexpected.MatchString(trimmed) || yamlScanError.MatchString(trimmed) {
+		return Error
+	}
+
+	// Bare-word patterns (\berror\b, \bwarning\b, TODO, FIXME, ...) are
+	// intentionally NOT consulted here: in source code they overwhelmingly
+	// reflect identifiers or comments, not diagnostics. Demoting them to
+	// Info prevents the grep/per-file collapse from tanking the quality
+	// score on legitimate source-code searches.
 	return Info
 }
 

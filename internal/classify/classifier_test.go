@@ -108,6 +108,101 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// TestClassify_SourceGrepMatches covers issue #58: bare-word tokens like
+// `error`, `warning`, `TODO` inside source-grep matches should NOT be
+// promoted to Error/Warning, because they're identifiers / comments, not
+// diagnostics. Structural signals (panic:, stack frames, compiler diag
+// at start of content, `Error:` prefix) still elevate.
+func TestClassify_SourceGrepMatches(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want Level
+	}{
+		// --- The repro from #58 ---
+		{
+			name: "go error type in func signature (bug repro)",
+			line: "internal/foo.go:42:func DoX(err error) error {",
+			want: Info,
+		},
+		{
+			name: "go errors package import",
+			line: "internal/foo.go:5:\timport \"errors\"",
+			want: Info,
+		},
+		{
+			name: "go test function name containing Error",
+			line: "internal/errors_test.go:8:func TestErrorHandler(t *testing.T) {",
+			want: Info,
+		},
+		{
+			name: "TODO comment in source",
+			line: "src/server/handler.go:120:\t// TODO: rate limit this endpoint",
+			want: Info,
+		},
+		{
+			name: "warning as variable name",
+			line: "src/util/log.go:33:\twarning := \"deprecated\"",
+			want: Info,
+		},
+		{
+			name: "fail as function name",
+			line: "test/runner.go:88:\treturn fail(\"expected match\")",
+			want: Info,
+		},
+
+		// --- Structural signals must still elevate even inside source matches ---
+		{
+			name: "go compiler error: cannot use",
+			line: "./main.go:10:5: cannot use x (type int) as type string",
+			want: Error,
+		},
+		{
+			name: "go compiler error: undefined",
+			line: "./main.go:15:2: undefined: doStuff",
+			want: Error,
+		},
+		{
+			name: "rust compiler error keyword",
+			line: "src/lib.rs:5:9: error: cannot find value `foo`",
+			want: Error,
+		},
+		{
+			name: "panic header inside source match",
+			line: "main.go:1:panic: nil pointer dereference",
+			want: Critical,
+		},
+
+		// --- Non-source-code prefixes are unaffected (regression guard) ---
+		{
+			name: "log file grep match with ERROR keyword",
+			line: "app.log:42:2026-05-11T21:00:00 ERROR connection refused",
+			want: Error,
+		},
+		{
+			name: "config file grep match without diagnostic",
+			line: "config.ini:7:debug=true",
+			want: Info,
+		},
+
+		// --- No path prefix at all: existing behavior ---
+		{
+			name: "bare-word error without grep prefix still classifies",
+			line: "An error occurred while loading config",
+			want: Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.line)
+			if got != tt.want {
+				t.Errorf("Classify(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestClassifyLines(t *testing.T) {
 	tests := []struct {
 		name       string
