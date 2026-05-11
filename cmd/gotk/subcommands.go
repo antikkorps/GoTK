@@ -225,8 +225,12 @@ func runBench(args []string) {
 	perFilter := false
 	quality := false
 	abtest := false
+	var compareFiles []string
+	baselineLabel := "baseline"
+	candidateLabel := "candidate"
 
-	for _, a := range args {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch a {
 		case "--json":
 			jsonOutput = true
@@ -236,7 +240,51 @@ func runBench(args []string) {
 			quality = true
 		case "--abtest":
 			abtest = true
+		case "--compare":
+			if i+2 >= len(args) {
+				fmt.Fprintln(os.Stderr, "gotk bench --compare requires two JSON report paths")
+				os.Exit(2)
+			}
+			compareFiles = []string{args[i+1], args[i+2]}
+			i += 2
+		case "--baseline-label":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "gotk bench --baseline-label requires a value")
+				os.Exit(2)
+			}
+			baselineLabel = args[i+1]
+			i++
+		case "--candidate-label":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "gotk bench --candidate-label requires a value")
+				os.Exit(2)
+			}
+			candidateLabel = args[i+1]
+			i++
 		}
+	}
+
+	if len(compareFiles) == 2 {
+		baseline, err := bench.LoadReportJSON(compareFiles[0])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		candidate, err := bench.LoadReportJSON(compareFiles[1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		parity := bench.Compare(baseline, candidate, baselineLabel, candidateLabel, 0, 0)
+		if jsonOutput {
+			fmt.Print(bench.FormatParityJSON(parity))
+		} else {
+			fmt.Print(bench.FormatParity(parity))
+		}
+		if !parity.Pass {
+			os.Exit(1)
+		}
+		return
 	}
 
 	if abtest {

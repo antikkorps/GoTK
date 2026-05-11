@@ -106,7 +106,14 @@ jobs:
         run: go build -ldflags "-s -w -X main.Version=$(git describe --tags --always --dirty)" -o gotk ./cmd/gotk/
 
       - name: Benchmark
-        run: ./gotk bench --json
+        run: ./gotk bench --json | tee bench-linux.json
+
+      - name: Upload Linux bench report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-linux
+          path: bench-linux.json
+          if-no-files-found: error
 
       - name: Quality score
         run: |
@@ -141,3 +148,65 @@ jobs:
           if [ "$SIZE" -gt 5242880 ]; then
             echo "::warning::Binary size ${SIZE_MB}MB exceeds 5MB target"
           fi
+
+  bench-windows:
+    runs-on: windows-latest
+    needs: test-windows
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $version = (git describe --tags --always --dirty)
+          go build -ldflags "-s -w -X main.Version=$version" -o gotk.exe ./cmd/gotk/
+
+      - name: Benchmark
+        shell: pwsh
+        run: .\gotk.exe bench --json | Out-File -Encoding utf8 bench-windows.json
+
+      - name: Upload Windows bench report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-windows
+          path: bench-windows.json
+          if-no-files-found: error
+
+  bench-parity:
+    runs-on: ubuntu-latest
+    needs: [bench, bench-windows]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Build
+        run: go build -ldflags "-s -w -X main.Version=$(git describe --tags --always --dirty)" -o gotk ./cmd/gotk/
+
+      - name: Download Linux bench report
+        uses: actions/download-artifact@v4
+        with:
+          name: bench-linux
+          path: reports
+
+      - name: Download Windows bench report
+        uses: actions/download-artifact@v4
+        with:
+          name: bench-windows
+          path: reports
+
+      # PowerShell writes a UTF-8 BOM by default; strip it before parsing.
+      - name: Normalize bench-windows.json
+        run: |
+          sed -i '1s/^\xEF\xBB\xBF//' reports/bench-windows.json
+
+      - name: Bench parity (Linux vs Windows)
+        run: ./gotk bench --compare reports/bench-linux.json reports/bench-windows.json --baseline-label linux --candidate-label windows

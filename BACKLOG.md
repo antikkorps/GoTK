@@ -515,11 +515,13 @@
 - [x] Daemon mode: marked unsupported on Windows. `daemon.Start` and `daemon.Init` return `ErrUnsupportedOS` early; the CLI prints a message pointing users to `gotk install claude` or pipe mode. PowerShell hook deferred — no concrete user demand yet.
 - [x] README + `docs/quickstart.md`: Windows install instructions (.zip from Releases, PATH setup) and platform support matrix.
 - [x] Run the full test suite on a Windows runner in CI (test-windows job in .github/workflows/ci.yml; golden suite green after the v1.6.1 round of CRLF / path / clock fixes).
-- [ ] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (deferred — bench job stays on Linux for now).
+- [~] Verify `gotk bench` numbers are within 5% of Linux/macOS on the same corpus (branch `sprint-14/windows-bench-parity`, started 2026-05-02). Approach: enable a Windows bench job in CI on the same fixtures, capture the JSON report, diff against the Linux baseline, fail the job if any per-fixture reduction drifts > 5 percentage points or total avg moves more than 5%. Stretch: surface platform-specific outliers in the report.
+  - [x] `gotk bench --compare A.json B.json` (internal/bench/compare.go): parity diff with 5pp per-fixture / 5pp total-avg drift thresholds, outlier-first ordering, JSON + text formats, non-zero exit on FAIL. Unit-tested for identical reports, per-fixture drift, avg drift, and missing-fixture cases.
+  - [x] CI: `bench` job (Linux) uploads `bench-linux.json`; new `bench-windows` job runs the same fixtures on `windows-latest` and uploads `bench-windows.json`; new `bench-parity` job downloads both and runs `gotk bench --compare`, failing on drift.
 
 ---
 
-## Sprint 15 — Filter Tech Debt (from 2026-04-24 assessment)
+## Sprint 15 — Filter Tech Debt (from 2026-04-24 assessment) `DONE`
 
 > Three quality bugs shipped this week (#37 / #39 / #40 → v1.5.2) surfaced recurring structural issues. None are urgent, but leaving them to rot makes future filter work slower. Take this slice before (or alongside) Sprint 14 Windows so the Windows port lands on a cleaner core.
 
@@ -552,7 +554,8 @@
 ### Deliver
 
 - [x] PR #51 merged — stderr pass + Node warning consolidation + summary anchors unification all landed together. Pure cleanup, no user-visible API change.
-- [ ] Tag `v1.7.0` after the remaining detection-robustness work or as-is if we ship the cleanup standalone.
+- [x] PR #53 merged — detection robustness (`IdentifyOrDetect` wrapper fallback), `--debug` source field, jest/vitest auto-pattern, stderr policy doc, regression guard, filter overlap audit, package review.
+- [x] Tagged **v1.6.2** (2026-05-01) — chose patch over minor. Sprint 15 was 80% internal cleanup; the wrapper-detection fallback is the only user-visible improvement and isn't substantial enough for a minor bump. v1.7.0 stays reserved for the next feature release (multi-agent install / setup wizard).
 - [x] Document the stderr policy in `docs/architecture.md` — new "Stderr Policy" section covers the CLI/proxy/watch path (`BuildStderrChain`) and the MCP merge.
 
 ---
@@ -568,6 +571,7 @@
 - [x] `gotk update` — self-upgrade command (shipped in v1.4.0). Hybrid: GitHub Releases self-replace with `go install @latest` fallback. `--check` for check-only, `--force`, `--from-source`.
 - [x] CI maintenance: bump GitHub Actions off Node.js 20. `actions/checkout@v4→v6`, `actions/setup-go@v5→v6`, `goreleaser/goreleaser-action@v6→v7` — all three now on `node24`. Applied to both `ci.yml` and `release.yml`.
 - [x] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum". Fixed by adding `cache: false` on every `setup-go` step (zero external deps — no go.sum to cache).
+- [ ] `gotk dashboard` — TUI (bubbletea) showing live tokens saved (session/total), top filtered commands, per-filter compression ratio, cache hit-rate, recent invocations. All data already produced by `measure`/`bench`/`cache`/`learn` — this is a visualization layer, not new instrumentation. Differentiator vs other CLI proxies. Non-goals: no web UI, no historical charts beyond what `measure` already logs.
 - [ ] Interactive install wizard — `gotk setup` (or `gotk init`): detect shell, detect which LLM CLIs are on PATH (Claude Code, Cursor, Aider, Continue.dev), ask the user which integrations to enable and at which scope (local/project/global), run the corresponding installs, then write a minimal `.gotk.toml` if the user wants project-specific config. Benefit: single entry-point for first-time users instead of three or four docs pages. Non-goals: no TUI framework (keep it stdin/stdout scanner-based to match `gotk uninstall`'s prompt style). Depends on #31 (multi-agent install generalization) for anything beyond Claude.
 
 ---
