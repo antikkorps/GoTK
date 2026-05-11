@@ -162,7 +162,7 @@ func renderEmpty(m Model) string {
 
 func renderHeader(r measure.Report, period string) string {
 	totals := fmt.Sprintf("%s   %s   %s   %s",
-		labelStyle.Render("Tokens saved:")+" "+titleStyle.Render(fmt.Sprintf("%s", formatInt(r.TotalTokensSaved))),
+		labelStyle.Render("Tokens saved:")+" "+titleStyle.Render(formatInt(r.TotalTokensSaved)),
 		labelStyle.Render("Invocations:")+" "+titleStyle.Render(fmt.Sprintf("%d", r.TotalInvocations)),
 		labelStyle.Render("Avg reduction:")+" "+titleStyle.Render(fmt.Sprintf("%.1f%%", r.AvgReduction)),
 		labelStyle.Render("Avg quality:")+" "+titleStyle.Render(fmt.Sprintf("%.1f%%", r.AvgQualityScore)),
