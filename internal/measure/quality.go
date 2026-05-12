@@ -41,7 +41,26 @@ func ComputeQualityScore(rawOutput, cleanOutput string) (score float64, importan
 		core := extractCore(imp)
 		if core != "" && strings.Contains(cleanOutput, core) {
 			preserved++
+			continue
 		}
+		// Filter intentionally drops universally-noisy banners — credit
+		// them as preserved so the score reflects intent, not the lexical
+		// "Warning:" prefix the classifier keyed on. See issue #60.
+		if IsDropSafeNoise(imp) {
+			preserved++
+		}
+	}
+
+	// Credit lines that were compressed into structural summary markers
+	// ("... and 14 more npm warnings", etc.) — they survive semantically,
+	// just not verbatim. Cap at the number of dropped lines so a marker
+	// can't push the score above 100%.
+	dropped := importantCount - preserved
+	if credit := SummaryMarkerCredit(cleanOutput); credit > 0 && dropped > 0 {
+		if credit > dropped {
+			credit = dropped
+		}
+		preserved += credit
 	}
 
 	score = float64(preserved) / float64(importantCount) * 100
