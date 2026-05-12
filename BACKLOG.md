@@ -561,14 +561,24 @@
 
 ---
 
-## Sprint 16 — v1.7.x Polish (2026-05-12)
+## Sprint 16 — v1.7.x Polish + Dashboard Panes (2026-05-12)
 
-> Two issues spotted right after v1.7.0 ship — both addressed before any new feature work.
+> Cleanup pass right after v1.7.0: two regressions fixed, the dependabot alert cleared, and two of the three open dashboard panes shipped.
 
-### Build
+### Build — Bug fixes
 
 - [x] #61 — `gotk update` prints two inconsistent version lines when the cached notifier and the subcommand's own fetch disagree (e.g. cache says `1.6.2`, subcommand finds `1.7.0`). Fix: suppress `update.NotifyIfUpdate` when `args[0] == "update"` — the subcommand's own fetch is the source of truth in that flow. PR #62.
 - [x] #60 — Quality scorer punished intentional filter summarization. New `measure.SummaryMarkerCredit` parses compression markers ("... and 14 more npm warnings", node deprecation / experimental summaries, stack-identical summaries) and credits N dropped lines per marker. New `measure.IsDropSafeNoise` allowlists universally drop-safe banners (ssh "Warning: Permanently added ..."). Wired into both `internal/measure/quality.go` (runtime/dashboard) and `internal/bench/quality.go` (CI). Results: `ssh remote` 0%→100%, `npm install` 6.7%→100%, `node runtime` 15.4%→100%; overall `bench --quality` 52.5%→66.2%. PR #63.
+
+### Build — Security
+
+- [x] Dependabot #4 — Astro 5 → 6.3.1 (closes GHSA-j687-52p2-xcff / CVE-2026-41067, incomplete `</script>` sanitization in `define:vars`). Static-only site so the vector doesn't apply in practice, but keeps the audit clean. `@astrojs/tailwind@6.0.2` peer warns on astro 6 but works at runtime; no upstream v7 yet. PR #64.
+
+### Build — Dashboard panes (2/3 of the v1.7.0 follow-ups)
+
+- [x] **Learn-patterns pane** — renders the top candidate noise patterns from `learn.Analyze`, with store stats (observations / sessions). Four states: read error, missing store (friendly hint), `NotReady` (analyzer's own message), ready (table of top-5 candidates by frequency). Refreshes on the same 2s tick as the rest of the dashboard; `r` reloads both panes. PR #65.
+- [x] **Per-filter compression pane** — needed an offline aggregation step since the dashboard runs as its own process. New `internal/bench/snapshot.go`: `BuildPerFilterSnapshot` aggregates `MeasureFilters` across every fixture, atomic write to `paths.DataDir()/perfilter.json`. New `gotk bench --persist` flag (combine with `--per-filter` or use on its own). Dashboard reads the snapshot each refresh tick, four states (read error / missing snapshot with onboarding hint / empty snapshot / ranked rows with `5m ago` freshness label). PR #66.
+- [ ] **Cache hit-rate pane** — still pending. Requires persistence work in `internal/cache` first (currently in-memory per-process, no signal for a separate dashboard process).
 
 ---
 
@@ -585,9 +595,9 @@
 - [x] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum". Fixed by adding `cache: false` on every `setup-go` step (zero external deps — no go.sum to cache).
 - [~] `gotk dashboard` — TUI (bubbletea) showing live tokens saved (session/total), top filtered commands, per-filter compression ratio, cache hit-rate, recent invocations. All data already produced by `measure`/`bench`/`cache`/`learn` — this is a visualization layer, not new instrumentation. Differentiator vs other CLI proxies. Non-goals: no web UI, no historical charts beyond what `measure` already logs.
   - [x] MVP — shipped in PR #57, v1.7.0. New `internal/dashboard` package with bubbletea/lipgloss. 4-zone layout (totals header + period chips, top commands by tokens saved, recent invocations, insights). 2s auto-refresh re-reading the measure JSONL log. Period switch via `1/7/3/a`. Sources: `measure.ReadEntries` + `measure.GenerateReport`. First non-stdlib deps in the project. 10 unit tests on the pure logic (sorting, formatting, key handling, view rendering).
-  - [ ] Per-filter compression ratio pane (data source: `bench.MeasureFilters` would need a persisted snapshot since the dashboard runs as its own process).
+  - [x] Per-filter compression ratio pane — shipped in PR #66 via persisted snapshot (`gotk bench --persist` → `paths.DataDir()/perfilter.json`).
   - [ ] Cache hit-rate (data source: `cache.Stats` is in-memory per-process — needs persistence in `internal/cache` first).
-  - [ ] Learn-patterns pane (data source: `learn.StoreRead` + `learn.Analyze`).
+  - [x] Learn-patterns pane — shipped in PR #65 (`learn.StoreRead` + `learn.Analyze`).
 - [ ] Interactive install wizard — `gotk setup` (or `gotk init`): detect shell, detect which LLM CLIs are on PATH (Claude Code, Cursor, Aider, Continue.dev), ask the user which integrations to enable and at which scope (local/project/global), run the corresponding installs, then write a minimal `.gotk.toml` if the user wants project-specific config. Benefit: single entry-point for first-time users instead of three or four docs pages. Non-goals: no TUI framework (keep it stdin/stdout scanner-based to match `gotk uninstall`'s prompt style). Depends on #31 (multi-agent install generalization) for anything beyond Claude.
 
 ---
