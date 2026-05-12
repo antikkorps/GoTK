@@ -224,6 +224,7 @@ func runWatch(args []string) {
 func runBench(args []string) {
 	jsonOutput := false
 	perFilter := false
+	persistSnapshot := false
 	quality := false
 	abtest := false
 	var compareFiles []string
@@ -237,6 +238,8 @@ func runBench(args []string) {
 			jsonOutput = true
 		case "--per-filter":
 			perFilter = true
+		case "--persist":
+			persistSnapshot = true
 		case "--quality":
 			quality = true
 		case "--abtest":
@@ -321,6 +324,36 @@ func runBench(args []string) {
 				fmt.Println()
 			}
 		}
+		if persistSnapshot {
+			path := bench.SnapshotPath()
+			if path == "" {
+				fmt.Fprintln(os.Stderr, "gotk bench --persist: no data dir available (set HOME or XDG_DATA_HOME)")
+				os.Exit(2)
+			}
+			snap := bench.BuildPerFilterSnapshot(cfg)
+			if err := bench.WritePerFilterSnapshot(path, snap); err != nil {
+				fmt.Fprintf(os.Stderr, "gotk bench --persist: %v\n", err)
+				os.Exit(2)
+			}
+			logInfo("[gotk] per-filter snapshot written to %s\n", path)
+		}
+		return
+	}
+
+	if persistSnapshot {
+		// --persist on its own (no --per-filter) is a useful shortcut: just
+		// write the snapshot, don't print the long per-fixture table.
+		path := bench.SnapshotPath()
+		if path == "" {
+			fmt.Fprintln(os.Stderr, "gotk bench --persist: no data dir available")
+			os.Exit(2)
+		}
+		snap := bench.BuildPerFilterSnapshot(cfg)
+		if err := bench.WritePerFilterSnapshot(path, snap); err != nil {
+			fmt.Fprintf(os.Stderr, "gotk bench --persist: %v\n", err)
+			os.Exit(2)
+		}
+		fmt.Printf("per-filter snapshot written to %s\n", path)
 		return
 	}
 

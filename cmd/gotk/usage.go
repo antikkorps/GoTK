@@ -172,6 +172,9 @@ rates, quality scores, and latency.
 Flags:
   --json          Output results as JSON
   --per-filter    Show per-filter contribution breakdown
+  --persist       Write an aggregated per-filter snapshot to the data dir
+                  (consumed by 'gotk dashboard'). Combine with --per-filter
+                  to also print the per-fixture table, or use on its own.
   --quality       Measure quality score (% of important lines preserved)
   --abtest        Compare conservative/balanced/aggressive modes side by side
   --compare A B   Diff two bench --json reports (A=baseline, B=candidate).
@@ -182,6 +185,7 @@ Flags:
 Examples:
   gotk bench
   gotk bench --per-filter
+  gotk bench --persist                 # snapshot for 'gotk dashboard'
   gotk bench --quality
   gotk bench --abtest
   gotk bench --json

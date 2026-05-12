@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/antikkorps/GoTK/internal/bench"
 	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/measure"
 )
@@ -237,3 +238,59 @@ type errFakeT string
 
 func (e errFakeT) Error() string { return string(e) }
 func errFake(s string) error     { return errFakeT(s) }
+
+func TestRenderPerFilter_NilSnapshotShowsHint(t *testing.T) {
+	out := renderPerFilter(nil, nil)
+	if !strings.Contains(out, "Per-filter compression") {
+		t.Errorf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "gotk bench --per-filter --persist") {
+		t.Errorf("missing onboarding hint: %q", out)
+	}
+}
+
+func TestRenderPerFilter_ErrorRenders(t *testing.T) {
+	out := renderPerFilter(nil, errFake("disk gone"))
+	if !strings.Contains(out, "cannot read snapshot") || !strings.Contains(out, "disk gone") {
+		t.Errorf("missing error info: %q", out)
+	}
+}
+
+func TestRenderPerFilter_EmptySnapshot(t *testing.T) {
+	snap := &bench.PerFilterSnapshot{GeneratedAt: "2026-05-12T20:00:00Z"}
+	out := renderPerFilter(snap, nil)
+	if !strings.Contains(out, "snapshot empty") {
+		t.Errorf("expected empty-snapshot hint, got %q", out)
+	}
+}
+
+func TestRenderPerFilter_RanksRowsAndShowsSaved(t *testing.T) {
+	snap := &bench.PerFilterSnapshot{
+		GeneratedAt: "2026-05-12T20:00:00Z",
+		Filters: []bench.FilterSnapshot{
+			{FilterName: "StripANSI", BytesBefore: 10000, BytesAfter: 1000, Reduction: 90, Invocations: 21},
+			{FilterName: "Dedup", BytesBefore: 5000, BytesAfter: 4000, Reduction: 20, Invocations: 21},
+		},
+	}
+	out := renderPerFilter(snap, nil)
+	if !strings.Contains(out, "StripANSI") || !strings.Contains(out, "Dedup") {
+		t.Errorf("missing filter rows: %q", out)
+	}
+	if !strings.Contains(out, "9,000") {
+		t.Errorf("expected formatted bytes-saved 9,000 in output, got %q", out)
+	}
+	idxA := strings.Index(out, "StripANSI")
+	idxB := strings.Index(out, "Dedup")
+	if idxA < 0 || idxB < 0 || idxA > idxB {
+		t.Errorf("expected StripANSI before Dedup, got %q", out)
+	}
+}
+
+func TestFormatSnapshotAge(t *testing.T) {
+	if got := formatSnapshotAge(""); got != "" {
+		t.Errorf("empty input: want \"\", got %q", got)
+	}
+	if got := formatSnapshotAge("not-a-date"); got != "not-a-date" {
+		t.Errorf("unparseable input should round-trip, got %q", got)
+	}
+}
