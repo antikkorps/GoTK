@@ -71,8 +71,13 @@ func main() {
 	// optionally fires a detached refresh goroutine. No-op when stderr
 	// is not a TTY, when CI/GOTK_NO_UPDATE_CHECK is set, or on dev
 	// builds — see update.NotifyIfUpdate for the full gating.
-	if notice := update.NotifyIfUpdate(Version, isTerminal(os.Stderr)); notice != "" {
-		fmt.Fprintln(os.Stderr, notice)
+	// Skip the notice when the user is already running `gotk update`:
+	// the subcommand fetches its own (fresh) release info, and showing
+	// the cached version first produces a confusing two-version mismatch.
+	if len(args) == 0 || args[0] != "update" {
+		if notice := update.NotifyIfUpdate(Version, isTerminal(os.Stderr)); notice != "" {
+			fmt.Fprintln(os.Stderr, notice)
+		}
 	}
 
 	if debugMode {
