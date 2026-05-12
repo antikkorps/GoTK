@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/measure"
 )
 
@@ -183,3 +184,56 @@ func TestView_RendersTotalsWhenDataPresent(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderLearn_NilResult_ShowsHint(t *testing.T) {
+	out := renderLearn(nil, nil)
+	if !strings.Contains(out, "Learn patterns") {
+		t.Errorf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "no observations yet") {
+		t.Errorf("missing empty-state hint: %q", out)
+	}
+}
+
+func TestRenderLearn_StoreErrorRenders(t *testing.T) {
+	out := renderLearn(nil, errFake("disk gone"))
+	if !strings.Contains(out, "cannot read learn store") {
+		t.Errorf("missing error label: %q", out)
+	}
+	if !strings.Contains(out, "disk gone") {
+		t.Errorf("missing underlying error text: %q", out)
+	}
+}
+
+func TestRenderLearn_NotReadyShowsAnalyzerMessage(t *testing.T) {
+	res := &learn.AnalysisResult{NotReady: true, NotReadyMsg: "need more sessions"}
+	out := renderLearn(res, nil)
+	if !strings.Contains(out, "need more sessions") {
+		t.Errorf("expected NotReadyMsg in output, got %q", out)
+	}
+}
+
+func TestRenderLearn_CandidatesRanked(t *testing.T) {
+	res := &learn.AnalysisResult{
+		TotalLines: 1234,
+		Sessions:   7,
+		Candidates: []learn.Candidate{
+			{Description: "alpha", Frequency: 0.4, NoiseScore: 0.9, MatchCount: 40},
+			{Description: "beta", Frequency: 0.3, NoiseScore: 0.85, MatchCount: 30},
+		},
+	}
+	out := renderLearn(res, nil)
+	if !strings.Contains(out, "1234 observations") {
+		t.Errorf("missing observation count: %q", out)
+	}
+	idxA := strings.Index(out, "alpha")
+	idxB := strings.Index(out, "beta")
+	if idxA < 0 || idxB < 0 || idxA > idxB {
+		t.Errorf("expected alpha before beta in output, got %q", out)
+	}
+}
+
+type errFakeT string
+
+func (e errFakeT) Error() string { return string(e) }
+func errFake(s string) error     { return errFakeT(s) }

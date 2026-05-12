@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/measure"
 )
 
@@ -25,13 +26,16 @@ var periods = []string{"today", "7d", "30d", "all"}
 
 // Model is the bubbletea model for the dashboard.
 type Model struct {
-	logPath string
-	period  string
-	report  measure.Report
-	recent  []measure.Entry
-	err     error
-	width   int
-	height  int
+	logPath   string
+	storePath string // learn observation store; empty → learn.DefaultStorePath()
+	period    string
+	report    measure.Report
+	recent    []measure.Entry
+	learn     *learn.AnalysisResult
+	learnErr  error
+	err       error
+	width     int
+	height    int
 }
 
 // New returns an initialised dashboard model that reads from logPath.
@@ -48,7 +52,7 @@ func New(logPath string) Model {
 
 // Init is part of tea.Model. Kicks off the first data load and the refresh ticker.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(loadCmd(m.logPath, m.period), tickCmd())
+	return tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath), tickCmd())
 }
 
 // dataMsg carries a freshly aggregated report + recent invocations.
@@ -58,11 +62,38 @@ type dataMsg struct {
 	err    error
 }
 
+// learnMsg carries the latest learn-store analysis (or the error from reading
+// the store). A nil result with no error means the store doesn't exist yet,
+// which we render as a friendly empty-state rather than a failure.
+type learnMsg struct {
+	result *learn.AnalysisResult
+	err    error
+}
+
 // tickMsg fires on every refresh tick.
 type tickMsg struct{}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+// loadLearnCmd reads the learn observation store and runs the analyzer.
+// A missing store is not an error; it returns a nil result so the pane can
+// render a "no observations yet" hint.
+func loadLearnCmd(storePath string) tea.Cmd {
+	return func() tea.Msg {
+		if storePath == "" {
+			storePath = learn.DefaultStorePath()
+		}
+		obs, err := learn.StoreRead(storePath)
+		if err != nil {
+			return learnMsg{err: err}
+		}
+		if len(obs) == 0 {
+			return learnMsg{result: nil}
+		}
+		return learnMsg{result: learn.Analyze(obs, learn.DefaultAnalyzerConfig())}
+	}
 }
 
 func loadCmd(path, period string) tea.Cmd {
@@ -106,7 +137,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.period = "all"
 			return m, loadCmd(m.logPath, m.period)
 		case "r":
-			return m, loadCmd(m.logPath, m.period)
+			return m, tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath))
 		}
 
 	case dataMsg:
@@ -115,8 +146,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case learnMsg:
+		m.learn = msg.result
+		m.learnErr = msg.err
+		return m, nil
+
 	case tickMsg:
-		return m, tea.Batch(loadCmd(m.logPath, m.period), tickCmd())
+		return m, tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath), tickCmd())
 	}
 	return m, nil
 }
@@ -146,11 +182,12 @@ func (m Model) View() string {
 	top := renderTopCommands(m.report)
 	recent := renderRecent(m.recent)
 	insights := renderInsights(m.report.Insights)
+	learnPane := renderLearn(m.learn, m.learnErr)
 
 	// Two-column body: top on the left, recent on the right.
 	body := lipgloss.JoinHorizontal(lipgloss.Top, top, recent)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, insights)
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, insights, learnPane)
 }
 
 func renderEmpty(m Model) string {
@@ -279,6 +316,46 @@ func renderInsights(ins []measure.Insight) string {
 			style = warnStyle
 		}
 		b.WriteString(style.Render(prefix+" "+x.Message) + "\n")
+	}
+	return paneBorder.Render(b.String())
+}
+
+// renderLearn renders the learn-patterns pane. Three states:
+//   - storeErr non-nil: render the error tersely (read failure)
+//   - res nil: store missing or empty (most users) → friendly hint
+//   - res.NotReady: not enough sessions yet → show the analyzer's own message
+//   - otherwise: top candidates ranked by frequency
+func renderLearn(res *learn.AnalysisResult, storeErr error) string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Learn patterns"))
+	b.WriteString("\n")
+
+	if storeErr != nil {
+		b.WriteString(warnStyle.Render("  [!] cannot read learn store: " + storeErr.Error()))
+		return paneBorder.Render(b.String())
+	}
+	if res == nil {
+		b.WriteString(labelStyle.Render("  (no observations yet — run `gotk --learn <cmd>` to collect samples)"))
+		return paneBorder.Render(b.String())
+	}
+	if res.NotReady {
+		b.WriteString(labelStyle.Render("  " + res.NotReadyMsg))
+		return paneBorder.Render(b.String())
+	}
+
+	fmt.Fprintf(&b, "%s %d observations across %d sessions\n",
+		labelStyle.Render("  store:"), res.TotalLines, res.Sessions)
+
+	if len(res.Candidates) == 0 {
+		b.WriteString(labelStyle.Render("  (no strong candidates yet — keep collecting)"))
+		return paneBorder.Render(b.String())
+	}
+
+	fmt.Fprintf(&b, "  %-32s %6s %6s %5s\n", "PATTERN", "FREQ", "NOISE", "HITS")
+	limit := min(len(res.Candidates), 5)
+	for _, c := range res.Candidates[:limit] {
+		fmt.Fprintf(&b, "  %-32s %5.1f%% %5.1f%% %5d\n",
+			truncate(c.Description, 32), c.Frequency*100, c.NoiseScore*100, c.MatchCount)
 	}
 	return paneBorder.Render(b.String())
 }
