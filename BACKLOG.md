@@ -557,6 +557,18 @@
 - [x] PR #53 merged — detection robustness (`IdentifyOrDetect` wrapper fallback), `--debug` source field, jest/vitest auto-pattern, stderr policy doc, regression guard, filter overlap audit, package review.
 - [x] Tagged **v1.6.2** (2026-05-01) — chose patch over minor. Sprint 15 was 80% internal cleanup; the wrapper-detection fallback is the only user-visible improvement and isn't substantial enough for a minor bump. v1.7.0 stays reserved for the next feature release (multi-agent install / setup wizard).
 - [x] Document the stderr policy in `docs/architecture.md` — new "Stderr Policy" section covers the CLI/proxy/watch path (`BuildStderrChain`) and the MCP merge.
+- [x] Tagged **v1.7.0** (2026-05-11). Bundle: dashboard MVP (PR #57), Windows bench parity proven via CI diff at 0.00pp drift (PR #54, closes Sprint 14), source-aware classifier (PR #59 / closes #58, overall quality 46.44→52.51, grep large 7.14→100.00), postcss security bump (PR #56). New tooling: `gotk bench --compare`. Open follow-ups: dependabot #4 (astro 5→6), dashboard panes (cache hit-rate / per-filter / learn).
+
+---
+
+## Sprint 16 — v1.7.x Polish (2026-05-12)
+
+> Two issues spotted right after v1.7.0 ship — both addressed before any new feature work.
+
+### Build
+
+- [x] #61 — `gotk update` prints two inconsistent version lines when the cached notifier and the subcommand's own fetch disagree (e.g. cache says `1.6.2`, subcommand finds `1.7.0`). Fix: suppress `update.NotifyIfUpdate` when `args[0] == "update"` — the subcommand's own fetch is the source of truth in that flow. PR #62.
+- [x] #60 — Quality scorer punished intentional filter summarization. New `measure.SummaryMarkerCredit` parses compression markers ("... and 14 more npm warnings", node deprecation / experimental summaries, stack-identical summaries) and credits N dropped lines per marker. New `measure.IsDropSafeNoise` allowlists universally drop-safe banners (ssh "Warning: Permanently added ..."). Wired into both `internal/measure/quality.go` (runtime/dashboard) and `internal/bench/quality.go` (CI). Results: `ssh remote` 0%→100%, `npm install` 6.7%→100%, `node runtime` 15.4%→100%; overall `bench --quality` 52.5%→66.2%. PR #63.
 
 ---
 
@@ -572,7 +584,7 @@
 - [x] CI maintenance: bump GitHub Actions off Node.js 20. `actions/checkout@v4→v6`, `actions/setup-go@v5→v6`, `goreleaser/goreleaser-action@v6→v7` — all three now on `node24`. Applied to both `ci.yml` and `release.yml`.
 - [x] CI cosmetic: `actions/setup-go` cache warns "Dependencies file is not found... go.sum". Fixed by adding `cache: false` on every `setup-go` step (zero external deps — no go.sum to cache).
 - [~] `gotk dashboard` — TUI (bubbletea) showing live tokens saved (session/total), top filtered commands, per-filter compression ratio, cache hit-rate, recent invocations. All data already produced by `measure`/`bench`/`cache`/`learn` — this is a visualization layer, not new instrumentation. Differentiator vs other CLI proxies. Non-goals: no web UI, no historical charts beyond what `measure` already logs.
-  - [x] MVP (PR-pending, branch `feat/dashboard-tui`): new `internal/dashboard` package with bubbletea/lipgloss. 4-zone layout (totals header + period chips, top commands by tokens saved, recent invocations, insights). 2s auto-refresh re-reading the measure JSONL log. Period switch via `1/7/3/a`. Sources: `measure.ReadEntries` + `measure.GenerateReport`. First non-stdlib deps in the project. 10 unit tests on the pure logic (sorting, formatting, key handling, view rendering).
+  - [x] MVP — shipped in PR #57, v1.7.0. New `internal/dashboard` package with bubbletea/lipgloss. 4-zone layout (totals header + period chips, top commands by tokens saved, recent invocations, insights). 2s auto-refresh re-reading the measure JSONL log. Period switch via `1/7/3/a`. Sources: `measure.ReadEntries` + `measure.GenerateReport`. First non-stdlib deps in the project. 10 unit tests on the pure logic (sorting, formatting, key handling, view rendering).
   - [ ] Per-filter compression ratio pane (data source: `bench.MeasureFilters` would need a persisted snapshot since the dashboard runs as its own process).
   - [ ] Cache hit-rate (data source: `cache.Stats` is in-memory per-process — needs persistence in `internal/cache` first).
   - [ ] Learn-patterns pane (data source: `learn.StoreRead` + `learn.Analyze`).
