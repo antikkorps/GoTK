@@ -5,6 +5,7 @@ package dashboard
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/antikkorps/GoTK/internal/bench"
 	"github.com/antikkorps/GoTK/internal/learn"
 	"github.com/antikkorps/GoTK/internal/measure"
 )
@@ -26,16 +28,19 @@ var periods = []string{"today", "7d", "30d", "all"}
 
 // Model is the bubbletea model for the dashboard.
 type Model struct {
-	logPath   string
-	storePath string // learn observation store; empty → learn.DefaultStorePath()
-	period    string
-	report    measure.Report
-	recent    []measure.Entry
-	learn     *learn.AnalysisResult
-	learnErr  error
-	err       error
-	width     int
-	height    int
+	logPath      string
+	storePath    string // learn observation store; empty → learn.DefaultStorePath()
+	snapshotPath string // per-filter snapshot; empty → bench.SnapshotPath()
+	period       string
+	report       measure.Report
+	recent       []measure.Entry
+	learn        *learn.AnalysisResult
+	learnErr     error
+	snapshot     *bench.PerFilterSnapshot
+	snapshotErr  error
+	err          error
+	width        int
+	height       int
 }
 
 // New returns an initialised dashboard model that reads from logPath.
@@ -52,7 +57,12 @@ func New(logPath string) Model {
 
 // Init is part of tea.Model. Kicks off the first data load and the refresh ticker.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath), tickCmd())
+	return tea.Batch(
+		loadCmd(m.logPath, m.period),
+		loadLearnCmd(m.storePath),
+		loadSnapshotCmd(m.snapshotPath),
+		tickCmd(),
+	)
 }
 
 // dataMsg carries a freshly aggregated report + recent invocations.
@@ -68,6 +78,33 @@ type dataMsg struct {
 type learnMsg struct {
 	result *learn.AnalysisResult
 	err    error
+}
+
+// snapshotMsg carries the latest per-filter snapshot (or its read error).
+// A nil result with no error means the snapshot file doesn't exist yet —
+// the user just hasn't run `gotk bench --per-filter --persist`.
+type snapshotMsg struct {
+	snap *bench.PerFilterSnapshot
+	err  error
+}
+
+func loadSnapshotCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		if path == "" {
+			path = bench.SnapshotPath()
+		}
+		if path == "" {
+			return snapshotMsg{} // no data dir at all → render empty hint
+		}
+		snap, err := bench.ReadPerFilterSnapshot(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return snapshotMsg{} // empty state, not an error
+			}
+			return snapshotMsg{err: err}
+		}
+		return snapshotMsg{snap: &snap}
+	}
 }
 
 // tickMsg fires on every refresh tick.
@@ -137,7 +174,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.period = "all"
 			return m, loadCmd(m.logPath, m.period)
 		case "r":
-			return m, tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath))
+			return m, tea.Batch(
+				loadCmd(m.logPath, m.period),
+				loadLearnCmd(m.storePath),
+				loadSnapshotCmd(m.snapshotPath),
+			)
 		}
 
 	case dataMsg:
@@ -151,8 +192,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.learnErr = msg.err
 		return m, nil
 
+	case snapshotMsg:
+		m.snapshot = msg.snap
+		m.snapshotErr = msg.err
+		return m, nil
+
 	case tickMsg:
-		return m, tea.Batch(loadCmd(m.logPath, m.period), loadLearnCmd(m.storePath), tickCmd())
+		return m, tea.Batch(
+			loadCmd(m.logPath, m.period),
+			loadLearnCmd(m.storePath),
+			loadSnapshotCmd(m.snapshotPath),
+			tickCmd(),
+		)
 	}
 	return m, nil
 }
@@ -183,11 +234,14 @@ func (m Model) View() string {
 	recent := renderRecent(m.recent)
 	insights := renderInsights(m.report.Insights)
 	learnPane := renderLearn(m.learn, m.learnErr)
+	perFilter := renderPerFilter(m.snapshot, m.snapshotErr)
 
 	// Two-column body: top on the left, recent on the right.
 	body := lipgloss.JoinHorizontal(lipgloss.Top, top, recent)
+	// Bottom row pairs the two snapshot panes side by side.
+	bottom := lipgloss.JoinHorizontal(lipgloss.Top, learnPane, perFilter)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, insights, learnPane)
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, insights, bottom)
 }
 
 func renderEmpty(m Model) string {
@@ -358,6 +412,67 @@ func renderLearn(res *learn.AnalysisResult, storeErr error) string {
 			truncate(c.Description, 32), c.Frequency*100, c.NoiseScore*100, c.MatchCount)
 	}
 	return paneBorder.Render(b.String())
+}
+
+// renderPerFilter renders the per-filter compression pane from a persisted
+// snapshot. The snapshot is produced by `gotk bench --per-filter --persist`
+// and lives in paths.DataDir(); the dashboard never recomputes it on the fly
+// because running every fixture would block the UI for ~hundreds of ms.
+//
+// States: read error, missing snapshot (most users on first run), empty
+// snapshot (all filters disabled in config), or ranked rows.
+func renderPerFilter(snap *bench.PerFilterSnapshot, err error) string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Per-filter compression"))
+	b.WriteString("\n")
+
+	if err != nil {
+		b.WriteString(warnStyle.Render("  [!] cannot read snapshot: " + err.Error()))
+		return paneBorder.Render(b.String())
+	}
+	if snap == nil {
+		b.WriteString(labelStyle.Render("  (no snapshot yet — run `gotk bench --per-filter --persist`)"))
+		return paneBorder.Render(b.String())
+	}
+	if len(snap.Filters) == 0 {
+		b.WriteString(labelStyle.Render("  (snapshot empty — every filter is disabled in config)"))
+		return paneBorder.Render(b.String())
+	}
+
+	if ts := formatSnapshotAge(snap.GeneratedAt); ts != "" {
+		fmt.Fprintf(&b, "%s %s\n", labelStyle.Render("  snapshot:"), ts)
+	}
+	fmt.Fprintf(&b, "  %-22s %10s %6s\n", "FILTER", "SAVED", "REDUC")
+	limit := min(len(snap.Filters), 6)
+	for _, f := range snap.Filters[:limit] {
+		saved := f.BytesBefore - f.BytesAfter
+		fmt.Fprintf(&b, "  %-22s %10s %5.1f%%\n",
+			truncate(f.FilterName, 22), formatInt(saved), f.Reduction)
+	}
+	return paneBorder.Render(b.String())
+}
+
+// formatSnapshotAge returns a short "5m ago" style hint, or the raw RFC3339
+// string when parsing fails. Returns "" for an empty input.
+func formatSnapshotAge(ts string) string {
+	if ts == "" {
+		return ""
+	}
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return ts
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
 }
 
 // formatInt renders an integer with thousands separators.
