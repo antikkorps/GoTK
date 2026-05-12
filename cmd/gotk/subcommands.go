@@ -30,8 +30,8 @@ import (
 func runUpdate(args []string) {
 	opts := update.Options{Current: Version}
 
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
+	for _, a := range args {
+		switch a {
 		case "--check":
 			opts.CheckOnly = true
 		case "--from-source":
@@ -42,7 +42,7 @@ func runUpdate(args []string) {
 			printSubcommandHelp("update")
 			return
 		default:
-			fmt.Fprintf(os.Stderr, "gotk update: unknown flag %q\n", args[i])
+			fmt.Fprintf(os.Stderr, "gotk update: unknown flag %q\n", a)
 			os.Exit(2)
 		}
 	}

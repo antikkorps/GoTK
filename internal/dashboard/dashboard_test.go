@@ -46,7 +46,7 @@ func TestSortedCommandTypes_TiebreakerAlphabetical(t *testing.T) {
 
 func TestSortedCommandTypes_CapsAtEight(t *testing.T) {
 	in := map[string]*measure.CommandTypeStats{}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		in[string(rune('a'+i))] = &measure.CommandTypeStats{TokensSaved: i}
 	}
 	rows := sortedCommandTypes(in)
