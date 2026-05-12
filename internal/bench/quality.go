@@ -7,6 +7,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/filter"
+	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
@@ -91,9 +92,28 @@ func measureFixtureQuality(cfg *config.Config, name string, input string, cmdTyp
 
 		if isPreserved(normalized, normalizedOutput, normalizedFullOutput) {
 			result.PreservedLines++
-		} else {
-			result.MissedLines = append(result.MissedLines, inputLines[i])
+			continue
 		}
+		// Universally drop-safe banners (e.g. ssh "Warning: Permanently
+		// added ...") that the classifier elevated on lexical grounds —
+		// credit them so the score doesn't punish intentional removal.
+		// See issue #60.
+		if measure.IsDropSafeNoise(inputLines[i]) {
+			result.PreservedLines++
+			continue
+		}
+		result.MissedLines = append(result.MissedLines, inputLines[i])
+	}
+
+	// Credit compression summaries ("... and 14 more npm warnings", etc.)
+	// against the lines they replaced. Cap at dropped so a marker can't
+	// push the score above 100%.
+	dropped := result.ImportantLines - result.PreservedLines
+	if credit := measure.SummaryMarkerCredit(output); credit > 0 && dropped > 0 {
+		if credit > dropped {
+			credit = dropped
+		}
+		result.PreservedLines += credit
 	}
 
 	if result.ImportantLines > 0 {
