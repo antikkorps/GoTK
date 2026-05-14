@@ -3,6 +3,10 @@
 CLI tool (Go) that acts as a proxy to clean command output before sending to LLMs.
 Goal: ~80% token reduction by stripping noise.
 
+Personal Go learning project, inspired by RTK (a similar tool written in Rust).
+Intentionally a lighter take — not a 1:1 port — scoped to the features actually
+needed while exploring Go.
+
 ## Language
 
 **All code, comments, documentation, backlog, and commit messages MUST be written in English.**

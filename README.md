@@ -2,6 +2,10 @@
 
 GoTK is a CLI tool that sits between shell commands and LLMs, stripping noise from command output to reduce token usage. It removes ANSI codes, collapses duplicate lines, compresses file paths, and applies command-specific optimizations — all without losing semantically important information.
 
+## About this project
+
+GoTK is a personal Go learning project, inspired by RTK (a similar tool written in Rust). It's intentionally a lighter take — not a 1:1 port — focused on the features I actually needed while exploring Go.
+
 ## Benchmarks
 
 | Command | Typical Reduction |
