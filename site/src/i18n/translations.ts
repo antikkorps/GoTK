@@ -15,6 +15,10 @@ export const translations = {
     heroCopied: 'Copied!',
     heroGithub: 'View on GitHub',
 
+    // About
+    aboutTitle: 'About this project',
+    aboutBody: 'GoTK is a personal Go learning project, inspired by RTK (a similar tool written in Rust). It’s intentionally a lighter take — not a 1:1 port — focused on the features I actually needed while exploring Go.',
+
     // Before/After
     beforeAfterTitle: 'See the difference',
     beforeAfterSubtitle: 'Real command output — before and after GoTK',
@@ -81,6 +85,10 @@ export const translations = {
     heroCopy: 'Copier',
     heroCopied: 'Copi\u00E9 !',
     heroGithub: 'Voir sur GitHub',
+
+    // About
+    aboutTitle: '\u00C0 propos de ce projet',
+    aboutBody: 'GoTK est un projet personnel d\u2019apprentissage de Go, inspir\u00E9 de RTK (un outil similaire en Rust). C\u2019est volontairement une version plus l\u00E9g\u00E8re \u2014 pas un portage \u00E0 l\u2019identique \u2014 centr\u00E9e sur les fonctionnalit\u00E9s qui m\u2019\u00E9taient utiles en explorant Go.',
 
     // Before/After
     beforeAfterTitle: 'Voyez la diff\u00E9rence',
