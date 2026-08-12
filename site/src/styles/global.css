@@ -1,3 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@source "../**/*.{astro,html,js,ts}";
+
+@theme {
+  /* `ink` is the page background, also used as text color on accent fills.
+     Not named `base` on purpose: `text-base` is a built-in font-size in v4. */
+  --color-ink: #0d1117;
+  --color-card: #161b22;
+  --color-accent: #3fb950;
+  --color-accent-blue: #58a6ff;
+  --color-text-primary: #e6edf3;
+  --color-text-muted: #8b949e;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}

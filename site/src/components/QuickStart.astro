@@ -42,13 +42,13 @@ const steps = [
       <div class="space-y-8 sm:space-y-10">
         {steps.map((s) => (
           <div class="flex gap-4 sm:gap-6 items-start">
-            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent text-base flex items-center justify-center font-bold text-base sm:text-lg shrink-0 relative z-10">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent text-ink flex items-center justify-center font-bold text-base sm:text-lg shrink-0 relative z-10">
               {s.num}
             </div>
             <div class="flex-1 pt-1 sm:pt-2 min-w-0 overflow-hidden">
               <h3 class="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">{t(locale, s.titleKey)}</h3>
               <div class="overflow-x-auto rounded-lg border border-text-muted/20">
-                <code class="block px-3 sm:px-4 py-2.5 sm:py-3 bg-base font-mono text-xs sm:text-sm whitespace-nowrap">
+                <code class="block px-3 sm:px-4 py-2.5 sm:py-3 bg-ink font-mono text-xs sm:text-sm whitespace-nowrap">
                   $ {s.cmd}
                 </code>
               </div>

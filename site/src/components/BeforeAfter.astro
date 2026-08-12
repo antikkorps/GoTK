@@ -156,8 +156,8 @@ const examples = [
         <button
           data-tab={ex.id}
           class:list={[
-            'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0',
-            i === 0 ? 'bg-accent text-base' : 'bg-card text-text-muted border border-text-muted/20 hover:border-accent/30',
+            'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 cursor-pointer',
+            i === 0 ? 'bg-accent text-ink' : 'bg-card text-text-muted border border-text-muted/20 hover:border-accent/30',
           ]}
         >
           {ex.label}
@@ -174,7 +174,7 @@ const examples = [
       >
         <!-- Mobile: reduction badge on top -->
         <div class="flex md:hidden justify-center mb-4">
-          <div class="px-4 py-2 bg-accent text-base font-bold rounded-full text-sm shadow-lg shadow-accent/20">
+          <div class="px-4 py-2 bg-accent text-ink font-bold rounded-full text-sm shadow-lg shadow-accent/20">
             -{ex.reduction}% tokens
           </div>
         </div>
@@ -188,7 +188,7 @@ const examples = [
               <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27c93f]"></span>
               <span class="ml-2 text-text-muted text-xs sm:text-sm">{t(locale, 'beforePrefix')} — {ex.before.length} {t(locale, 'lines')}</span>
             </div>
-            <pre class="p-3 sm:p-4 bg-base text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.before.join('\n')} /></pre>
+            <pre class="p-3 sm:p-4 bg-ink text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.before.join('\n')} /></pre>
           </div>
 
           <!-- After -->
@@ -199,12 +199,12 @@ const examples = [
               <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27c93f]"></span>
               <span class="ml-2 text-accent text-xs sm:text-sm">{t(locale, 'afterPrefix')} — {ex.after.length} {t(locale, 'lines')}</span>
             </div>
-            <pre class="p-3 sm:p-4 bg-base text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.after.join('\n')} /></pre>
+            <pre class="p-3 sm:p-4 bg-ink text-[11px] sm:text-sm font-mono leading-relaxed overflow-x-auto max-h-64 sm:max-h-80"><code set:html={ex.after.join('\n')} /></pre>
           </div>
 
           <!-- Desktop: badge between panels -->
           <div class="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-            <div class="px-4 py-2 bg-accent text-base font-bold rounded-full text-sm shadow-lg shadow-accent/20">
+            <div class="px-4 py-2 bg-accent text-ink font-bold rounded-full text-sm shadow-lg shadow-accent/20">
               -{ex.reduction}% tokens
             </div>
           </div>
@@ -228,9 +228,9 @@ const examples = [
       const target = (tab as HTMLElement).dataset.tab;
 
       tabs.forEach((t) => {
-        t.className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 bg-card text-text-muted border border-text-muted/20 hover:border-accent/30';
+        t.className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 cursor-pointer bg-card text-text-muted border border-text-muted/20 hover:border-accent/30';
       });
-      (tab as HTMLElement).className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 bg-accent text-base';
+      (tab as HTMLElement).className = 'px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0 cursor-pointer bg-accent text-ink';
 
       panels.forEach((p) => {
         if ((p as HTMLElement).dataset.panel === target) {

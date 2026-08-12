@@ -32,11 +32,11 @@ const benchmarks = [
           <code class="w-20 sm:w-28 text-right text-xs sm:text-sm font-mono text-text-muted shrink-0">{b.cmd}</code>
           <div class="flex-1 h-7 sm:h-8 bg-card rounded-full overflow-hidden border border-text-muted/10">
             <div
-              class="h-full rounded-full bg-gradient-to-r from-accent/80 to-accent flex items-center justify-end pr-2 sm:pr-3 transition-all duration-700 ease-out"
+              class="h-full rounded-full bg-linear-to-r from-accent/80 to-accent flex items-center justify-end pr-2 sm:pr-3 transition-all duration-700 ease-out"
               style={`width: 0%; transition-delay: ${i * 100}ms;`}
               data-width={`${b.pct}%`}
             >
-              <span class="text-base text-xs sm:text-sm font-bold">{b.pct}%</span>
+              <span class="text-ink text-xs sm:text-sm font-bold">{b.pct}%</span>
             </div>
           </div>
         </div>
