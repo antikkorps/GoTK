@@ -442,6 +442,10 @@ also a frame, the block is left exactly as it was.
 The verdict comes from `filter.DetectRunnerResult`, the same runner anchors that
 back the `result:` line in the summary — never from a guess about the content.
 
+Dropping logs is the most destructive thing gotk does, so it has its own switch.
+Set `jest_drop_console_on_pass = false` under `[filters]` to keep the messages on
+green runs too; the boilerplate stripping and the repeat collapse still apply.
+
 **Before** (a passing run):
 ```
   console.log

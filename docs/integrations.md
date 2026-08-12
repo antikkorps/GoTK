@@ -282,6 +282,7 @@ shell_mode = false   # set true to default to shell mode
 strip_ansi = true
 normalize_whitespace = true
 strip_timestamps = true
+jest_drop_console_on_pass = true
 dedup = true
 trim_decorative = true
 truncate = true

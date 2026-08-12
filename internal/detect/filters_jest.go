@@ -62,7 +62,11 @@ var (
 // The generic Dedup filter cannot do it, because it runs earlier in the chain
 // — at that point the messages are still separated by their header and
 // trailer lines, so they are not consecutive duplicates yet (see issue #79).
-func stripJestConsoleBlocks(input string) string {
+// The drop-on-pass behaviour is the one policy decision here, so it is
+// configurable via Options.JestDropConsoleOnPass ([filters]
+// jest_drop_console_on_pass). It is the most destructive thing gotk does, and
+// a user who wants their application logs on green runs needs a way to say so.
+func stripJestConsoleBlocks(input string, dropOnPass bool) string {
 	lines := strings.Split(input, "\n")
 	result := make([]string, 0, len(lines))
 
@@ -75,7 +79,7 @@ func stripJestConsoleBlocks(input string) string {
 	// Only the runner's own verdict counts here. Without a totals line the
 	// verdict is unknown, and unknown means keep.
 	verdict, haveVerdict := filter.DetectRunnerResult(lines)
-	dropBlocks := haveVerdict && verdict == "PASS"
+	dropBlocks := dropOnPass && haveVerdict && verdict == "PASS"
 	droppedBlocks := 0
 	dropMarkerIdx := -1
 
@@ -191,4 +195,12 @@ func startsWithWhitespace(s string) bool {
 		return false
 	}
 	return s[0] == ' ' || s[0] == '\t'
+}
+
+// jestConsoleFilter adapts stripJestConsoleBlocks to the FilterFunc signature,
+// binding the drop-on-pass policy from the caller's options.
+func jestConsoleFilter(o Options) filter.FilterFunc {
+	return func(input string) string {
+		return stripJestConsoleBlocks(input, o.JestDropConsoleOnPass)
+	}
 }

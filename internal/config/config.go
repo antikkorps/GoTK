@@ -92,9 +92,13 @@ type FiltersConfig struct {
 	NormalizeWhitespace bool
 	StripTimestamps     bool
 	Dedup               bool
-	CompressPaths       bool
-	TrimDecorative      bool
-	Truncate            bool
+	// JestDropConsoleOnPass drops Jest console.* log blocks when the runner
+	// reports its own run as green. The most destructive filter behaviour, so
+	// it gets its own switch.
+	JestDropConsoleOnPass bool
+	CompressPaths         bool
+	TrimDecorative        bool
+	Truncate              bool
 }
 
 // Default returns a Config with all default values.
@@ -112,9 +116,11 @@ func Default() *Config {
 			NormalizeWhitespace: true,
 			StripTimestamps:     true,
 			Dedup:               true,
-			CompressPaths:       true,
-			TrimDecorative:      true,
-			Truncate:            true,
+
+			JestDropConsoleOnPass: true,
+			CompressPaths:         true,
+			TrimDecorative:        true,
+			Truncate:              true,
 		},
 		Security: SecurityConfig{
 			CommandTimeout: 30,
@@ -269,6 +275,8 @@ func applyTOML(cfg *Config, data string) {
 				cfg.Filters.NormalizeWhitespace = b
 			case "strip_timestamps":
 				cfg.Filters.StripTimestamps = b
+			case "jest_drop_console_on_pass":
+				cfg.Filters.JestDropConsoleOnPass = b
 			case "dedup":
 				cfg.Filters.Dedup = b
 			case "compress_paths":
@@ -508,6 +516,7 @@ func (c *Config) Show() string {
 	b.WriteString("  compress_paths = " + formatBool(c.Filters.CompressPaths) + "\n")
 	b.WriteString("  trim_decorative = " + formatBool(c.Filters.TrimDecorative) + "\n")
 	b.WriteString("  truncate = " + formatBool(c.Filters.Truncate) + "\n")
+	b.WriteString("  jest_drop_console_on_pass = " + formatBool(c.Filters.JestDropConsoleOnPass) + "\n")
 
 	b.WriteString("\n[security]\n")
 	b.WriteString("  command_timeout = " + strconv.Itoa(c.Security.CommandTimeout) + "\n")

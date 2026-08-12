@@ -366,6 +366,11 @@ func TestClassify_DiagnosticWordsInsidePaths(t *testing.T) {
 			want: Error,
 		},
 		{
+			name: "compiler diagnostic with path and line",
+			line: "src/error.ts:12:5: error TS2304: Cannot find name 'foo'",
+			want: Error,
+		},
+		{
 			name: "module resolution failure naming an error file",
 			line: "Cannot find module './error-handler.js'",
 			want: Error,
@@ -384,6 +389,52 @@ func TestClassify_DiagnosticWordsInsidePaths(t *testing.T) {
 			name: "warning keyword alongside a path",
 			line: "warning: unused import in src/util/log.ts",
 			want: Warning,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Classify(tt.line); got != tt.want {
+				t.Errorf("Classify(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestClassify_LabelledCompilerDiagnostics guards the diagnostic-code forms
+// emitted by rustc (`error[E0433]:`) and tsc (`error TS2304:`) inside
+// source-grep content, which the bare `error:` prefix used to miss — demoting
+// a real compiler error to Info, where it could be dropped.
+func TestClassify_LabelledCompilerDiagnostics(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want Level
+	}{
+		{
+			name: "tsc error code",
+			line: "src/error.ts:12:5: error TS2304: Cannot find name 'foo'",
+			want: Error,
+		},
+		{
+			name: "rustc error code",
+			line: "src/main.rs:10:9: error[E0433]: failed to resolve: use of undeclared crate",
+			want: Error,
+		},
+		{
+			name: "rustc warning code",
+			line: "src/main.rs:4:1: warning[unused_imports]: unused import: `std::fmt`",
+			want: Warning,
+		},
+		{
+			name: "plain error prefix still matches",
+			line: "src/main.go:10:5: error: undefined symbol",
+			want: Error,
+		},
+		{
+			name: "identifier named error is still Info",
+			line: "internal/foo.go:42:func DoX(err error) error {",
+			want: Info,
 		},
 	}
 

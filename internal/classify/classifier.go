@@ -96,8 +96,13 @@ var (
 	// strictErrorPrefix only matches structured diagnostic forms inside
 	// source-grep content (e.g. "error: undefined" from a compiler), not
 	// bare-word occurrences like `func DoX(err error) error`.
-	strictErrorPrefix   = regexp.MustCompile(`^(?:error|fatal):\s`)
-	strictWarningPrefix = regexp.MustCompile(`^(?:warning|warn):\s`)
+	//
+	// An optional diagnostic code is allowed between the keyword and the colon
+	// so compilers that label their diagnostics still match: rustc emits
+	// `error[E0433]: …`, tsc emits `error TS2304: …`. Without this the line was
+	// demoted to Info and a real compiler error could be dropped.
+	strictErrorPrefix   = regexp.MustCompile(`^(?:error|fatal)(?:\[[^\]]+\]|\s+[A-Za-z]+\d+)?:\s`)
+	strictWarningPrefix = regexp.MustCompile(`^(?:warning|warn)(?:\[[^\]]+\]|\s+[A-Za-z]+\d+)?:\s`)
 
 	// pathToken matches a whitespace-delimited token that is a file path or an
 	// artifact filename: it either contains a directory separator, or ends in a
