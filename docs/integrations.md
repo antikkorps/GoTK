@@ -281,6 +281,7 @@ shell_mode = false   # set true to default to shell mode
 [filters]
 strip_ansi = true
 normalize_whitespace = true
+strip_timestamps = true
 dedup = true
 trim_decorative = true
 truncate = true

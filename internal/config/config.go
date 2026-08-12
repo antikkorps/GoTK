@@ -90,6 +90,7 @@ type RulesConfig struct {
 type FiltersConfig struct {
 	StripANSI           bool
 	NormalizeWhitespace bool
+	StripTimestamps     bool
 	Dedup               bool
 	CompressPaths       bool
 	TrimDecorative      bool
@@ -109,6 +110,7 @@ func Default() *Config {
 		Filters: FiltersConfig{
 			StripANSI:           true,
 			NormalizeWhitespace: true,
+			StripTimestamps:     true,
 			Dedup:               true,
 			CompressPaths:       true,
 			TrimDecorative:      true,
@@ -265,6 +267,8 @@ func applyTOML(cfg *Config, data string) {
 				cfg.Filters.StripANSI = b
 			case "normalize_whitespace":
 				cfg.Filters.NormalizeWhitespace = b
+			case "strip_timestamps":
+				cfg.Filters.StripTimestamps = b
 			case "dedup":
 				cfg.Filters.Dedup = b
 			case "compress_paths":
@@ -499,6 +503,7 @@ func (c *Config) Show() string {
 	b.WriteString("\n[filters]\n")
 	b.WriteString("  strip_ansi = " + formatBool(c.Filters.StripANSI) + "\n")
 	b.WriteString("  normalize_whitespace = " + formatBool(c.Filters.NormalizeWhitespace) + "\n")
+	b.WriteString("  strip_timestamps = " + formatBool(c.Filters.StripTimestamps) + "\n")
 	b.WriteString("  dedup = " + formatBool(c.Filters.Dedup) + "\n")
 	b.WriteString("  compress_paths = " + formatBool(c.Filters.CompressPaths) + "\n")
 	b.WriteString("  trim_decorative = " + formatBool(c.Filters.TrimDecorative) + "\n")

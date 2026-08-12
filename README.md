@@ -176,6 +176,7 @@ command output
   [Filter Chain]
       |-- RemoveByRules ........ blacklist (always_remove patterns)
       |-- StripANSI ............. remove escape codes
+      |-- StripTimestamps ....... drop leading clock/ISO prefixes
       |-- NormalizeWhitespace ... collapse blanks, trim trailing spaces
       |-- Dedup ................. collapse consecutive duplicate lines
       |-- <command-specific> .... grep grouping, path compression, etc.

@@ -590,6 +590,22 @@
 
 ---
 
+## Sprint 18 — Filter quality (2026-08-12)
+
+### Build — Filters
+
+- [x] **New `StripTimestamps` generic filter** (`internal/filter/timestamp.go`). Nothing in the chain removed timestamps — `classify.timestampOnly` only *classified* full ISO lines as Debug. Handles bare `HH:MM:SS`, bracketed `[HH:MM:SS]`, and ISO 8601, with optional fraction and timezone. Runs after `strip_ansi` (runners colour the clock, so the prefix isn't recognisable before) and before `dedup` (lines differing only by their clock could never collapse). Never drops a line, only a prefix; anchored at line start; requires ≥3 prefixed lines so a lone data line is left alone; consumes exactly one separator so nested output keeps the indentation that encodes its hierarchy. Toggle: `[filters] strip_timestamps`. Also wired into the streaming filter. Astro build: -1% → **-20%**.
+- [x] **#71 — `errors` counter matched artifact filenames.** `\berror\b` fired on `error-500.mjs` / `error-404.css`, so a green Nuxt build reported `errors: 12`. New `classify.wordOutsidePaths` re-tests the bare-word patterns (`error`, `fail`, `warning`, `deprecated`, `TODO`, compiler verbs) against a copy with path-like tokens masked out. The unmasked check runs first, so masking is only paid on lines that would be promoted, and the helper can only ever demote — never promote. Repro fixture: `errors: 4` → `errors: 0`.
+- [x] **#79 symptom 2 — misleading summary counters.** Bare `console.warn` / `console.error` header lines counted as a warning / error purely on the method name; they are Jest block headers, the message is on the next line. And `errors: 108` next to `result: PASS` reads as "gotk swallowed a failure" — the counter is now rendered `error-like lines: N (run passed)` when the run passed, keeping the information without implying a broken run.
+- [x] **#79 symptom 1 — Jest console triplets.** Root cause was not a missing filter: `stripJestConsoleBlocks` already existed, but its trailer pattern only matched the anonymous `at path:line:col` form. Jest emits the named `at log (path:line:col)` form for nearly every application log, so every triplet survived. Widened the pattern; real stack traces stay safe via a structural guard (a console trailer is a lone frame, an error stack has consecutive ones) rather than the old "parentheses mean stack frame" assumption. Added: consecutive identical blocks collapse to `... and N identical console blocks`, and on a run the runner itself reports green the blocks are dropped for one `[gotk: N console.* log blocks dropped — run passed]` marker. Verdict comes from the existing runner anchors via a new exported `filter.DetectRunnerResult`, so there is no second copy of the pass/fail logic. Jest fixture at `--max-lines 40`: 1,725 → **397 bytes** (-85% → -96%).
+- [x] Quality benchmark held at 66.2% across all three changes; full suite green.
+
+### Known duplication (not addressed here)
+
+- [ ] `jestConsoleHeader` is defined in both `internal/detect/filters_jest.go` and `internal/filter/summary.go`. Two packages, two roles, so nothing is broken, but it is the parallel-implementation pattern the conventions warn about. Consolidating needs a shared package (`detect` already imports `filter`, so the direction is available).
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes

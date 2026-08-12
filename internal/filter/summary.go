@@ -91,6 +91,19 @@ func resolveResult(lines []string, exitCode int, stderr string, hasFail, hasPass
 	return "unknown"
 }
 
+// DetectRunnerResult reports the PASS/FAIL verdict a test runner printed in
+// its own summary line, returning ("", false) when the output carries no such
+// line. It is the authoritative signal — a runner counting its own failures
+// beats any heuristic.
+//
+// Exported for command-specific filters, which receive the full output but
+// not the exit code, and so have no other way to tell a green run from a red
+// one. Keeping them on this function rather than their own pattern means the
+// runner anchors stay a single source of truth.
+func DetectRunnerResult(lines []string) (string, bool) {
+	return detectRunnerResult(lines)
+}
+
 // detectRunnerResult scans for an authoritative test-runner result marker.
 // Returns ("PASS"|"FAIL", true) when one is found; ("", false) otherwise.
 // When present, these markers override inferred pass/fail signals from
@@ -224,6 +237,14 @@ func summarize(input string, exitCode int, stderr string) string {
 	for i, line := range lines {
 		level := classify.Classify(line)
 
+		// A bare `console.<method>` line is Jest's block header, not a
+		// diagnostic — the message it introduces is on the next line. Left
+		// alone, `console.error` counts as an error and `console.warn` as a
+		// warning purely on the strength of the method name (see #79).
+		if jestConsoleHeader.MatchString(line) {
+			level = classify.Info
+		}
+
 		// Downgrade Jest console-log trailers and isolated stack frames:
 		// these syntactically look like Critical stack frames but carry no
 		// error signal, and counting them inflates the error tally (see #18).
@@ -277,7 +298,15 @@ func summarize(input string, exitCode int, stderr string) string {
 	sb.WriteString("[gotk summary]\n")
 	fmt.Fprintf(&sb, "  total: %s lines (%s bytes)\n",
 		formatNumber(len(lines)), formatNumber(totalBytes))
-	fmt.Fprintf(&sb, "  errors: %s\n", formatNumber(errorCount))
+	// On a run that passed, "errors: 108" reads as "gotk swallowed a failure".
+	// The lines are real — tests that exercise error paths log them on purpose
+	// — but they are not failures, so the counter says what it actually counted
+	// rather than implying a broken run (see #79).
+	if result == "PASS" && errorCount > 0 {
+		fmt.Fprintf(&sb, "  error-like lines: %s (run passed)\n", formatNumber(errorCount))
+	} else {
+		fmt.Fprintf(&sb, "  errors: %s\n", formatNumber(errorCount))
+	}
 
 	// Show key error lines
 	for _, el := range errorLines {

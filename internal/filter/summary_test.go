@@ -344,3 +344,105 @@ func TestFormatNumber(t *testing.T) {
 		})
 	}
 }
+
+// TestSummarizeErrorCounter covers the two false-positive sources reported in
+// #71 (artifact filenames containing "error") and #79 (bare Jest console.*
+// headers, and the misleading "errors: N" label on a run that passed).
+func TestSummarizeErrorCounter(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		exitCode       int
+		wantContains   []string
+		wantNotContain []string
+	}{
+		{
+			// #71: a green Nuxt build listing error-500/error-404 artifacts.
+			name: "nuxt build artifacts are not errors",
+			input: genLines(100, "ℹ building for production...") +
+				"ℹ node_modules/.cache/nuxt/.nuxt/dist/client/_nuxt/error-500.ChVycSbP.css    1.91 kB │ gzip:  0.73 kB\n" +
+				"ℹ node_modules/.cache/nuxt/.nuxt/dist/client/_nuxt/error-404.AlaAyKR2.css    2.43 kB │ gzip:  0.86 kB\n" +
+				"├─ .output/server/chunks/_/error-500.mjs (5.09 kB) (2.06 kB gzip)\n" +
+				"├─ .output/server/chunks/_/error-404.mjs (4.21 kB) (1.88 kB gzip)\n",
+			exitCode:     0,
+			wantContains: []string{"errors: 0", "result: PASS"},
+			wantNotContain: []string{
+				"error-like lines",
+				"→ ℹ node_modules",
+				"→ ├─ .output",
+			},
+		},
+		{
+			// #79: `console.warn` / `console.error` are block headers, and the
+			// message they introduce lives on the next line.
+			name: "bare jest console headers are not diagnostics",
+			input: genLines(100, "PASS tests/foo.test.js") +
+				"  console.warn\n" +
+				"    [gen-forms] skipped: access denied\n" +
+				"      at warn (tests/setup.js:12:9)\n" +
+				"  console.error\n" +
+				"    expected failure path exercised\n" +
+				"      at error (tests/setup.js:20:9)\n" +
+				"\nTests:       1779 passed, 1779 total\n",
+			exitCode: 0,
+			wantNotContain: []string{
+				"→ console.warn",
+				"→ console.error",
+			},
+		},
+		{
+			// #79 symptom 2: error-like lines on a green run must not read as
+			// "gotk swallowed a failure".
+			name: "counter is relabelled when the run passed",
+			input: genLines(100, "ok running") +
+				genLines(8, "[VERSIONING] Error getting version structure: Database connection error") +
+				"\nTests:       1779 passed, 1779 total\n",
+			exitCode: 0,
+			wantContains: []string{
+				"error-like lines: 8 (run passed)",
+				"result: PASS",
+			},
+			wantNotContain: []string{"errors: 8"},
+		},
+		{
+			// The plain label must survive on a genuine failure.
+			name: "counter keeps the plain label when the run failed",
+			input: genLines(100, "running tests") +
+				genLines(3, "error: assertion failed") +
+				"\nTests:       2 failed, 1777 passed, 1779 total\n",
+			exitCode: 1,
+			wantContains: []string{
+				// 3 assertion lines + the "2 failed" total line.
+				"errors: 4",
+				"result: FAIL",
+			},
+			wantNotContain: []string{"error-like lines"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SummarizeWithContext(tt.exitCode, "")(tt.input)
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("summary missing %q\n--- got ---\n%s", want, summaryBlock(got))
+				}
+			}
+			for _, unwanted := range tt.wantNotContain {
+				if strings.Contains(got, unwanted) {
+					t.Errorf("summary unexpectedly contains %q\n--- got ---\n%s", unwanted, summaryBlock(got))
+				}
+			}
+		})
+	}
+}
+
+// summaryBlock extracts just the [gotk summary] header for readable failures.
+func summaryBlock(out string) string {
+	end := strings.Index(out, "[/gotk summary]")
+	if end == -1 {
+		return out
+	}
+	return out[:end+len("[/gotk summary]")]
+}

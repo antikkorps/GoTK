@@ -12,17 +12,25 @@ type StreamConfig struct {
 	Dedup               bool
 	TrimDecorative      bool
 	NormalizeWhitespace bool
+	StripTimestamps     bool
 }
 
 // StreamFilter processes lines one at a time with minimal buffering.
 // Some filters (like dedup) need to see the previous line, so they
 // maintain a small internal state.
 type StreamFilter struct {
-	stripANSI      bool
-	compressPaths  bool
-	dedup          bool
-	trimDecorative bool
-	normalizeWS    bool
+	stripANSI       bool
+	compressPaths   bool
+	dedup           bool
+	trimDecorative  bool
+	normalizeWS     bool
+	stripTimestamps bool
+
+	// timestamp state: how many prefixed lines have been seen so far. The
+	// batch filter can count the whole input before deciding; streaming can
+	// only count forward, so the first minTimestampLines-1 prefixed lines are
+	// emitted untouched and stripping starts once the threshold is reached.
+	tsPrefixed int
 
 	// dedup state
 	prevLine string
@@ -40,11 +48,12 @@ type StreamFilter struct {
 // NewStreamFilter creates a stream filter with the given config.
 func NewStreamFilter(cfg StreamConfig) *StreamFilter {
 	sf := &StreamFilter{
-		stripANSI:      cfg.StripANSI,
-		compressPaths:  cfg.CompressPaths,
-		dedup:          cfg.Dedup,
-		trimDecorative: cfg.TrimDecorative,
-		normalizeWS:    cfg.NormalizeWhitespace,
+		stripANSI:       cfg.StripANSI,
+		compressPaths:   cfg.CompressPaths,
+		dedup:           cfg.Dedup,
+		trimDecorative:  cfg.TrimDecorative,
+		normalizeWS:     cfg.NormalizeWhitespace,
+		stripTimestamps: cfg.StripTimestamps,
 	}
 
 	if sf.compressPaths {
@@ -61,6 +70,17 @@ func (sf *StreamFilter) ProcessLine(line string) (string, bool) {
 	// Strip ANSI escape codes (stateless).
 	if sf.stripANSI {
 		line = ansiPattern.ReplaceAllString(line, "")
+	}
+
+	// Strip the leading timestamp once enough prefixed lines confirm this is
+	// a log prefix rather than a one-off line that opens with a clock.
+	if sf.stripTimestamps && hasTimestampPrefix(line) {
+		if sf.tsPrefixed < minTimestampLines {
+			sf.tsPrefixed++
+		}
+		if sf.tsPrefixed >= minTimestampLines {
+			line, _ = stripTimestampPrefix(line)
+		}
 	}
 
 	// Compress paths (stateless).
