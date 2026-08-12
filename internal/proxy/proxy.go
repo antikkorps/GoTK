@@ -62,7 +62,9 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 
 	// Command-specific filters (CompressPaths is included via detect.FiltersFor
 	// for certain types, so we only add it for generic if enabled)
-	cmdFilters := detect.FiltersFor(cmdType)
+	cmdFilters := detect.FiltersForWithOptions(cmdType, detect.Options{
+		JestDropConsoleOnPass: cfg.Filters.JestDropConsoleOnPass,
+	})
 	for _, f := range cmdFilters {
 		chain.AddNamed(cmdType.String(), f)
 	}

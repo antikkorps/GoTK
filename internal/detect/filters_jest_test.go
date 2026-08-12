@@ -15,7 +15,7 @@ func TestStripJestConsoleBlocks_BasicBlock(t *testing.T) {
 		"Test Suites: 1 passed",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 
 	if strings.Contains(got, "console.log") {
 		t.Errorf("console.log header should be stripped, got:\n%s", got)
@@ -44,7 +44,7 @@ func TestStripJestConsoleBlocks_MultipleBlocks(t *testing.T) {
 		"Tests: 2 passed",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 	if strings.Count(got, "console.") != 0 {
 		t.Errorf("all console headers should be stripped, got:\n%s", got)
 	}
@@ -66,7 +66,7 @@ func TestStripJestConsoleBlocks_MultilineMessage(t *testing.T) {
 		"next block",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 	for _, msg := range []string{"line one", "line two", "line three", "next block"} {
 		if !strings.Contains(got, msg) {
 			t.Errorf("missing %q after strip, got:\n%s", msg, got)
@@ -89,7 +89,7 @@ func TestStripJestConsoleBlocks_PreservesRealStackTrace(t *testing.T) {
 		"Error: something broke",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 	// Header stays because we never found a bare `at <path>:N:N` trailer.
 	if !strings.Contains(got, "console.log") {
 		t.Errorf("should leave block alone when trailer doesn't match strict pattern, got:\n%s", got)
@@ -109,7 +109,7 @@ func TestStripJestConsoleBlocks_NoMatchingTrailer(t *testing.T) {
 		"next line",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 	if !strings.Contains(got, "console.log") {
 		t.Errorf("should preserve header when no trailer follows, got:\n%s", got)
 	}
@@ -127,7 +127,7 @@ func TestStripJestConsoleBlocks_NonIndentedBreak(t *testing.T) {
 		"      at a/b.ts:1:1",
 	}, "\n")
 
-	got := stripJestConsoleBlocks(input)
+	got := stripJestConsoleBlocks(input, true)
 	if !strings.Contains(got, "console.log") {
 		t.Errorf("non-indented break should abort strip, got:\n%s", got)
 	}
@@ -139,7 +139,7 @@ func TestStripJestConsoleBlocks_NonIndentedBreak(t *testing.T) {
 func TestStripJestConsoleBlocks_AllMethods(t *testing.T) {
 	for _, method := range []string{"log", "warn", "error", "info", "debug"} {
 		input := "  console." + method + "\n    msg-for-" + method + "\n      at x.ts:1:1\n"
-		got := stripJestConsoleBlocks(input)
+		got := stripJestConsoleBlocks(input, true)
 		if strings.Contains(got, "console."+method) {
 			t.Errorf("console.%s not stripped, got:\n%s", method, got)
 		}
@@ -200,7 +200,7 @@ func TestStripJestConsoleBlocks_NamedTrailers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := stripJestConsoleBlocks(tt.input); got != tt.want {
+			if got := stripJestConsoleBlocks(tt.input, true); got != tt.want {
 				t.Errorf("stripJestConsoleBlocks(%q)\n got: %q\nwant: %q", tt.input, got, tt.want)
 			}
 		})
@@ -222,7 +222,7 @@ func TestStripJestConsoleBlocks_CollapsesRepeats(t *testing.T) {
 		"    ... and 5 identical console blocks\n" +
 		"Running remaining suites...\n"
 
-	if got := stripJestConsoleBlocks(input); got != want {
+	if got := stripJestConsoleBlocks(input, true); got != want {
 		t.Errorf("stripJestConsoleBlocks(6 identical blocks)\n got: %q\nwant: %q", got, want)
 	}
 }
@@ -238,7 +238,7 @@ func TestStripJestConsoleBlocks_DropsOnPass(t *testing.T) {
 	want := "  [gotk: 2 console.* log blocks dropped — run passed]\n" +
 		"Tests:       1779 passed, 1779 total\n"
 
-	if got := stripJestConsoleBlocks(input); got != want {
+	if got := stripJestConsoleBlocks(input, true); got != want {
 		t.Errorf("stripJestConsoleBlocks(passing run)\n got: %q\nwant: %q", got, want)
 	}
 }
@@ -252,7 +252,7 @@ func TestStripJestConsoleBlocks_KeepsOnFail(t *testing.T) {
 	want := "    JWT AUTH ok\n" +
 		"Tests:       2 failed, 1777 passed, 1779 total\n"
 
-	if got := stripJestConsoleBlocks(input); got != want {
+	if got := stripJestConsoleBlocks(input, true); got != want {
 		t.Errorf("stripJestConsoleBlocks(failing run)\n got: %q\nwant: %q", got, want)
 	}
 }
@@ -266,7 +266,62 @@ func TestStripJestConsoleBlocks_DistinctMessagesNotCollapsed(t *testing.T) {
 
 	want := "    first message\n    second message\n    first message"
 
-	if got := stripJestConsoleBlocks(input); got != want {
+	if got := stripJestConsoleBlocks(input, true); got != want {
 		t.Errorf("stripJestConsoleBlocks(distinct messages)\n got: %q\nwant: %q", got, want)
+	}
+}
+
+// TestStripJestConsoleBlocks_DropDisabled covers the escape hatch: with
+// jest_drop_console_on_pass = false, a green run keeps its application logs
+// and only the boilerplate is stripped.
+func TestStripJestConsoleBlocks_DropDisabled(t *testing.T) {
+	input := "  console.log\n    setup loaded\n      at Object.log (tests/setup.js:188:9)\n\n" +
+		"  console.log\n    JWT AUTH ok\n      at log (middlewares/jwt.auth.js:85:13)\n\n" +
+		"Tests:       1779 passed, 1779 total\n"
+
+	want := "    setup loaded\n" +
+		"    JWT AUTH ok\n" +
+		"Tests:       1779 passed, 1779 total\n"
+
+	if got := stripJestConsoleBlocks(input, false); got != want {
+		t.Errorf("stripJestConsoleBlocks(passing run, drop disabled)\n got: %q\nwant: %q", got, want)
+	}
+}
+
+// TestFiltersForWithOptions_JestToggle checks the option actually reaches the
+// filter the registry hands back, not just the function underneath it.
+func TestFiltersForWithOptions_JestToggle(t *testing.T) {
+	input := "  console.log\n    JWT AUTH ok\n      at log (middlewares/jwt.auth.js:85:13)\n\n" +
+		"Tests:       1779 passed, 1779 total\n"
+
+	apply := func(opts Options) string {
+		out := input
+		for _, f := range FiltersForWithOptions(CmdNpm, opts) {
+			out = f(out)
+		}
+		return out
+	}
+
+	dropped := apply(Options{JestDropConsoleOnPass: true})
+	if !strings.Contains(dropped, "console.* log block") {
+		t.Errorf("drop enabled: expected a drop marker, got %q", dropped)
+	}
+	if strings.Contains(dropped, "JWT AUTH ok") {
+		t.Errorf("drop enabled: message should be gone, got %q", dropped)
+	}
+
+	kept := apply(Options{JestDropConsoleOnPass: false})
+	if !strings.Contains(kept, "JWT AUTH ok") {
+		t.Errorf("drop disabled: message should survive, got %q", kept)
+	}
+	if strings.Contains(kept, "console.* log block") {
+		t.Errorf("drop disabled: no marker expected, got %q", kept)
+	}
+}
+
+// TestDefaultOptions pins the shipped default.
+func TestDefaultOptions(t *testing.T) {
+	if !DefaultOptions().JestDropConsoleOnPass {
+		t.Error("JestDropConsoleOnPass should default to true")
 	}
 }

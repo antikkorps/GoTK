@@ -38,32 +38,40 @@ const (
 type cmdEntry struct {
 	name     string
 	binaries []string
-	filters  func() []filter.FilterFunc
+	filters  func(Options) []filter.FilterFunc
 }
 
 // registry maps CmdType to its registration entry.
 // Filters are returned via a func to avoid init-order issues with package-level functions.
 var registry = map[CmdType]cmdEntry{
-	CmdGrep:   {name: "grep", binaries: []string{"grep", "rg", "ag", "ack"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput} }},
-	CmdFind:   {name: "find", binaries: []string{"find", "fd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressFindOutput} }},
-	CmdGit:    {name: "git", binaries: []string{"git", "gh"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressGitOutput} }},
-	CmdGoTool: {name: "go", binaries: []string{"go"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{filter.CompressPaths, compressGoOutput} }},
-	CmdLs:     {name: "ls", binaries: []string{"ls", "exa", "eza", "lsd"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressLsOutput} }},
-	CmdDocker: {name: "docker", binaries: []string{"docker", "docker-compose", "podman"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressDockerOutput} }},
-	CmdNpm: {name: "npm", binaries: []string{"npm", "yarn", "pnpm", "bun"}, filters: func() []filter.FilterFunc {
-		return []filter.FilterFunc{stripJestConsoleBlocks, compressNpmOutput, compressNodeOutput}
+	CmdGrep: {name: "grep", binaries: []string{"grep", "rg", "ag", "ack"}, filters: func(o Options) []filter.FilterFunc {
+		return []filter.FilterFunc{filter.CompressPaths, compressGrepOutput}
 	}},
-	CmdNode:      {name: "node", binaries: []string{"node", "npx", "tsx", "ts-node", "deno"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{stripJestConsoleBlocks, compressNodeOutput} }},
-	CmdCargo:     {name: "cargo", binaries: []string{"cargo", "rustc"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCargoOutput} }},
-	CmdMake:      {name: "make", binaries: []string{"make", "cmake", "ninja"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressMakeOutput} }},
-	CmdCurl:      {name: "curl", binaries: []string{"curl", "wget", "http", "httpie"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressCurlOutput} }},
-	CmdPython:    {name: "python", binaries: []string{"python", "python3", "python2", "pip", "pip3"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressPythonOutput} }},
-	CmdTree:      {name: "tree", binaries: []string{"tree"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTreeOutput} }},
-	CmdTerraform: {name: "terraform", binaries: []string{"terraform", "tofu", "tf"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTerraformOutput} }},
-	CmdKubectl:   {name: "kubectl", binaries: []string{"kubectl", "helm", "k9s", "oc"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressKubectlOutput} }},
-	CmdJq:        {name: "jq", binaries: []string{"jq", "yq", "gojq"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressJqOutput} }},
-	CmdTar:       {name: "tar", binaries: []string{"tar", "zip", "unzip", "gzip", "7z"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressTarOutput} }},
-	CmdSSH:       {name: "ssh", binaries: []string{"ssh", "scp", "sftp", "rsync"}, filters: func() []filter.FilterFunc { return []filter.FilterFunc{compressSSHOutput} }},
+	CmdFind: {name: "find", binaries: []string{"find", "fd"}, filters: func(o Options) []filter.FilterFunc {
+		return []filter.FilterFunc{filter.CompressPaths, compressFindOutput}
+	}},
+	CmdGit: {name: "git", binaries: []string{"git", "gh"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressGitOutput} }},
+	CmdGoTool: {name: "go", binaries: []string{"go"}, filters: func(o Options) []filter.FilterFunc {
+		return []filter.FilterFunc{filter.CompressPaths, compressGoOutput}
+	}},
+	CmdLs:     {name: "ls", binaries: []string{"ls", "exa", "eza", "lsd"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressLsOutput} }},
+	CmdDocker: {name: "docker", binaries: []string{"docker", "docker-compose", "podman"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressDockerOutput} }},
+	CmdNpm: {name: "npm", binaries: []string{"npm", "yarn", "pnpm", "bun"}, filters: func(o Options) []filter.FilterFunc {
+		return []filter.FilterFunc{jestConsoleFilter(o), compressNpmOutput, compressNodeOutput}
+	}},
+	CmdNode: {name: "node", binaries: []string{"node", "npx", "tsx", "ts-node", "deno"}, filters: func(o Options) []filter.FilterFunc {
+		return []filter.FilterFunc{jestConsoleFilter(o), compressNodeOutput}
+	}},
+	CmdCargo:     {name: "cargo", binaries: []string{"cargo", "rustc"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressCargoOutput} }},
+	CmdMake:      {name: "make", binaries: []string{"make", "cmake", "ninja"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressMakeOutput} }},
+	CmdCurl:      {name: "curl", binaries: []string{"curl", "wget", "http", "httpie"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressCurlOutput} }},
+	CmdPython:    {name: "python", binaries: []string{"python", "python3", "python2", "pip", "pip3"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressPythonOutput} }},
+	CmdTree:      {name: "tree", binaries: []string{"tree"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressTreeOutput} }},
+	CmdTerraform: {name: "terraform", binaries: []string{"terraform", "tofu", "tf"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressTerraformOutput} }},
+	CmdKubectl:   {name: "kubectl", binaries: []string{"kubectl", "helm", "k9s", "oc"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressKubectlOutput} }},
+	CmdJq:        {name: "jq", binaries: []string{"jq", "yq", "gojq"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressJqOutput} }},
+	CmdTar:       {name: "tar", binaries: []string{"tar", "zip", "unzip", "gzip", "7z"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressTarOutput} }},
+	CmdSSH:       {name: "ssh", binaries: []string{"ssh", "scp", "sftp", "rsync"}, filters: func(o Options) []filter.FilterFunc { return []filter.FilterFunc{compressSSHOutput} }},
 }
 
 // binaryIndex is a reverse lookup from binary name to CmdType, built at init.
@@ -135,10 +143,33 @@ func IdentifyOrDetect(command, output string) (CmdType, DetectionSource) {
 	return CmdGeneric, SourceNone
 }
 
-// FiltersFor returns command-specific filters for the given command type.
+// Options tunes the command-specific filters that have a policy choice to
+// make rather than a purely mechanical transformation. Zero value is not
+// meaningful — build one with DefaultOptions and override from there.
+type Options struct {
+	// JestDropConsoleOnPass drops Jest's console.* log blocks when the runner
+	// reports its own run as green, leaving a marker with the count. Set false
+	// to keep the log messages on passing runs too.
+	JestDropConsoleOnPass bool
+}
+
+// DefaultOptions returns the options used when no config is threaded through
+// (tests, benchmarks, FiltersFor).
+func DefaultOptions() Options {
+	return Options{JestDropConsoleOnPass: true}
+}
+
+// FiltersFor returns command-specific filters for the given command type,
+// using DefaultOptions. Callers holding a config should prefer
+// FiltersForWithOptions so the user's choices are honoured.
 func FiltersFor(cmdType CmdType) []filter.FilterFunc {
+	return FiltersForWithOptions(cmdType, DefaultOptions())
+}
+
+// FiltersForWithOptions is FiltersFor with explicit filter policy.
+func FiltersForWithOptions(cmdType CmdType, opts Options) []filter.FilterFunc {
 	if entry, ok := registry[cmdType]; ok {
-		return entry.filters()
+		return entry.filters(opts)
 	}
 	return []filter.FilterFunc{filter.CompressPaths}
 }
