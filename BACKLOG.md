@@ -582,6 +582,14 @@
 
 ---
 
+## Sprint 17 — Site toolchain (2026-08-12)
+
+### Build — Dependencies
+
+- [x] Dependabot Astro 6.3.1 → 7.1.1 broke `npm install` with ERESOLVE: `@astrojs/tailwind@6.0.2` is the deprecated integration and its peer range stops at `astro@^5`. Migrated the site to the supported path — `@tailwindcss/vite` + Tailwind v4, `tailwind.config.mjs` replaced by an `@theme` block in `src/styles/global.css` (which was previously dead code, never imported: the old integration injected its own base styles). Class migration: bare `rounded` → `rounded-sm`, `backdrop-blur` → `backdrop-blur-sm`, `bg-gradient-to-r` → `bg-linear-to-r`, explicit `cursor-pointer` on `<button>` (v4 preflight sets `cursor: default`). Renamed the `base` color token to `ink` — in v4 the `text-*` utility resolves the font-size namespace first, so `text-base` would have silently dropped the color on accent-filled badges and tabs. Also bumped the Pages workflow to Node 22 (`astro@7` requires `>=22.12.0`).
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
