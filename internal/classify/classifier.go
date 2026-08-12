@@ -99,6 +99,15 @@ var (
 	strictErrorPrefix   = regexp.MustCompile(`^(?:error|fatal):\s`)
 	strictWarningPrefix = regexp.MustCompile(`^(?:warning|warn):\s`)
 
+	// pathToken matches a whitespace-delimited token that is a file path or an
+	// artifact filename: it either contains a directory separator, or ends in a
+	// short file extension. Used to mask paths out of a line before the
+	// bare-word patterns are applied — see wordOutsidePaths.
+	//
+	// Deliberately narrow: a diagnostic token like `error:` or `FAILED` has
+	// neither a separator nor an extension, so real diagnostics are never masked.
+	pathToken = regexp.MustCompile(`\S*[/\\]\S*|\S+\.[A-Za-z0-9]{1,10}\b`)
+
 	// strictCompilerDiag matches compiler-diagnostic messages that conventionally
 	// appear as the first token of the content after `path:line:col:` — e.g.
 	// `cannot use x (type int)`, `undefined: doStuff`, `expected ';' before '}'`.
@@ -106,6 +115,25 @@ var (
 	// `cannotDoX` or assignments like `undefined := nil`.
 	strictCompilerDiag = regexp.MustCompile(`^(?:cannot |undefined: |undefined reference|not found|syntax error|expected |missing )`)
 )
+
+// wordOutsidePaths reports whether re still matches the line once file paths
+// and artifact filenames are masked out.
+//
+// Build tools routinely emit filenames that contain diagnostic words: every
+// Nuxt project ships an `error-500.mjs` chunk and an `error-404.css`, and a
+// green build that lists them was reporting a dozen errors (see issue #71).
+// A path is not a diagnostic, so the words inside it must not classify the line.
+//
+// The unmasked check runs first so the (comparatively expensive) masking is
+// only paid on lines that would otherwise be promoted above Info. Because the
+// masked check can only ever fail after the unmasked one passed, this helper
+// can demote a line but never promote one.
+func wordOutsidePaths(re *regexp.Regexp, line string) bool {
+	if !re.MatchString(line) {
+		return false
+	}
+	return re.MatchString(pathToken.ReplaceAllString(line, " "))
+}
 
 // Classify returns the semantic importance level of a line.
 func Classify(line string) Level {
@@ -164,13 +192,13 @@ func Classify(line string) Level {
 	}
 
 	// Error
-	if errorWord.MatchString(trimmed) && !zeroErrors.MatchString(trimmed) {
+	if wordOutsidePaths(errorWord, trimmed) && !zeroErrors.MatchString(trimmed) {
 		return Error
 	}
 	if pythonException.MatchString(trimmed) {
 		return Error
 	}
-	if failWord.MatchString(trimmed) {
+	if wordOutsidePaths(failWord, trimmed) {
 		return Error
 	}
 	if assertionFailed.MatchString(trimmed) {
@@ -182,7 +210,7 @@ func Classify(line string) Level {
 	if exitNonZero.MatchString(trimmed) {
 		return Error
 	}
-	if compileError.MatchString(trimmed) {
+	if wordOutsidePaths(compileError, trimmed) {
 		return Error
 	}
 
@@ -196,16 +224,16 @@ func Classify(line string) Level {
 	}
 
 	// Warning
-	if warningWord.MatchString(trimmed) {
+	if wordOutsidePaths(warningWord, trimmed) {
 		return Warning
 	}
-	if deprecatedWord.MatchString(trimmed) {
+	if wordOutsidePaths(deprecatedWord, trimmed) {
 		return Warning
 	}
-	if todoFixme.MatchString(trimmed) {
+	if wordOutsidePaths(todoFixme, trimmed) {
 		return Warning
 	}
-	if skippedWord.MatchString(trimmed) {
+	if wordOutsidePaths(skippedWord, trimmed) {
 		return Warning
 	}
 

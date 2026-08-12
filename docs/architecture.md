@@ -93,6 +93,7 @@ The chain is built in `proxy.BuildChain()` with a fixed structure:
 1. **Blacklist rules** (`RemoveByRules` — from `[rules] always_remove` config)
 2. **Generic filters** (always applied, in order):
    - `StripANSI`
+   - `StripTimestamps`
    - `NormalizeWhitespace`
    - `Dedup`
 3. **Command-specific filters** (zero or more, determined by `detect.FiltersFor`)
@@ -103,7 +104,7 @@ The chain is built in `proxy.BuildChain()` with a fixed structure:
    - `Summarize` (error/warning counts for large output)
    - `Truncate` (always last)
 
-Order matters. ANSI codes must be stripped before whitespace normalization. Dedup runs before command-specific filters so they operate on already-deduplicated input. Truncation is always last so the line budget applies to the final cleaned output.
+Order matters. ANSI codes must be stripped before whitespace normalization, and before `StripTimestamps` — runners often color the clock, so the prefix is not recognisable until the escape codes are gone. `StripTimestamps` in turn runs before `Dedup`, since lines that differ only by their clock cannot collapse while the clock is still there. Dedup runs before command-specific filters so they operate on already-deduplicated input. Truncation is always last so the line budget applies to the final cleaned output.
 
 ## Command Detection
 

@@ -152,3 +152,121 @@ func TestStripJestConsoleBlocks_AllMethods(t *testing.T) {
 // Generic `(node:PID) Warning:` collapse is owned by filter.CollapseNodeWarnings;
 // see internal/filter/nodewarn_test.go for coverage of the consecutive-block
 // case, single-warning passthrough, and signature mismatch behavior.
+
+// TestStripJestConsoleBlocks_NamedTrailers covers issue #79: Jest names the
+// calling frame for almost every application log, and the parenthesised form
+// was not recognised as a trailer — so every triplet survived the filter.
+func TestStripJestConsoleBlocks_NamedTrailers(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "named parenthesised trailer",
+			input: "  console.log\n    JWT AUTH ok for testuser\n      at log (middlewares/jwt.auth.js:85:13)\n",
+			want:  "    JWT AUTH ok for testuser",
+		},
+		{
+			name:  "Object-qualified trailer",
+			input: "  console.log\n    Jest setup loaded\n      at Object.log (tests/setup.js:188:9)\n",
+			want:  "    Jest setup loaded",
+		},
+		{
+			name:  "anonymous trailer still works",
+			input: "  console.log\n    hello\n    at src/utils/foo.ts:42:13\n",
+			want:  "    hello",
+		},
+		{
+			name:  "console.warn header",
+			input: "  console.warn\n    [gen-forms] skipped: access denied\n      at warn (scripts/gen-forms.js:12:9)\n",
+			want:  "    [gen-forms] skipped: access denied",
+		},
+		{
+			// The critical guard: a real multi-frame stack must survive whole.
+			name: "real stack trace is untouched",
+			input: "  console.error\n" +
+				"    TypeError: Cannot read property 'foo' of undefined\n" +
+				"      at Object.<anonymous> (src/bar.test.js:12:5)\n" +
+				"      at Module._compile (internal/modules/cjs/loader.js:999:30)\n" +
+				"      at runTest (jest/runner.js:42:11)\n",
+			want: "  console.error\n" +
+				"    TypeError: Cannot read property 'foo' of undefined\n" +
+				"      at Object.<anonymous> (src/bar.test.js:12:5)\n" +
+				"      at Module._compile (internal/modules/cjs/loader.js:999:30)\n" +
+				"      at runTest (jest/runner.js:42:11)\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripJestConsoleBlocks(tt.input); got != tt.want {
+				t.Errorf("stripJestConsoleBlocks(%q)\n got: %q\nwant: %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestStripJestConsoleBlocks_CollapsesRepeats covers the other half of #79:
+// a parallel runner emits the same setup banner once per worker.
+func TestStripJestConsoleBlocks_CollapsesRepeats(t *testing.T) {
+	block := "  console.log\n" +
+		"    ✅ Jest setup loaded - Test environment configured\n" +
+		"      at Object.log (tests/setup.js:188:9)\n" +
+		"\n"
+
+	// No runner totals line, so the verdict is unknown and the blocks are
+	// kept — only the repeats collapse.
+	input := strings.Repeat(block, 6) + "Running remaining suites...\n"
+	want := "    ✅ Jest setup loaded - Test environment configured\n" +
+		"    ... and 5 identical console blocks\n" +
+		"Running remaining suites...\n"
+
+	if got := stripJestConsoleBlocks(input); got != want {
+		t.Errorf("stripJestConsoleBlocks(6 identical blocks)\n got: %q\nwant: %q", got, want)
+	}
+}
+
+// TestStripJestConsoleBlocks_DropsOnPass covers the other half of #79: when the
+// runner reports its own run as green, application logs are dropped outright
+// and replaced by a single marker, so the truncation window goes to real output.
+func TestStripJestConsoleBlocks_DropsOnPass(t *testing.T) {
+	input := "  console.log\n    setup loaded\n      at Object.log (tests/setup.js:188:9)\n\n" +
+		"  console.log\n    JWT AUTH ok\n      at log (middlewares/jwt.auth.js:85:13)\n\n" +
+		"Tests:       1779 passed, 1779 total\n"
+
+	want := "  [gotk: 2 console.* log blocks dropped — run passed]\n" +
+		"Tests:       1779 passed, 1779 total\n"
+
+	if got := stripJestConsoleBlocks(input); got != want {
+		t.Errorf("stripJestConsoleBlocks(passing run)\n got: %q\nwant: %q", got, want)
+	}
+}
+
+// TestStripJestConsoleBlocks_KeepsOnFail is the counterpart: on a red run the
+// logs are the context needed to understand the failure, so they stay.
+func TestStripJestConsoleBlocks_KeepsOnFail(t *testing.T) {
+	input := "  console.log\n    JWT AUTH ok\n      at log (middlewares/jwt.auth.js:85:13)\n\n" +
+		"Tests:       2 failed, 1777 passed, 1779 total\n"
+
+	want := "    JWT AUTH ok\n" +
+		"Tests:       2 failed, 1777 passed, 1779 total\n"
+
+	if got := stripJestConsoleBlocks(input); got != want {
+		t.Errorf("stripJestConsoleBlocks(failing run)\n got: %q\nwant: %q", got, want)
+	}
+}
+
+// TestStripJestConsoleBlocks_DistinctMessagesNotCollapsed guards against the
+// collapse swallowing genuinely different logs.
+func TestStripJestConsoleBlocks_DistinctMessagesNotCollapsed(t *testing.T) {
+	input := "  console.log\n    first message\n      at log (a.js:1:1)\n\n" +
+		"  console.log\n    second message\n      at log (b.js:2:2)\n\n" +
+		"  console.log\n    first message\n      at log (a.js:1:1)\n"
+
+	want := "    first message\n    second message\n    first message"
+
+	if got := stripJestConsoleBlocks(input); got != want {
+		t.Errorf("stripJestConsoleBlocks(distinct messages)\n got: %q\nwant: %q", got, want)
+	}
+}

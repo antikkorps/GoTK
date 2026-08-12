@@ -81,6 +81,7 @@ func runStreaming(cmdArgs []string) int {
 		Dedup:               cfg.Filters.Dedup,
 		TrimDecorative:      cfg.Filters.TrimDecorative,
 		NormalizeWhitespace: cfg.Filters.NormalizeWhitespace,
+		StripTimestamps:     cfg.Filters.StripTimestamps,
 	})
 
 	// Create a context with timeout for streaming

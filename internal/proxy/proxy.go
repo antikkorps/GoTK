@@ -41,6 +41,13 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 	if cfg.Filters.StripANSI {
 		chain.AddNamed("strip_ansi", filter.StripANSI)
 	}
+	// Timestamp prefixes are stripped before whitespace normalization and
+	// dedup: runners pad after the clock (so the raw line still carries its
+	// indentation at this point), and two otherwise-identical lines can only
+	// collapse once the clock that distinguishes them is gone.
+	if cfg.Filters.StripTimestamps {
+		chain.AddNamed("strip_timestamps", filter.StripTimestamps)
+	}
 	if cfg.Filters.NormalizeWhitespace {
 		chain.AddNamed("normalize_whitespace", filter.NormalizeWhitespace)
 	}

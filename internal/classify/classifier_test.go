@@ -312,3 +312,86 @@ func TestLevelString(t *testing.T) {
 		})
 	}
 }
+
+// TestClassify_DiagnosticWordsInsidePaths covers issue #71: build tools list
+// artifact filenames that contain diagnostic words, and a green build must not
+// be reported as failing because of them.
+func TestClassify_DiagnosticWordsInsidePaths(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want Level
+	}{
+		// --- The repro from #71 (Nuxt / Nitro build listing) ---
+		{
+			name: "nuxt error-500 css asset",
+			line: "ℹ node_modules/.cache/nuxt/.nuxt/dist/client/_nuxt/error-500.ChVycSbP.css    1.91 kB │ gzip:  0.73 kB",
+			want: Info,
+		},
+		{
+			name: "nuxt error-404 css asset",
+			line: "ℹ node_modules/.cache/nuxt/.nuxt/dist/client/_nuxt/error-404.AlaAyKR2.css    2.43 kB │ gzip:  0.86 kB",
+			want: Info,
+		},
+		{
+			name: "nitro server chunk listing",
+			line: "├─ .output/server/chunks/_/error-500.mjs (5.09 kB) (2.06 kB gzip)",
+			want: Info,
+		},
+		{
+			name: "bare artifact filename",
+			line: "  error-404.mjs",
+			want: Info,
+		},
+		{
+			name: "directory segment named error",
+			line: "  dist/error/index.html  1.2 kB",
+			want: Info,
+		},
+		{
+			name: "filename containing failed",
+			line: "  build/test-failed.snapshot.js  0.4 kB",
+			want: Info,
+		},
+		{
+			name: "filename containing deprecated",
+			line: "  dist/deprecated-api.mjs  1.1 kB",
+			want: Info,
+		},
+
+		// --- Real diagnostics must still be classified, paths and all ---
+		{
+			name: "error keyword alongside a path",
+			line: "ERROR: build failed at src/main.ts",
+			want: Error,
+		},
+		{
+			name: "module resolution failure naming an error file",
+			line: "Cannot find module './error-handler.js'",
+			want: Error,
+		},
+		{
+			name: "node ENOENT mentioning a path",
+			line: "Error: ENOENT: no such file or directory, open '/tmp/error.txt'",
+			want: Error,
+		},
+		{
+			name: "go test failure with subtest path",
+			line: "--- FAIL: TestFoo/subtest (0.00s)",
+			want: Error,
+		},
+		{
+			name: "warning keyword alongside a path",
+			line: "warning: unused import in src/util/log.ts",
+			want: Warning,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Classify(tt.line); got != tt.want {
+				t.Errorf("Classify(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}

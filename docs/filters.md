@@ -48,6 +48,43 @@ result one
 result two
 ```
 
+### StripTimestamps
+
+**File:** `internal/filter/timestamp.go`
+
+Removes the leading timestamp prefix from output lines — a bare `HH:MM:SS` clock,
+a bracketed `[HH:MM:SS]`, or a full ISO 8601 stamp, each with optional fractional
+seconds and timezone. Runs before `Dedup`, because two otherwise-identical lines
+can only collapse once the clock that distinguishes them is gone.
+
+The filter never drops a line, only a prefix, so no diagnostic content can be
+lost. Three guards keep it conservative:
+
+- The pattern is anchored at line start, so a clock inside a message or a
+  duration column (`time=00:00:04.00`) is never touched.
+- At least 3 lines must carry a prefix before anything is stripped — a log
+  prefix repeats, whereas a lone line opening with a clock is data.
+- Exactly one separator character is consumed, so runners that align nested
+  output after the timestamp keep the indentation that encodes their hierarchy.
+
+Disable with `strip_timestamps = false` under `[filters]`.
+
+**Before:**
+```
+12:35:02 [build] Building static entrypoints...
+12:35:03 ✓ Completed in 214ms.
+12:35:03   ├─ /fr/index.html (+97ms)
+12:35:03   ├─ /index.html (+37ms)
+```
+
+**After:**
+```
+[build] Building static entrypoints...
+✓ Completed in 214ms.
+  ├─ /fr/index.html (+97ms)
+  ├─ /index.html (+37ms)
+```
+
 ### Dedup
 
 **File:** `internal/filter/dedup.go`
@@ -370,6 +407,58 @@ found 0 vulnerabilities
 ```
 added 847 packages, and audited 848 packages in 12s
 found 0 vulnerabilities
+```
+
+### Jest: `stripJestConsoleBlocks`
+
+**Applies to:** npm, yarn, pnpm, npx, bun, node, tsx, ts-node, deno
+
+Jest wraps every intercepted `console.*` call in a three-line block — a lone
+method-name header, the message, and a stack frame pointing at the call site:
+
+```
+  console.log
+    JWT AUTH ok for testuser
+      at log (middlewares/jwt.auth.js:85:13)
+```
+
+On a large suite these blocks dominate the output. The filter handles the block
+as one unit, with behaviour that depends on what the runner reported:
+
+- **Run reported green** (a runner totals line says zero failures): the blocks
+  are dropped and replaced by one marker, `[gotk: N console.* log blocks
+  dropped — run passed]`. Application logs from a passing suite carry no signal
+  an LLM can act on, and they crowd real output out of the truncation window.
+- **Run failed, or no totals line at all**: the header and trailer are stripped
+  and the message is kept — logs are context for the failure. Consecutive
+  blocks with an identical message collapse to one copy plus
+  `... and N identical console blocks` (parallel runners emit the same setup
+  banner once per worker).
+
+**Real stack traces are never touched.** A console trailer is a *lone* frame; an
+error stack has consecutive ones. When the line after a trailer candidate is
+also a frame, the block is left exactly as it was.
+
+The verdict comes from `filter.DetectRunnerResult`, the same runner anchors that
+back the `result:` line in the summary — never from a guess about the content.
+
+**Before** (a passing run):
+```
+  console.log
+    ✅ Jest setup loaded
+      at Object.log (tests/setup.js:188:9)
+
+  console.log
+    JWT AUTH ok for testuser
+      at log (middlewares/jwt.auth.js:85:13)
+
+Tests:       1779 passed, 1779 total
+```
+
+**After:**
+```
+  [gotk: 2 console.* log blocks dropped — run passed]
+Tests:       1779 passed, 1779 total
 ```
 
 ### Cargo: `compressCargoOutput`
