@@ -117,6 +117,10 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 //   - node_warnings: PID-aware collapse of repeated worker warnings.
 //     Node emits these via process.emitWarning to stderr, so multi-worker
 //     test runs flood the channel. See issue #37.
+//   - dedup_blocks: collapse consecutive byte-identical multi-line blocks
+//     into one copy plus a count. Lossless apart from the repetition itself,
+//     and needed here because the worst repeaters live on stderr: Jest's
+//     console.* blocks and Playwright's [WebServer] traces (issues #84, #87).
 //
 // Streaming mode (cmd/gotk runStreaming) does not currently apply this
 // chain because stderr is forwarded line-by-line as it arrives; batching
@@ -131,6 +135,9 @@ func BuildStderrChain(cfg *config.Config) *filter.Chain {
 		chain.AddNamed("redact_secrets", filter.RedactSecrets)
 	}
 	chain.AddNamed("node_warnings", filter.CollapseNodeWarnings)
+	if cfg.Filters.Dedup {
+		chain.AddNamed("dedup_blocks", filter.DedupBlocks)
+	}
 	return chain
 }
 

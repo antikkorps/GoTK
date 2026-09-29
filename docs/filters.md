@@ -112,7 +112,7 @@ Collapses runs of consecutive identical lines into the first occurrence plus a c
 
 **File:** `internal/filter/dedup.go`
 
-Collapses consecutive, byte-identical multi-line blocks (2 to 30 lines), which the line-level `Dedup` cannot see: the same stack trace logged on every request by a test web server, or a Jest `console.log` block emitted once per suite. The first copy is kept verbatim; the rest become one count marker. Runs after the command-specific and stack trace filters, and is enabled with `dedup`.
+Collapses consecutive, byte-identical multi-line blocks (2 to 30 lines), which the line-level `Dedup` cannot see: the same stack trace logged on every request by a test web server, or a Jest `console.log` block emitted once per suite. The first copy is kept verbatim; the rest become one count marker. Runs after the command-specific and stack trace filters on stdout, and also on stderr, where Jest console blocks and Playwright `[WebServer]` traces are written. Enabled with `dedup`.
 
 **Before:**
 ```
