@@ -77,6 +77,14 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 	// panics/tracebacks can appear in any command's stderr captured as stdout.
 	chain.AddNamed("stack_traces", filter.CompressStackTraces)
 
+	// Multi-line block dedup runs after the command-specific and stack trace
+	// filters so it sees their final shape (identical traces stay identical
+	// after compression) and cannot confuse their block parsers with its
+	// marker line.
+	if cfg.Filters.Dedup {
+		chain.AddNamed("dedup_blocks", filter.DedupBlocks)
+	}
+
 	// Secret redaction -- always runs before truncation to ensure no secrets
 	// leak even in truncated output.
 	if cfg.Security.RedactSecrets {
@@ -172,17 +180,31 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 	}
 
 	raw := result.Stdout
-	if raw == "" {
-		return exitCodeFromResult(result, err)
+	exitCode := exitCodeFromResult(result, err)
+	cleaned := ""
+	if raw != "" {
+		cleaned = filterStdout(cfg, command, raw, maxLines, exitCode, result.Stderr)
+		fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 	}
 
 	// Apply the stderr policy chain (strip ANSI, redact secrets, collapse
 	// node worker warnings). Without this, secrets in stderr would leak.
+	// Stderr goes after stdout, separated by a newline when stdout lacks a
+	// trailing one, so the two never fuse under 2>&1 (issue #86).
 	if result.Stderr != "" {
 		stderrChain := BuildStderrChain(cfg)
-		fmt.Fprint(os.Stderr, stderrChain.Apply(result.Stderr))
+		filteredErr := stderrChain.Apply(result.Stderr)
+		if filteredErr != "" && cleaned != "" && !strings.HasSuffix(cleaned, "\n") {
+			fmt.Fprintln(os.Stdout) //nolint:errcheck
+		}
+		fmt.Fprint(os.Stderr, filteredErr)
 	}
 
+	return exitCode
+}
+
+// filterStdout runs the stdout filter chain for a shell command line.
+func filterStdout(cfg *config.Config, command, raw string, maxLines, exitCode int, stderr string) string {
 	// Detect command type from the first word; fall back to AutoDetect on
 	// captured output so wrappers (jest, vitest, etc.) that aren't in the
 	// binary registry still pick up the right filters.
@@ -196,15 +218,11 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 		}
 	}
 
-	exitCode := exitCodeFromResult(result, err)
-	chain := BuildChainWithExit(cfg, cmdType, maxLines, exitCode, result.Stderr)
+	chain := BuildChainWithExit(cfg, cmdType, maxLines, exitCode, stderr)
 	if len(cfg.Rules.AlwaysKeep) > 0 {
 		chain.AddNamed("always_keep", filter.KeepByRules(cfg.Rules.AlwaysKeep, raw))
 	}
-	cleaned := chain.Apply(raw)
-	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
-
-	return exitCode
+	return chain.Apply(raw)
 }
 
 // RunShell starts an interactive-ish proxy shell that reads commands from

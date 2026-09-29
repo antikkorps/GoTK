@@ -35,12 +35,30 @@ func (c *Chain) AddNamed(name string, f FilterFunc) {
 // output) are normalized to LF at entry so downstream filters can split on
 // "\n" without leaving trailing "\r" characters. Streaming mode already handles
 // this via bufio.Scanner's default split function.
+//
+// The output ends with a newline exactly when the input does, whatever the
+// individual filters did to the tail. Otherwise consecutive gotk invocations
+// glue their last and first lines together, and the output differs from
+// passthrough on a byte comparison (issue #85).
 func (c *Chain) Apply(input string) string {
 	result := strings.ReplaceAll(input, "\r\n", "\n")
 	for _, nf := range c.filters {
 		result = nf.fn(result)
 	}
-	return result
+	return matchTrailingNewline(input, result)
+}
+
+// matchTrailingNewline makes output end with a single "\n" if input ends
+// with one, and with no newline otherwise. Empty output stays empty.
+func matchTrailingNewline(input, output string) string {
+	if output == "" {
+		return output
+	}
+	output = strings.TrimRight(output, "\n")
+	if strings.HasSuffix(input, "\n") {
+		output += "\n"
+	}
+	return output
 }
 
 // Names returns the list of filter names in the chain.

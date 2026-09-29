@@ -71,6 +71,7 @@ type SecurityConfig struct {
 type GeneralConfig struct {
 	MaxLines       int
 	Stats          bool
+	ExitVerdict    bool // emit a final "[gotk] ✔ exit 0" line in exec mode (issue #88)
 	ShellMode      bool
 	Mode           FilterMode
 	AutoEscalate   string // off|hint|window|conservative — see filter.AutoEscalateMode
@@ -107,6 +108,7 @@ func Default() *Config {
 		General: GeneralConfig{
 			MaxLines:       50,
 			Stats:          false,
+			ExitVerdict:    true,
 			ShellMode:      false,
 			AutoEscalate:   "window",
 			EscalateWindow: 10,
@@ -255,6 +257,8 @@ func applyTOML(cfg *Config, data string) {
 				}
 			case "stats":
 				cfg.General.Stats = parseBool(val)
+			case "exit_verdict":
+				cfg.General.ExitVerdict = parseBool(val)
 			case "shell_mode":
 				cfg.General.ShellMode = parseBool(val)
 			case "mode":
@@ -495,6 +499,7 @@ func (c *Config) Show() string {
 	b.WriteString("\n[general]\n")
 	b.WriteString("  max_lines = " + strconv.Itoa(c.General.MaxLines) + "\n")
 	b.WriteString("  stats = " + formatBool(c.General.Stats) + "\n")
+	b.WriteString("  exit_verdict = " + formatBool(c.General.ExitVerdict) + "\n")
 	b.WriteString("  shell_mode = " + formatBool(c.General.ShellMode) + "\n")
 	mode := string(c.General.Mode)
 	if mode == "" {
