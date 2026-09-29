@@ -333,6 +333,19 @@ func summarize(input string, exitCode int, stderr string) string {
 	}
 
 	fmt.Fprintf(&sb, "  result: %s\n", result)
+
+	// Quote the runner's own totals so the counts are in the header, not only
+	// at the far end of the output (Jest prints them on stderr). See #87.
+	counts := runnerCounts(lines)
+	if len(counts) == 0 && stderr != "" {
+		counts = runnerCounts(strings.Split(stderr, "\n"))
+	}
+	for _, c := range counts {
+		if len(c) > 120 {
+			c = c[:120]
+		}
+		fmt.Fprintf(&sb, "   → %s\n", c)
+	}
 	sb.WriteString("[/gotk summary]\n\n")
 
 	return sb.String() + input

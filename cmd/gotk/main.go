@@ -275,19 +275,66 @@ func main() {
 	}
 
 	// Output — order matters when stdout/stderr are merged with 2>&1:
-	// cleaned stdout first, then child stderr, then the [gotk] stats line.
-	// That way the stats marker always lands at the very end of the merged stream.
+	// cleaned stdout first, then child stderr, then the [gotk] stats line,
+	// then the exit verdict. That way the gotk markers always land at the
+	// very end of the merged stream.
 	fmt.Print(cleaned)
+	lastOut := cleaned
 	if result.Stderr != "" {
 		// Stderr policy chain (single source of truth in proxy package):
 		// strip ANSI, redact secrets, collapse node worker warnings. See
 		// proxy.BuildStderrChain for the rationale on each filter.
 		stderrChain := proxy.BuildStderrChain(cfg)
-		fmt.Fprint(os.Stderr, stderrChain.Apply(result.Stderr))
+		filteredErr := stderrChain.Apply(result.Stderr)
+		if filteredErr != "" {
+			// Under 2>&1 the two streams are concatenated; without a newline
+			// at the seam, the last stdout line fuses with the first stderr
+			// line (issue #86).
+			if needsSeparator(cleaned) {
+				fmt.Println()
+			}
+			fmt.Fprint(os.Stderr, filteredErr)
+			lastOut = filteredErr
+		}
 	}
-	emitStats(result.Stdout, cleaned)
+	if emitStats(result.Stdout, cleaned) {
+		lastOut = "\n"
+	}
+	emitVerdict(result.ExitCode, lastOut)
 
 	os.Exit(result.ExitCode)
+}
+
+// needsSeparator reports whether out is non-empty and lacks a trailing
+// newline, i.e. whether anything written after it would land on its last line.
+func needsSeparator(out string) bool {
+	return out != "" && !strings.HasSuffix(out, "\n")
+}
+
+// emitVerdict writes a final "[gotk] ✔ exit 0" / "[gotk] ✘ exit N" line to
+// stderr. Commands that are silent on success (tsc --noEmit, prettier
+// --check, ...) otherwise leave a filtered output that cannot tell success
+// from failure (issue #88). The line is always last and on its own line so
+// `| tail -1` finds it. lastOut is the last text written, used to decide
+// whether a separating newline is needed.
+func emitVerdict(exitCode int, lastOut string) {
+	if !cfg.General.ExitVerdict {
+		return
+	}
+	sep := ""
+	if needsSeparator(lastOut) {
+		sep = "\n"
+	}
+	fmt.Fprintf(os.Stderr, "%s%s\n", sep, verdictLine(exitCode))
+}
+
+// verdictLine formats the exit verdict marker.
+func verdictLine(exitCode int) string {
+	mark := "✔"
+	if exitCode != 0 {
+		mark = "✘"
+	}
+	return fmt.Sprintf("[gotk] %s exit %d", mark, exitCode)
 }
 
 func parseFlags(args []string) []string {
@@ -315,6 +362,8 @@ func parseFlags(args []string) []string {
 			measureFlag = true
 		case "--learn":
 			learnFlag = true
+		case "--no-verdict":
+			cfg.General.ExitVerdict = false
 		case "--quiet", "-q":
 			quietMode = true
 		case "--debug":
@@ -357,9 +406,10 @@ func parseFlags(args []string) []string {
 // emitStats writes the [gotk] reduction summary to stderr when --stats is set.
 // Callers should print the filtered output and any passthrough stderr BEFORE
 // calling this so the marker lands at the end of the merged stream under 2>&1.
-func emitStats(raw, cleaned string) {
-	if !showStats {
-		return
+// Reports whether anything was written.
+func emitStats(raw, cleaned string) bool {
+	if !showStats || quietMode {
+		return false
 	}
 	rawBytes := len(raw)
 	cleanBytes := len(cleaned)
@@ -370,6 +420,7 @@ func emitStats(raw, cleaned string) {
 	}
 	logInfo("\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
 		rawBytes, cleanBytes, pct, saved)
+	return true
 }
 
 // isTerminal checks if a file is connected to a terminal.

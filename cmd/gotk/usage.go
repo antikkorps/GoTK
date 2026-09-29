@@ -40,6 +40,7 @@ Flags:
   -s, --stats          Show reduction statistics on stderr
   -m, --max-lines N    Max output lines (default: 50, keeps head+tail)
   --no-truncate        Disable line truncation
+  --no-verdict         Omit the final "[gotk] ✔ exit N" line (exec mode)
   --conservative       Minimal reduction, zero info loss
   --balanced           Default mode, good reduction
   --aggressive         Maximum reduction

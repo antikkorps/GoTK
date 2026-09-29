@@ -446,3 +446,26 @@ func summaryBlock(out string) string {
 	}
 	return out[:end+len("[/gotk summary]")]
 }
+
+// Issue #87: the header quotes the runner's totals, read from stderr when the
+// runner (Jest) prints them there.
+func TestSummarize_QuotesRunnerCounts(t *testing.T) {
+	stdout := genLines(150, "app log line")
+	stderr := "PASS tests/a.test.js\n" +
+		"Test Suites: 104 passed, 104 total\n" +
+		"Tests:       2155 passed, 2155 total\n" +
+		"Time:        12.3 s\n"
+	got := SummarizeWithContext(0, stderr)(stdout)
+	header := got[:strings.Index(got, "[/gotk summary]")]
+	for _, want := range []string{
+		"→ Test Suites: 104 passed, 104 total",
+		"→ Tests:       2155 passed, 2155 total",
+	} {
+		if !strings.Contains(header, want) {
+			t.Errorf("summary header missing %q:\n%s", want, header)
+		}
+	}
+	if strings.Contains(header, "Time:") {
+		t.Errorf("non-count line quoted in header:\n%s", header)
+	}
+}

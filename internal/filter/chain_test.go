@@ -80,3 +80,30 @@ func TestChainNormalizesCRLF(t *testing.T) {
 		t.Errorf("Chain.Apply with CRLF = %q, want %q", got, want)
 	}
 }
+
+// Issue #85: the chain output ends with a newline exactly when its input does.
+func TestChainApply_PreservesTrailingNewline(t *testing.T) {
+	stripAll := func(s string) string { return strings.TrimRight(s, "\n") }
+	addOne := func(s string) string { return s + "\n\n" }
+
+	tests := []struct {
+		name  string
+		f     FilterFunc
+		input string
+		want  string
+	}{
+		{"restores removed newline", stripAll, "x\n", "x\n"},
+		{"drops added newline", addOne, "a\nb", "a\nb"},
+		{"collapses extra newlines", addOne, "a\n", "a\n"},
+		{"empty stays empty", stripAll, "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewChain()
+			c.Add(tt.f)
+			if got := c.Apply(tt.input); got != tt.want {
+				t.Errorf("Apply(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

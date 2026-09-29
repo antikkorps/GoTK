@@ -16,6 +16,9 @@ import (
 type runnerAnchor struct {
 	re      *regexp.Regexp
 	verdict func(line string) (verdict string, ok bool)
+	// counts marks a totals line ("Tests: 3 passed, 3 total") worth quoting
+	// in the summary header, so the verdict is readable without `| tail`.
+	counts bool
 }
 
 // runnerAnchors are the test-runner total / result / duration lines for the
@@ -24,19 +27,19 @@ type runnerAnchor struct {
 // anchors are tried in order — the first matching anchor with a verdict wins.
 var runnerAnchors = []runnerAnchor{
 	// Jest: "Test Suites: 4 passed, 4 total" — kept for truncation only.
-	{re: regexp.MustCompile(`^\s*Test Suites:\s`)},
+	{re: regexp.MustCompile(`^\s*Test Suites:\s`), counts: true},
 	// Jest: "Tests:       5 failed, 1615 passed, 1620 total"
-	{re: regexp.MustCompile(`^\s*Tests:\s+.*\btotal\b`), verdict: failedCountVerdict},
+	{re: regexp.MustCompile(`^\s*Tests:\s+.*\btotal\b`), verdict: failedCountVerdict, counts: true},
 	{re: regexp.MustCompile(`^\s*Snapshots:\s`)},
 	{re: regexp.MustCompile(`^\s*Time:\s+\d`)},
 	// Vitest: "Test Files  2 failed | 19 passed (21)" / "Tests  2 failed | 282 passed (284)"
-	{re: regexp.MustCompile(`^\s*Test Files\s+.*\b(passed|failed)\b`), verdict: failedCountVerdict},
-	{re: regexp.MustCompile(`^\s*Tests\s+.*\b(passed|failed)\b`), verdict: failedCountVerdict},
+	{re: regexp.MustCompile(`^\s*Test Files\s+.*\b(passed|failed)\b`), verdict: failedCountVerdict, counts: true},
+	{re: regexp.MustCompile(`^\s*Tests\s+.*\b(passed|failed)\b`), verdict: failedCountVerdict, counts: true},
 	{re: regexp.MustCompile(`^\s*Duration\s+\d`)},
 	// pytest: "======= 42 passed in 1.23s =======" / "==== 3 failed, 40 passed in 2s ===="
-	{re: regexp.MustCompile(`^=+.*\b(passed|failed|error)\b.*=+$`), verdict: pytestVerdict},
+	{re: regexp.MustCompile(`^=+.*\b(passed|failed|error)\b.*=+$`), verdict: pytestVerdict, counts: true},
 	// Cargo: "test result: ok. 42 passed; 0 failed; ..."
-	{re: regexp.MustCompile(`^\s*test result:\s+(ok|FAILED)\.\s+\d+\s+passed`), verdict: cargoVerdict},
+	{re: regexp.MustCompile(`^\s*test result:\s+(ok|FAILED)\.\s+\d+\s+passed`), verdict: cargoVerdict, counts: true},
 	// Go test FAIL: emitted as "FAIL\tpkg/path\t<duration>" or just "FAIL\tpkg/path".
 	// The bare-FAIL form (no duration) appears when a package fails to build, so
 	// we accept either trailing whitespace or a duration. Always FAIL.
@@ -93,4 +96,30 @@ func cargoVerdict(line string) (string, bool) {
 // when the anchor matches. Used for go test ok/FAIL lines.
 func constVerdict(v string) func(string) (string, bool) {
 	return func(string) (string, bool) { return v, true }
+}
+
+// runnerCounts returns the test runner's totals lines (Jest "Test Suites:" /
+// "Tests:", Vitest "Test Files" / "Tests", pytest and cargo result lines),
+// trimmed and in output order. Only the last occurrence of each kind is kept:
+// runners print their final totals at the end.
+func runnerCounts(lines []string) []string {
+	seen := make(map[int]bool)
+	var found []int
+	for i := len(lines) - 1; i >= 0; i-- {
+		for k, anchor := range runnerAnchors {
+			if !anchor.counts || !anchor.re.MatchString(lines[i]) {
+				continue
+			}
+			if !seen[k] {
+				seen[k] = true
+				found = append(found, i)
+			}
+			break
+		}
+	}
+	out := make([]string, len(found))
+	for j, idx := range found {
+		out[len(found)-1-j] = strings.TrimSpace(lines[idx])
+	}
+	return out
 }

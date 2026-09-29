@@ -333,3 +333,21 @@ func TestBuildStderrChain_RespectsRedactSecretsToggle(t *testing.T) {
 		t.Errorf("redaction was disabled, value should pass through, got: %q", got)
 	}
 }
+
+// Issue #87: Jest writes its console.* blocks to stderr, so the repeats must
+// be collapsed there too.
+func TestBuildStderrChain_CollapsesRepeatedBlocks(t *testing.T) {
+	cfg := config.Default()
+	block := "  console.log\n    setup loaded\n\n      at Object.log (tests/setup.js:188:9)\n\n"
+	input := strings.Repeat(block, 4) + "Tests:       5 passed, 5 total\n"
+	got := BuildStderrChain(cfg).Apply(input)
+	if strings.Count(got, "setup loaded") != 1 {
+		t.Errorf("expected one copy of the block, got:\n%s", got)
+	}
+	if !strings.Contains(got, "repeated 3 more times") {
+		t.Errorf("expected a repeat count marker, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Tests:       5 passed, 5 total") {
+		t.Errorf("totals line lost:\n%s", got)
+	}
+}

@@ -151,6 +151,7 @@ gotk measure report --period 7d  # View report
 | `--stats` | `-s` | Print reduction statistics to stderr |
 | `--max-lines N` | `-m N` | Maximum output lines (default: 50, keeps head + tail) |
 | `--no-truncate` | | Disable line limit entirely |
+| `--no-verdict` | | Omit the final `[gotk] ✔ exit 0` / `[gotk] ✘ exit N` line |
 | `--conservative` | | Minimal reduction, zero info loss |
 | `--balanced` | | Default mode — good reduction, preserves important lines |
 | `--aggressive` | | Maximum reduction, acceptable info loss |
@@ -189,6 +190,7 @@ command output
       v
   clean output (stdout)
   stats (stderr, if --stats)
+  exit verdict (stderr, last line: [gotk] ✔ exit 0 / ✘ exit N)
 ```
 
 Command detection works two ways:

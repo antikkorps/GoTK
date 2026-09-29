@@ -140,6 +140,10 @@ Maximum output lines (default: 50). Keeps head and tail, truncates middle.
 .B \-\-no-truncate
 Disable line truncation entirely.
 .TP
+.B \-\-no-verdict
+Omit the final "[gotk] ✔ exit 0" / "[gotk] ✘ exit N" line written to stderr in exec mode.
+Also settable with \fBexit_verdict = false\fR under \fB[general]\fR.
+.TP
 .B \-\-conservative
 Minimal reduction, zero information loss. Sets max-lines to 200 with no truncation.
 .TP
@@ -328,6 +332,7 @@ Example configuration:
 [general]
 mode = "balanced"
 stats = false
+exit_verdict = true
 max_lines = 50
 
 [filters]
