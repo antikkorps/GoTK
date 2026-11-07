@@ -496,6 +496,8 @@ Tests:       1779 passed, 1779 total
 
 Collapses `Compiling` and `Downloading` lines into summary counts. Preserves all error and warning messages verbatim.
 
+Cargo writes its progress and diagnostics to **stderr**, so in exec mode this stdout filter rarely sees them; the stderr side is handled by `collapseCargoProgress` (see [Stderr Noise Filters](#stderr-noise-filters)).
+
 **Before:**
 ```
    Compiling serde v1.0.152
@@ -685,3 +687,44 @@ webpack 5.89.0 compiled successfully in 4523 ms
 **Applies to:** ssh, scp, sftp, rsync
 
 Strips SSH connection banners (`Warning: Permanently added`), debug lines, host key fingerprints, and MOTD decorations. Compresses SCP progress lines into a file count. Preserves actual command output and errors.
+
+## Stderr Noise Filters
+
+Stderr only gets the narrow stderr chain (see *Stderr Policy* in `docs/architecture.md`). On top of it, a few commands get a strict allowlist of pure noise, returned by `detect.StderrNoiseFilter` and added last as `stderr_noise`. A line is touched only when it matches a known noise shape exactly; everything else passes through byte-for-byte.
+
+### Cargo: `collapseCargoProgress`
+
+**Applies to:** cargo, rustc (stderr)
+
+Each run of consecutive indented status lines (`Compiling`, `Checking`, `Downloaded`, `Downloading`, `Fresh`, `Blocking`) becomes one count line. Runs are kept separate so warnings and errors stay in chronological position; a run of one line is kept verbatim. `Updating`, `Locking`, `Finished`, `Installing`, and all diagnostics are untouched.
+
+**Before:**
+```
+  Downloaded serde v1.0.210
+   Compiling serde v1.0.210
+   Compiling myapp v0.1.0 (/home/u/myapp)
+error[E0308]: mismatched types
+```
+
+**After:**
+```
+  ... 3 cargo progress lines (Downloaded 1, Compiling 2)
+error[E0308]: mismatched types
+```
+
+### Npm: `collapseNpmConfigWarnings`
+
+**Applies to:** npm, yarn, pnpm, bun, npx, node (stderr)
+
+`npm warn Unknown <scope> config "<key>"` warnings (pnpm keys in `.npmrc`, printed on every `npm` call) are merged per scope into one line that keeps every key name. The full npm boilerplate must match; any other wording is left alone. A scope with a single warning keeps its original line.
+
+**Before:**
+```
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+```
+
+**After:**
+```
+npm warn Unknown project config "auto-install-peers", "strict-peer-dependencies" (ignored by npm; see `npm help npmrc`)
+```

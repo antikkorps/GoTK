@@ -224,7 +224,7 @@ internal/bench/    Benchmark suite with realistic fixtures
 Key design decisions:
 - Filters are composable `func(string) string` functions chained via `filter.Chain`
 - Generic filters always run; command-specific filters are added based on detection
-- Stderr passes through unmodified — only stdout is cleaned
+- Stderr gets a narrow noise-only chain (ANSI, secrets, repeated blocks, per-command noise allowlists) — never structural or truncating filters
 - Conservative by default: never discard semantically important content
 
 ## Configuration

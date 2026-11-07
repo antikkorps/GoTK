@@ -222,8 +222,12 @@ Filters applied (in order):
 1. `strip_ansi` — cosmetic, safe on any text.
 2. `redact_secrets` — same redaction as stdout. Without this, a secret accidentally written to stderr would leak past gotk. This was the canonical missing piece before the chain existed (Sprint 15).
 3. `node_warnings` — PID-aware collapse of repeated `(node:PID) Warning:` blocks from multi-worker test runs (issue #37).
+4. `dedup_blocks` — collapse consecutive byte-identical multi-line blocks (Jest console blocks, Playwright `[WebServer]` traces; issues #84, #87). Enabled with `dedup`.
+5. `stderr_noise` — per-command allowlist from `detect.StderrNoiseFilter` (cargo progress runs, npm `Unknown ... config` warnings; issues #96, #101). Only present for commands that have one. See *Stderr Noise Filters* in `docs/filters.md`.
 
-What is **not** in the chain: structural / summarizing / truncating filters, command-specific filters, dedup, whitespace normalization. None of these are safe on diagnostic output.
+What is **not** in the chain: structural / summarizing / truncating filters, the stdout command-specific filters, line-level dedup, whitespace normalization. None of these are safe on diagnostic output. A command-specific exception must be an exact-match allowlist of noise patterns added to `detect.StderrNoiseFilter`, never a generic filter.
+
+`--stats` counts both streams: the `[gotk]` line reports stdout + stderr, with a `[stdout x → y, stderr x → y]` breakdown when stderr is non-empty.
 
 **Streaming mode** (`gotk --stream`) does not apply this chain. Stderr is forwarded line-by-line as it arrives, so batching it through filters would defer output. Live stderr stays best-effort passthrough; a future iteration could apply a per-line subset (`strip_ansi` + `redact_secrets` only).
 

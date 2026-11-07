@@ -213,7 +213,7 @@ func TestBuildChain_TruncateToggle(t *testing.T) {
 
 func TestBuildStderrChain_RedactsSecrets(t *testing.T) {
 	cfg := config.Default()
-	chain := BuildStderrChain(cfg)
+	chain := BuildStderrChain(cfg, detect.CmdGeneric)
 
 	stderr := "ERROR: connection refused with token=ghp_FAKE00TEST00VALUE00NOT00REAL00TOKEN00xxx\n"
 	got := chain.Apply(stderr)
@@ -228,7 +228,7 @@ func TestBuildStderrChain_RedactsSecrets(t *testing.T) {
 
 func TestBuildStderrChain_CollapsesNodeWorkerWarnings(t *testing.T) {
 	cfg := config.Default()
-	chain := BuildStderrChain(cfg)
+	chain := BuildStderrChain(cfg, detect.CmdGeneric)
 
 	stderr := strings.Repeat(
 		"(node:1) Warning: --localstorage-file was provided without a valid path\n"+
@@ -261,7 +261,7 @@ func TestBuildStderrChain_CollapsesNodeWorkerWarnings(t *testing.T) {
 // worker warnings, or starts mangling the totals line, this test fails.
 func TestBuildStderrChain_RealisticJestStderr_RegressionGuard(t *testing.T) {
 	cfg := config.Default()
-	chain := BuildStderrChain(cfg)
+	chain := BuildStderrChain(cfg, detect.CmdGeneric)
 
 	// Build a realistic 4-worker stderr stream.
 	const warnBlock = "(node:%d) Warning: --experimental-vm-modules was provided\n" +
@@ -324,7 +324,7 @@ func TestBuildStderrChain_RealisticJestStderr_RegressionGuard(t *testing.T) {
 func TestBuildStderrChain_RespectsRedactSecretsToggle(t *testing.T) {
 	cfg := config.Default()
 	cfg.Security.RedactSecrets = false
-	chain := BuildStderrChain(cfg)
+	chain := BuildStderrChain(cfg, detect.CmdGeneric)
 
 	stderr := "API_KEY=sk-fake00test00000000000000000000000000\n"
 	got := chain.Apply(stderr)
@@ -340,7 +340,7 @@ func TestBuildStderrChain_CollapsesRepeatedBlocks(t *testing.T) {
 	cfg := config.Default()
 	block := "  console.log\n    setup loaded\n\n      at Object.log (tests/setup.js:188:9)\n\n"
 	input := strings.Repeat(block, 4) + "Tests:       5 passed, 5 total\n"
-	got := BuildStderrChain(cfg).Apply(input)
+	got := BuildStderrChain(cfg, detect.CmdGeneric).Apply(input)
 	if strings.Count(got, "setup loaded") != 1 {
 		t.Errorf("expected one copy of the block, got:\n%s", got)
 	}
@@ -349,5 +349,30 @@ func TestBuildStderrChain_CollapsesRepeatedBlocks(t *testing.T) {
 	}
 	if !strings.Contains(got, "Tests:       5 passed, 5 total") {
 		t.Errorf("totals line lost:\n%s", got)
+	}
+}
+
+// Issue #96: cargo prints its progress on stderr; the command-specific noise
+// allowlist must run in the stderr chain, after ANSI stripping.
+func TestBuildStderrChain_AppliesCommandNoiseAllowlist(t *testing.T) {
+	cfg := config.Default()
+	chain := BuildStderrChain(cfg, detect.CmdCargo)
+	if names := chain.Names(); names[len(names)-1] != "stderr_noise" {
+		t.Fatalf("stderr_noise should be the last filter, got %v", names)
+	}
+	input := "\x1b[32m   Compiling\x1b[0m a v1.0.0\n\x1b[32m   Compiling\x1b[0m b v1.0.0\n" +
+		"error: could not compile `b`\n"
+	got := chain.Apply(input)
+	want := "   ... 2 cargo progress lines (Compiling 2)\nerror: could not compile `b`\n"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestBuildStderrChain_NoNoiseFilterForGeneric(t *testing.T) {
+	for _, n := range BuildStderrChain(config.Default(), detect.CmdGeneric).Names() {
+		if n == "stderr_noise" {
+			t.Fatal("generic commands must not get a stderr noise filter")
+		}
 	}
 }

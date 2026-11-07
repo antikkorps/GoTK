@@ -1,0 +1,7 @@
+  Installing runit v0.1.0 (/home/u/runit)
+    Updating crates.io index
+     Locking 12 packages to latest compatible versions
+   ... 5 cargo progress lines (Compiling 5)
+    Finished `release` profile [optimized] target(s) in 9.84s
+  Installing /home/u/.cargo/bin/runit
+   Installed package `runit v0.1.0 (/home/u/runit)` (executable `runit`)

@@ -1,0 +1,11 @@
+  Installing runit v0.1.0 (/home/u/runit)
+    Updating crates.io index
+     Locking 12 packages to latest compatible versions
+   Compiling proc-macro2 v1.0.86
+   Compiling unicode-ident v1.0.13
+   Compiling quote v1.0.37
+   Compiling syn v2.0.79
+   Compiling runit v0.1.0 (/home/u/runit)
+    Finished `release` profile [optimized] target(s) in 9.84s
+  Installing /home/u/.cargo/bin/runit
+   Installed package `runit v0.1.0 (/home/u/runit)` (executable `runit`)

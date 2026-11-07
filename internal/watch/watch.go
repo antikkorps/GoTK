@@ -12,6 +12,7 @@ import (
 	"github.com/antikkorps/GoTK/internal/detect"
 	gotkerrors "github.com/antikkorps/GoTK/internal/errors"
 	"github.com/antikkorps/GoTK/internal/exec"
+	"github.com/antikkorps/GoTK/internal/measure"
 	"github.com/antikkorps/GoTK/internal/proxy"
 )
 
@@ -118,31 +119,16 @@ func runCommand(ctx context.Context, cfg Config) {
 		return
 	}
 
-	// Build filter chain and apply. Falls back to AutoDetect on output for
-	// wrappers not in the binary registry.
-	var cmdType detect.CmdType
-	if mapped, ok := cfg.GoTKConfig.Commands[cfg.Command[0]]; ok {
-		cmdType = detect.Identify(mapped)
-	} else {
-		cmdType, _ = detect.IdentifyOrDetect(cfg.Command[0], result.Stdout)
-	}
-	chain := proxy.BuildChain(cfg.GoTKConfig, cmdType, cfg.MaxLines)
-	cleaned := chain.Apply(result.Stdout)
-
+	cleaned, cleanedErr := filterOutput(cfg, result)
 	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
+	fmt.Fprint(os.Stderr, cleanedErr)
 
-	// Pass through stderr unmodified.
-	if result.Stderr != "" {
-		fmt.Fprint(os.Stderr, result.Stderr)
+	stats := measure.ByteStats{
+		RawOut: len(result.Stdout), CleanOut: len(cleaned),
+		RawErr: len(result.Stderr), CleanErr: len(cleanedErr),
 	}
-
-	// Show stats.
-	rawBytes := len(result.Stdout)
-	cleanBytes := len(cleaned)
-	if rawBytes > 0 {
-		saved := rawBytes - cleanBytes
-		pct := saved * 100 / rawBytes
-		fmt.Fprintf(os.Stderr, "\n[gotk watch] %d → %d bytes (-%d%%)\n", rawBytes, cleanBytes, pct)
+	if stats.RawOut+stats.RawErr > 0 {
+		fmt.Fprintf(os.Stderr, "\n[gotk watch] %s\n", stats)
 	}
 
 	if result.ExitCode != 0 {
@@ -150,6 +136,23 @@ func runCommand(ctx context.Context, cfg Config) {
 	}
 
 	fmt.Fprintln(os.Stdout, "\n[gotk watch] waiting for changes...") //nolint:errcheck
+}
+
+// filterOutput runs the stdout chain and the stderr policy chain (same as
+// exec mode) on a command result. Falls back to AutoDetect on output for
+// wrappers not in the binary registry.
+func filterOutput(cfg Config, result *exec.Result) (cleanOut, cleanErr string) {
+	var cmdType detect.CmdType
+	if mapped, ok := cfg.GoTKConfig.Commands[cfg.Command[0]]; ok {
+		cmdType = detect.Identify(mapped)
+	} else {
+		cmdType, _ = detect.IdentifyOrDetect(cfg.Command[0], result.Stdout)
+	}
+	cleanOut = proxy.BuildChain(cfg.GoTKConfig, cmdType, cfg.MaxLines).Apply(result.Stdout)
+	if result.Stderr != "" {
+		cleanErr = proxy.BuildStderrChain(cfg.GoTKConfig, cmdType).Apply(result.Stderr)
+	}
+	return cleanOut, cleanErr
 }
 
 // takeSnapshot walks the given paths and records modification times for files

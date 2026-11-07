@@ -153,7 +153,7 @@ func main() {
 		cleaned := chain.Apply(raw)
 		logMeasurement("pipe", cmdType.String(), raw, cleaned, time.Since(start), false)
 		fmt.Print(cleaned)
-		emitStats(raw, cleaned)
+		emitStats(measure.ByteStats{RawOut: len(raw), CleanOut: len(cleaned)})
 		return
 	}
 
@@ -267,7 +267,10 @@ func main() {
 
 	// Apply filters
 	cleaned := chain.Apply(result.Stdout)
-	logMeasurement(strings.Join(cmdArgs, " "), cmdType.String(), result.Stdout, cleaned, time.Since(start), false)
+	filteredErr := filterStderr(cmdType, result.Stderr)
+	// Both streams are measured: cargo-style tools only use stderr (#96).
+	logMeasurement(strings.Join(cmdArgs, " "), cmdType.String(),
+		result.Stdout+result.Stderr, cleaned+filteredErr, time.Since(start), false)
 
 	// Passive learn: observe raw output if --learn flag is set
 	if learnFlag && result.Stdout != "" {
@@ -280,29 +283,37 @@ func main() {
 	// very end of the merged stream.
 	fmt.Print(cleaned)
 	lastOut := cleaned
-	if result.Stderr != "" {
-		// Stderr policy chain (single source of truth in proxy package):
-		// strip ANSI, redact secrets, collapse node worker warnings. See
-		// proxy.BuildStderrChain for the rationale on each filter.
-		stderrChain := proxy.BuildStderrChain(cfg)
-		filteredErr := stderrChain.Apply(result.Stderr)
-		if filteredErr != "" {
-			// Under 2>&1 the two streams are concatenated; without a newline
-			// at the seam, the last stdout line fuses with the first stderr
-			// line (issue #86).
-			if needsSeparator(cleaned) {
-				fmt.Println()
-			}
-			fmt.Fprint(os.Stderr, filteredErr)
-			lastOut = filteredErr
+	if filteredErr != "" {
+		// Under 2>&1 the two streams are concatenated; without a newline
+		// at the seam, the last stdout line fuses with the first stderr
+		// line (issue #86).
+		if needsSeparator(cleaned) {
+			fmt.Println()
 		}
+		fmt.Fprint(os.Stderr, filteredErr)
+		lastOut = filteredErr
 	}
-	if emitStats(result.Stdout, cleaned) {
+	if emitStats(measure.ByteStats{
+		RawOut: len(result.Stdout), CleanOut: len(cleaned),
+		RawErr: len(result.Stderr), CleanErr: len(filteredErr),
+	}) {
 		lastOut = "\n"
 	}
 	emitVerdict(result.ExitCode, lastOut)
 
 	os.Exit(result.ExitCode)
+}
+
+// filterStderr applies the stderr policy chain (single source of truth in
+// the proxy package): noise-only filters plus a per-command allowlist. See
+// proxy.BuildStderrChain for the rationale on each filter.
+func filterStderr(cmdType detect.CmdType, stderr string) string {
+	if stderr == "" {
+		return ""
+	}
+	chain := proxy.BuildStderrChain(cfg, cmdType)
+	logDebug("stderr chain (%d filters): %v\n", chain.Len(), chain.Names())
+	return chain.Apply(stderr)
 }
 
 // needsSeparator reports whether out is non-empty and lacks a trailing
@@ -407,19 +418,11 @@ func parseFlags(args []string) []string {
 // Callers should print the filtered output and any passthrough stderr BEFORE
 // calling this so the marker lands at the end of the merged stream under 2>&1.
 // Reports whether anything was written.
-func emitStats(raw, cleaned string) bool {
+func emitStats(s measure.ByteStats) bool {
 	if !showStats || quietMode {
 		return false
 	}
-	rawBytes := len(raw)
-	cleanBytes := len(cleaned)
-	saved := rawBytes - cleanBytes
-	pct := 0
-	if rawBytes > 0 {
-		pct = saved * 100 / rawBytes
-	}
-	logInfo("\n[gotk] %d → %d bytes (-%d%%, saved %d bytes)\n",
-		rawBytes, cleanBytes, pct, saved)
+	logInfo("\n[gotk] %s\n", s)
 	return true
 }
 

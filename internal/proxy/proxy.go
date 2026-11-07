@@ -121,12 +121,16 @@ func buildChain(cfg *config.Config, cmdType detect.CmdType, maxLines int, summar
 //     into one copy plus a count. Lossless apart from the repetition itself,
 //     and needed here because the worst repeaters live on stderr: Jest's
 //     console.* blocks and Playwright's [WebServer] traces (issues #84, #87).
+//   - stderr_noise: per-command allowlist of pure progress/config noise
+//     (detect.StderrNoiseFilter), e.g. cargo "Compiling" runs and npm
+//     "Unknown project config" warnings (issues #96, #101). Runs last so it
+//     sees ANSI-free text. Absent for commands without an allowlist.
 //
 // Streaming mode (cmd/gotk runStreaming) does not currently apply this
 // chain because stderr is forwarded line-by-line as it arrives; batching
 // it through the chain would defer output. Live stderr stays best-effort
 // passthrough for now.
-func BuildStderrChain(cfg *config.Config) *filter.Chain {
+func BuildStderrChain(cfg *config.Config, cmdType detect.CmdType) *filter.Chain {
 	chain := filter.NewChain()
 	if cfg.Filters.StripANSI {
 		chain.AddNamed("strip_ansi", filter.StripANSI)
@@ -137,6 +141,9 @@ func BuildStderrChain(cfg *config.Config) *filter.Chain {
 	chain.AddNamed("node_warnings", filter.CollapseNodeWarnings)
 	if cfg.Filters.Dedup {
 		chain.AddNamed("dedup_blocks", filter.DedupBlocks)
+	}
+	if noise := detect.StderrNoiseFilter(cmdType); noise != nil {
+		chain.AddNamed("stderr_noise", noise)
 	}
 	return chain
 }
@@ -188,18 +195,19 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 
 	raw := result.Stdout
 	exitCode := exitCodeFromResult(result, err)
+	cmdType := shellCmdType(cfg, command, raw)
 	cleaned := ""
 	if raw != "" {
-		cleaned = filterStdout(cfg, command, raw, maxLines, exitCode, result.Stderr)
+		cleaned = filterStdout(cfg, cmdType, raw, maxLines, exitCode, result.Stderr)
 		fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 	}
 
-	// Apply the stderr policy chain (strip ANSI, redact secrets, collapse
-	// node worker warnings). Without this, secrets in stderr would leak.
+	// Apply the stderr policy chain (see BuildStderrChain). Without it,
+	// secrets in stderr would leak.
 	// Stderr goes after stdout, separated by a newline when stdout lacks a
 	// trailing one, so the two never fuse under 2>&1 (issue #86).
 	if result.Stderr != "" {
-		stderrChain := BuildStderrChain(cfg)
+		stderrChain := BuildStderrChain(cfg, cmdType)
 		filteredErr := stderrChain.Apply(result.Stderr)
 		if filteredErr != "" && cleaned != "" && !strings.HasSuffix(cleaned, "\n") {
 			fmt.Fprintln(os.Stdout) //nolint:errcheck
@@ -210,21 +218,24 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 	return exitCode
 }
 
-// filterStdout runs the stdout filter chain for a shell command line.
-func filterStdout(cfg *config.Config, command, raw string, maxLines, exitCode int, stderr string) string {
-	// Detect command type from the first word; fall back to AutoDetect on
-	// captured output so wrappers (jest, vitest, etc.) that aren't in the
-	// binary registry still pick up the right filters.
+// shellCmdType detects the command type of a shell command line from its
+// first word; it falls back to AutoDetect on the captured stdout so wrappers
+// (jest, vitest, etc.) that aren't in the binary registry still pick up the
+// right filters.
+func shellCmdType(cfg *config.Config, command, raw string) detect.CmdType {
 	parts := strings.Fields(command)
-	cmdType := detect.CmdGeneric
-	if len(parts) > 0 {
-		if mapped, ok := cfg.Commands[parts[0]]; ok {
-			cmdType = detect.Identify(mapped)
-		} else {
-			cmdType, _ = detect.IdentifyOrDetect(parts[0], raw)
-		}
+	if len(parts) == 0 {
+		return detect.CmdGeneric
 	}
+	if mapped, ok := cfg.Commands[parts[0]]; ok {
+		return detect.Identify(mapped)
+	}
+	cmdType, _ := detect.IdentifyOrDetect(parts[0], raw)
+	return cmdType
+}
 
+// filterStdout runs the stdout filter chain for a shell command line.
+func filterStdout(cfg *config.Config, cmdType detect.CmdType, raw string, maxLines, exitCode int, stderr string) string {
 	chain := BuildChainWithExit(cfg, cmdType, maxLines, exitCode, stderr)
 	if len(cfg.Rules.AlwaysKeep) > 0 {
 		chain.AddNamed("always_keep", filter.KeepByRules(cfg.Rules.AlwaysKeep, raw))

@@ -1,0 +1,5 @@
+npm warn Unknown project config "auto-install-peers", "strict-peer-dependencies" (ignored by npm; see `npm help npmrc`)
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory.
+npm error code ELIFECYCLE
+npm error errno 1
