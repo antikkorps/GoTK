@@ -3,7 +3,6 @@ package exec
 import (
 	"bytes"
 	"context"
-	"io"
 	"os/exec"
 	"syscall"
 	"time"
@@ -24,6 +23,9 @@ type Result struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
+	// StderrBlocks splits Stderr by arrival position relative to stdout.
+	// Nil when stderr is empty.
+	StderrBlocks []StderrBlock
 }
 
 // LimitedBuffer wraps an io.Writer and stops writing after max bytes.
@@ -89,16 +91,16 @@ func Run(name string, args ...string) (*Result, error) {
 func RunWithTimeout(ctx context.Context, name string, args ...string) (*Result, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 
-	stdout := NewLimitedBuffer(MaxOutputBytes)
-	stderr := NewLimitedBuffer(MaxOutputBytes)
-	cmd.Stdout = io.Writer(stdout)
-	cmd.Stderr = io.Writer(stderr)
+	rec := newRecorder(MaxOutputBytes)
+	cmd.Stdout = rec.stdoutWriter()
+	cmd.Stderr = rec.stderrWriter()
 
 	err := cmd.Run()
 
 	result := &Result{
-		Stdout: stdout.String(),
-		Stderr: stderr.String(),
+		Stdout:       rec.stdout.String(),
+		Stderr:       rec.stderr.String(),
+		StderrBlocks: rec.blocks(),
 	}
 
 	if err != nil {

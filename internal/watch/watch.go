@@ -119,13 +119,16 @@ func runCommand(ctx context.Context, cfg Config) {
 		return
 	}
 
-	cleaned, cleanedErr := filterOutput(cfg, result)
-	fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
-	fmt.Fprint(os.Stderr, cleanedErr)
+	cleaned, blocks := filterOutput(cfg, result)
+	proxy.WritePieces(os.Stdout, os.Stderr, proxy.Interleave(result.Stdout, cleaned, blocks))
+	cleanedErr := 0
+	for _, b := range blocks {
+		cleanedErr += len(b.Text)
+	}
 
 	stats := measure.ByteStats{
 		RawOut: len(result.Stdout), CleanOut: len(cleaned),
-		RawErr: len(result.Stderr), CleanErr: len(cleanedErr),
+		RawErr: len(result.Stderr), CleanErr: cleanedErr,
 	}
 	if stats.RawOut+stats.RawErr > 0 {
 		fmt.Fprintf(os.Stderr, "\n[gotk watch] %s\n", stats)
@@ -141,7 +144,7 @@ func runCommand(ctx context.Context, cfg Config) {
 // filterOutput runs the stdout chain and the stderr policy chain (same as
 // exec mode) on a command result. Falls back to AutoDetect on output for
 // wrappers not in the binary registry.
-func filterOutput(cfg Config, result *exec.Result) (cleanOut, cleanErr string) {
+func filterOutput(cfg Config, result *exec.Result) (cleanOut string, errBlocks []exec.StderrBlock) {
 	var cmdType detect.CmdType
 	if mapped, ok := cfg.GoTKConfig.Commands[cfg.Command[0]]; ok {
 		cmdType = detect.Identify(mapped)
@@ -149,10 +152,8 @@ func filterOutput(cfg Config, result *exec.Result) (cleanOut, cleanErr string) {
 		cmdType, _ = detect.IdentifyOrDetect(cfg.Command[0], result.Stdout)
 	}
 	cleanOut = proxy.BuildChain(cfg.GoTKConfig, cmdType, cfg.MaxLines).Apply(result.Stdout)
-	if result.Stderr != "" {
-		cleanErr = proxy.BuildStderrChain(cfg.GoTKConfig, cmdType).Apply(result.Stderr)
-	}
-	return cleanOut, cleanErr
+	errBlocks = proxy.FilterStderrBlocks(cfg.GoTKConfig, cmdType, result.StderrBlocks)
+	return cleanOut, errBlocks
 }
 
 // takeSnapshot walks the given paths and records modification times for files

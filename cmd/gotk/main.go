@@ -267,7 +267,8 @@ func main() {
 
 	// Apply filters
 	cleaned := chain.Apply(result.Stdout)
-	filteredErr := filterStderr(cmdType, result.Stderr)
+	errBlocks := filterStderr(cmdType, result.StderrBlocks)
+	filteredErr := joinBlocks(errBlocks)
 	// Both streams are measured: cargo-style tools only use stderr (#96).
 	logMeasurement(strings.Join(cmdArgs, " "), cmdType.String(),
 		result.Stdout+result.Stderr, cleaned+filteredErr, time.Since(start), false)
@@ -277,22 +278,10 @@ func main() {
 		observeForLearn(strings.Join(cmdArgs, " "), result.Stdout)
 	}
 
-	// Output — order matters when stdout/stderr are merged with 2>&1:
-	// cleaned stdout first, then child stderr, then the [gotk] stats line,
-	// then the exit verdict. That way the gotk markers always land at the
-	// very end of the merged stream.
-	fmt.Print(cleaned)
-	lastOut := cleaned
-	if filteredErr != "" {
-		// Under 2>&1 the two streams are concatenated; without a newline
-		// at the seam, the last stdout line fuses with the first stderr
-		// line (issue #86).
-		if needsSeparator(cleaned) {
-			fmt.Println()
-		}
-		fmt.Fprint(os.Stderr, filteredErr)
-		lastOut = filteredErr
-	}
+	// Output — stdout and stderr pieces in their original order (issue
+	// #100), then the [gotk] stats line, then the exit verdict, so the gotk
+	// markers always land at the very end of the merged stream.
+	lastOut := proxy.WritePieces(os.Stdout, os.Stderr, proxy.Interleave(result.Stdout, cleaned, errBlocks))
 	if emitStats(measure.ByteStats{
 		RawOut: len(result.Stdout), CleanOut: len(cleaned),
 		RawErr: len(result.Stderr), CleanErr: len(filteredErr),
@@ -305,15 +294,23 @@ func main() {
 }
 
 // filterStderr applies the stderr policy chain (single source of truth in
-// the proxy package): noise-only filters plus a per-command allowlist. See
-// proxy.BuildStderrChain for the rationale on each filter.
-func filterStderr(cmdType detect.CmdType, stderr string) string {
-	if stderr == "" {
-		return ""
+// the proxy package) to each stderr block. See proxy.BuildStderrChain for
+// the rationale on each filter.
+func filterStderr(cmdType detect.CmdType, blocks []exec.StderrBlock) []exec.StderrBlock {
+	if len(blocks) == 0 {
+		return nil
 	}
-	chain := proxy.BuildStderrChain(cfg, cmdType)
-	logDebug("stderr chain (%d filters): %v\n", chain.Len(), chain.Names())
-	return chain.Apply(stderr)
+	logDebug("stderr chain applied to %d blocks\n", len(blocks))
+	return proxy.FilterStderrBlocks(cfg, cmdType, blocks)
+}
+
+// joinBlocks concatenates filtered stderr blocks, for stats and measurement.
+func joinBlocks(blocks []exec.StderrBlock) string {
+	var b strings.Builder
+	for _, blk := range blocks {
+		b.WriteString(blk.Text)
+	}
+	return b.String()
 }
 
 // needsSeparator reports whether out is non-empty and lacks a trailing

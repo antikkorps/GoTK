@@ -179,3 +179,18 @@ func TestRedactSecrets_MultipleSecretsInOneLine(t *testing.T) {
 		t.Errorf("expected at least 2 redactions, got %d in: %s", count, got)
 	}
 }
+
+func TestHasOpenPrivateKey(t *testing.T) {
+	cases := map[string]bool{
+		"":                                     false,
+		"plain text\n":                         false,
+		"-----BEGIN RSA PRIVATE KEY-----\nAAA": true,
+		"-----BEGIN PRIVATE KEY-----\nA\n-----END PRIVATE KEY-----\n":                                            false,
+		"-----BEGIN EC PRIVATE KEY-----\nA\n-----END EC PRIVATE KEY-----\n-----BEGIN OPENSSH PRIVATE KEY-----\n": true,
+	}
+	for in, want := range cases {
+		if got := HasOpenPrivateKey(in); got != want {
+			t.Errorf("HasOpenPrivateKey(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
