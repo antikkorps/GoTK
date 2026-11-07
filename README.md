@@ -168,7 +168,7 @@ gotk measure report --period 7d  # View report
 command output
       |
       v
-  [Capture] ---- stdout captured, stderr passed through
+  [Capture] ---- stdout + stderr captured, arrival order recorded
       |
       v
   [Detect] ----- identify command type (by name or output patterns)
@@ -188,7 +188,7 @@ command output
       |-- Truncate .............. cap at --max-lines (head + tail)
       |
       v
-  clean output (stdout)
+  clean output: stdout and (narrowly filtered) stderr, in original order
   stats (stderr, if --stats)
   exit verdict (stderr, last line: [gotk] ✔ exit 0 / ✘ exit N)
 ```

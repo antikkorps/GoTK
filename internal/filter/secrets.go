@@ -30,6 +30,17 @@ var jwtPattern = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.
 // privateKeyPattern matches PEM private key blocks (RSA, EC, DSA, ED25519, OPENSSH, etc.).
 var privateKeyPattern = regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]{0,20}PRIVATE KEY-----.*?-----END [A-Z0-9 ]{0,20}PRIVATE KEY-----`)
 
+// privateKeyMarker finds PEM private key BEGIN/END lines.
+var privateKeyMarker = regexp.MustCompile(`-----(BEGIN|END) [A-Z0-9 ]{0,20}PRIVATE KEY-----`)
+
+// HasOpenPrivateKey reports whether text ends inside a PEM private key, i.e.
+// its last BEGIN marker has no END after it. Callers that split text before
+// redaction use it to keep a key in one piece.
+func HasOpenPrivateKey(text string) bool {
+	m := privateKeyMarker.FindAllStringSubmatch(text, -1)
+	return len(m) > 0 && m[len(m)-1][1] == "BEGIN"
+}
+
 // connectionStringPattern matches passwords in connection strings like
 // scheme://user:password@host
 var connectionStringPattern = regexp.MustCompile(`(://[^:/@\s]+:)([^@\s]+)(@)`)

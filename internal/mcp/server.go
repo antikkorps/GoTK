@@ -755,21 +755,15 @@ func handleExec(cfg *config.Config, fc *cache.Cache, id json.RawMessage, rawArgs
 		return
 	}
 
-	// Merge stderr into stdout. The MCP tool returns a single text block to
-	// the LLM — there's no way to surface separate streams to the consumer,
-	// so concatenation is the right interface here. Side effect: stderr
+	// Merge stdout and stderr in arrival order (issue #100). The MCP tool
+	// returns a single text block to the LLM — there's no way to surface
+	// separate streams to the consumer. Side effect: stderr
 	// flows through the full stdout chain (including truncation /
 	// summarization), not the narrow proxy.BuildStderrChain used by the
 	// CLI exec path. Acceptable trade-off: secrets still get redacted, and
 	// a single LLM-facing channel is what the consumer can actually use.
 	// See docs/architecture.md "Stderr Policy" for the full rationale.
-	raw := result.Stdout
-	if result.Stderr != "" {
-		if raw != "" {
-			raw += "\n"
-		}
-		raw += result.Stderr
-	}
+	raw := proxy.MergeStreams(result)
 
 	// Detect command type and build filter chain. Wrapper binaries that
 	// aren't in the registry fall through to AutoDetect on the captured

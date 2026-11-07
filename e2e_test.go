@@ -976,3 +976,35 @@ RAW
 		t.Errorf("stats should break down stderr bytes, got:\n%s", stderr)
 	}
 }
+
+// Issue #100: stdout and stderr used to be emitted as two separate blocks
+// (all stdout, then all stderr). Under 2>&1 the original order must be kept,
+// with the [gotk] markers still last. Sleeps make arrival order deterministic
+// across the two pipes.
+func TestE2E_StdoutStderrInterleaved(t *testing.T) {
+	bin := binary(t)
+	script := filepath.Join(t.TempDir(), "inter.sh")
+	body := `#!/bin/sh
+echo "1 out: start"; sleep 0.1
+echo "2 err: Container x Healthy" >&2; sleep 0.1
+echo "3 out: bootstrap step"; sleep 0.1
+echo "4 err: warning y" >&2; sleep 0.1
+echo "5 out: done"
+`
+	if err := os.WriteFile(script, []byte(body), 0755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	merged, code := runMerged(t, bin, "-s", script)
+	if code != 0 {
+		t.Fatalf("exit code = %d; output:\n%s", code, merged)
+	}
+	order := []string{"1 out", "2 err", "3 out", "4 err", "5 out", "[gotk] ", "[gotk] ✔ exit 0"}
+	last := -1
+	for _, marker := range order {
+		idx := strings.Index(merged[last+1:], marker)
+		if idx < 0 {
+			t.Fatalf("%q missing or out of order in:\n%s", marker, merged)
+		}
+		last += 1 + idx
+	}
+}

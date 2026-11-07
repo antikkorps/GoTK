@@ -3,7 +3,6 @@ package proxy
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -199,21 +198,11 @@ func RunCommand(cfg *config.Config, command string, maxLines int) int {
 	cleaned := ""
 	if raw != "" {
 		cleaned = filterStdout(cfg, cmdType, raw, maxLines, exitCode, result.Stderr)
-		fmt.Fprint(os.Stdout, cleaned) //nolint:errcheck
 	}
-
-	// Apply the stderr policy chain (see BuildStderrChain). Without it,
-	// secrets in stderr would leak.
-	// Stderr goes after stdout, separated by a newline when stdout lacks a
-	// trailing one, so the two never fuse under 2>&1 (issue #86).
-	if result.Stderr != "" {
-		stderrChain := BuildStderrChain(cfg, cmdType)
-		filteredErr := stderrChain.Apply(result.Stderr)
-		if filteredErr != "" && cleaned != "" && !strings.HasSuffix(cleaned, "\n") {
-			fmt.Fprintln(os.Stdout) //nolint:errcheck
-		}
-		fmt.Fprint(os.Stderr, filteredErr)
-	}
+	// Stderr goes through the stderr policy chain (without it, secrets in
+	// stderr would leak) and back to its original position (issue #100).
+	blocks := FilterStderrBlocks(cfg, cmdType, result.StderrBlocks)
+	WritePieces(os.Stdout, os.Stderr, Interleave(raw, cleaned, blocks))
 
 	return exitCode
 }

@@ -576,10 +576,8 @@ func runLearn(args []string) {
 		cmdType := detect.Identify(cmdArgs[0])
 		chain := proxy.BuildChain(cfg, cmdType, maxLines)
 		cleaned := chain.Apply(result.Stdout)
-		fmt.Print(cleaned)
-		if result.Stderr != "" {
-			fmt.Fprint(os.Stderr, result.Stderr)
-		}
+		errBlocks := proxy.FilterStderrBlocks(cfg, cmdType, result.StderrBlocks)
+		proxy.WritePieces(os.Stdout, os.Stderr, proxy.Interleave(result.Stdout, cleaned, errBlocks))
 
 		logInfo("\n[gotk learn] observed %d lines from %q\n", collector.Count(), strings.Join(cmdArgs, " "))
 
