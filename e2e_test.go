@@ -941,3 +941,38 @@ func TestE2E_MaxLines_VeryLarge(t *testing.T) {
 		t.Error("last line should be present")
 	}
 }
+
+// Issue #96: cargo talks only on stderr. The stats line must count stderr
+// (it used to report "0 → 0 bytes") and the cargo progress allowlist must
+// collapse the Compiling lines while keeping the final status lines.
+func TestE2E_StderrOnlyCommand_StatsAndNoise(t *testing.T) {
+	bin := binary(t)
+	shim := filepath.Join(t.TempDir(), "cargo")
+	body := `#!/bin/sh
+cat >&2 <<'RAW'
+   Compiling a v1.0.0
+   Compiling b v1.0.0
+   Compiling c v1.0.0
+    Finished ` + "`release`" + ` profile [optimized] target(s) in 1.00s
+RAW
+`
+	if err := os.WriteFile(shim, []byte(body), 0755); err != nil {
+		t.Fatalf("write shim: %v", err)
+	}
+	_, stderr, code := run(t, bin, "", "-s", shim)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr:\n%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "... 3 cargo progress lines (Compiling 3)") {
+		t.Errorf("cargo progress should be collapsed on stderr, got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "Finished `release` profile") {
+		t.Errorf("Finished line must be kept, got:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "[gotk] 0 → 0 bytes") {
+		t.Errorf("stats must count stderr, got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "stderr ") {
+		t.Errorf("stats should break down stderr bytes, got:\n%s", stderr)
+	}
+}

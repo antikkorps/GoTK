@@ -94,40 +94,36 @@ func runStreaming(cmdArgs []string) int {
 
 	ch, wait := exec.RunStream(ctx, cmdArgs[0], cmdArgs[1:]...)
 
-	rawBytes := 0
-	cleanBytes := 0
+	var stats measure.ByteStats
 
 	for r := range ch {
-		rawBytes += len(r.Line) + 1 // +1 for newline
-
+		n := len(r.Line) + 1 // +1 for newline
 		if r.IsStderr {
+			// Live stderr is forwarded as-is, so it counts on both sides.
 			fmt.Fprintln(os.Stderr, r.Line)
+			stats.RawErr += n
+			stats.CleanErr += n
 			continue
 		}
+		stats.RawOut += n
 
 		out, emit := sf.ProcessLine(r.Line)
 		if emit {
 			fmt.Fprintln(os.Stdout, out) //nolint:errcheck
-			cleanBytes += len(out) + 1
+			stats.CleanOut += len(out) + 1
 		}
 	}
 
 	// Flush any pending buffered output (e.g., trailing dedup marker).
 	if flushed := sf.Flush(); flushed != "" {
 		fmt.Fprintln(os.Stdout, flushed) //nolint:errcheck
-		cleanBytes += len(flushed) + 1
+		stats.CleanOut += len(flushed) + 1
 	}
 
 	code := wait()
 
 	if showStats {
-		saved := rawBytes - cleanBytes
-		pct := 0
-		if rawBytes > 0 {
-			pct = saved * 100 / rawBytes
-		}
-		logInfo("\n[gotk] stream: %d → %d bytes (-%d%%, saved %d bytes)\n",
-			rawBytes, cleanBytes, pct, saved)
+		logInfo("\n[gotk] stream: %s\n", stats)
 	}
 
 	return code
