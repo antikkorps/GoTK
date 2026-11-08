@@ -321,3 +321,29 @@ func TestUninstall_FindsHookFromPathWithSpaces(t *testing.T) {
 		t.Error("hook still in settings.json")
 	}
 }
+
+// Installs made before buildHookCmd quoted paths left the raw, broken form
+// in settings.json; the full uninstall must clean that up too.
+func TestUninstall_RemovesLegacyUnquotedHook(t *testing.T) {
+	home := fakeHome(t)
+	bin := filepath.Join(home, "My Tools", "gotk")
+	globalSettings := filepath.Join(home, ".claude", "settings.json")
+	settings := make(map[string]interface{})
+	addHook(settings, bin+" hook")
+	if err := writeSettings(globalSettings, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := planUninstallFor(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ExecuteUninstall(plan)
+	after, err := readSettings(globalSettings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isHookInstalled(after, bin+" hook") {
+		t.Error("legacy unquoted hook left in settings.json")
+	}
+}

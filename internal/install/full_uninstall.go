@@ -49,15 +49,14 @@ func PlanUninstall() (*UninstallPlan, error) {
 func planUninstallFor(binaryPath string) (*UninstallPlan, error) {
 	plan := &UninstallPlan{BinaryPath: binaryPath}
 
-	hookCmd := buildHookCmd(binaryPath)
 	for _, scope := range []Scope{ScopeLocal, ScopeProject, ScopeGlobal} {
 		path, err := settingsFilePath(scope)
 		if err != nil {
 			continue
 		}
 		target := ClaudeHookTarget{Scope: scope, Path: path}
-		if settings, err := readSettings(path); err == nil && isHookInstalled(settings, hookCmd) {
-			target.Present = true
+		if settings, err := readSettings(path); err == nil {
+			target.Present = hasAnyHookForm(settings, binaryPath)
 		}
 		plan.ClaudeHooks = append(plan.ClaudeHooks, target)
 	}
@@ -121,7 +120,7 @@ func ExecuteUninstall(plan *UninstallPlan) *UninstallResult {
 			res.Errors = append(res.Errors, fmt.Errorf("reading %s: %w", target.Path, err))
 			continue
 		}
-		if removeHook(settings, buildHookCmd(plan.BinaryPath)) {
+		if removeAllHookForms(settings, plan.BinaryPath) {
 			if err := writeSettings(target.Path, settings); err != nil {
 				res.Errors = append(res.Errors, fmt.Errorf("writing %s: %w", target.Path, err))
 				continue
