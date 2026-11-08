@@ -140,13 +140,15 @@ jobs:
             exit 1
           fi
 
+      # ~8MB since the dashboard (bubbletea + lipgloss); 10MB leaves headroom
+      # so the warning fires only on real growth, not on every build (#116).
       - name: Binary size check
         run: |
           SIZE=$(stat -c%s gotk 2>/dev/null || stat -f%z gotk)
           SIZE_MB=$(echo "scale=1; $SIZE / 1048576" | bc)
           echo "Binary size: ${SIZE_MB}MB (${SIZE} bytes)"
-          if [ "$SIZE" -gt 5242880 ]; then
-            echo "::warning::Binary size ${SIZE_MB}MB exceeds 5MB target"
+          if [ "$SIZE" -gt 10485760 ]; then
+            echo "::warning::Binary size ${SIZE_MB}MB exceeds 10MB target"
           fi
 
   bench-windows:

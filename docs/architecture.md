@@ -263,4 +263,4 @@ Use `gotk config show` to see which files were loaded and the effective configur
 - **Command detection**: O(1) map lookup via `binaryIndex` (built at init).
 - **Auto-detection**: samples first 50 non-empty lines only — O(50 * patterns) regardless of input size.
 - **Regex patterns**: all compiled at package init (except user-provided `always_keep`/`always_remove` which are compiled once per `BuildChain` call).
-- **Binary size**: ~3.3MB with `-ldflags="-s -w"` (stripped), ~4.7MB without.
+- **Binary size**: ~8MB with `-ldflags="-s -w"` (stripped), ~11MB without; the dashboard TUI (bubbletea, lipgloss) accounts for most of the growth. CI warns above 10MB.
