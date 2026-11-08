@@ -1,0 +1,17 @@
+  console.error
+    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+        at send (/app/src/mail.js:4:11)
+    [... 11 node_modules frames, 2 node internals, 1 more app frames]
+
+      4 |     await send();
+      5 |   } catch (err) {
+    > 6 |     console.error('Failed to send mail:', err);
+        |             ^
+      7 |     throw err;
+      8 |   }
+      9 | }
+
+      at error (src/mail.js:6:13)
+      at Object.<anonymous> (src/mail.test.js:4:5)
+

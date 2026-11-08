@@ -1,0 +1,30 @@
+  console.error
+    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+        at send (/app/src/mail.js:4:11)
+        at Object.sendMail (/app/src/mail.test.js:4:18)
+        at Promise.then.completed (/app/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/app/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/app/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:104:5)
+        at _runTest (/app/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/app/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/app/node_modules/jest-circus/build/run.js:121:9)
+        at run (/app/node_modules/jest-circus/build/run.js:71:3)
+        at runAndTransformResultsToJestFormat (/app/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+        at jestAdapter (/app/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+        at runTestInternal (/app/node_modules/jest-runner/build/runTest.js:367:16)
+        at runTest (/app/node_modules/jest-runner/build/runTest.js:444:34)
+
+      4 |     await send();
+      5 |   } catch (err) {
+    > 6 |     console.error('Failed to send mail:', err);
+        |             ^
+      7 |     throw err;
+      8 |   }
+      9 | }
+
+      at error (src/mail.js:6:13)
+      at Object.<anonymous> (src/mail.test.js:4:5)
+

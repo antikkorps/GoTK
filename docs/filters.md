@@ -238,6 +238,27 @@ main.handler(0xc0000b2000)
 
 **Python traceback** and **Node.js stack traces** follow the same pattern: keep the cause and top frames, collapse deep internal frames.
 
+A Node.js stack is recognised when its header line contains an error class followed by its message (`TypeError: …`), even after a prefix. That covers `console.error('Send failed:', err)`, which Jest echoes with the whole runner stack under it, even on a green run (issue #95):
+
+```
+Before:
+    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+        at send (/app/src/mail.js:4:11)
+        at Object.sendMail (/app/src/mail.test.js:4:18)
+        at Promise.then.completed (/app/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        ... (10 more jest-circus / jest-runner frames)
+
+After:
+    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+        at send (/app/src/mail.js:4:11)
+    [... 11 node_modules frames, 2 node internals, 1 more app frames]
+```
+
+The first two application frames are kept; `node_modules`, `node:` and V8 builtin frames (`(<anonymous>)`) are counted, never silently dropped. The code excerpt and the `at src/…` trailer Jest prints below the stack are left untouched.
+
 ### RedactSecrets
 
 **File:** `internal/filter/secrets.go`
