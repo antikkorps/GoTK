@@ -611,6 +611,32 @@
 
 ---
 
+## Sprint 19 — Stderr, chronology, install polish (2026-11-08)
+
+### Build — Output fidelity
+
+- [x] **#96 / #101 — stderr in stats and per-command stderr noise** (PR #106). `--stats` now counts stdout + stderr (`measure.ByteStats`) with a per-stream breakdown. `detect.StderrNoiseFilter` adds an exact-match allowlist per command (cargo progress runs, npm `Unknown ... config` warnings), the only sanctioned exception to the narrow stderr chain. Known limit: detection uses the first word, so `gotk -c "cd x && cargo build"` gets no allowlist.
+- [x] **#100 — stdout/stderr chronology** (PR #108). `exec.Result.StderrBlocks` records where each stderr run started relative to stdout; `proxy.Interleave` puts filtered stderr blocks back in place while stdout keeps its global filtering. 5 ms burst window for writes both pipes deliver at once.
+- [x] **#95 — runner frames under `console.error` stacks** (PR #109). The Node stack compressor recognises `msg: Error: x` headers when the first frame is V8-shaped (a Java `Caused by:` stays untouched), and counts `(<anonymous>)` as a Node internal.
+
+### Build — Install
+
+- [x] **#110 — opt-in Claude instructions** (PR #111). `gotk install claude` can write `~/.claude/GOTK.md` and prepend `@GOTK.md` to the user-level CLAUDE.md, so Claude knows its output is filtered and how to get it raw (`GOTK_PASSTHROUGH=1`). Unlike RTK, never written without consent: prompt on a terminal (default no), `--instructions` / `--no-instructions` otherwise. Removed by a global uninstall and by `gotk uninstall`. Added `paths.WriteFileAtomic` (symlink-aware temp + rename), now also used by the bench snapshot and update notifier.
+- [x] **#112 — `/dev/null` stdin taken for a terminal** (PR #115). A single `isTerminal` built on `mattn/go-isatty` (also covers Cygwin/MSYS ptys). Bare `gotk` with stdin on `/dev/null` (CI, `docker run` without `-i`) now exits 0 silently instead of printing usage.
+- [x] **#113 — full uninstall missed quoted hooks** (PR #114). `gotk uninstall` builds the hook command the way install does (quoted path), and also removes the legacy unquoted form.
+
+### Chores
+
+- [x] CLAUDE.md restructured (PR #105); site dependabot bumps (astro, vite, zod, undici, devalue, source-map-js, sharp).
+- [x] **#116 — CI binary size warning** (PR #117). Threshold 5MB → 10MB: the dashboard put the stripped binary at ~8.2MB, so the warning fired on every build.
+
+### Still open
+
+- [ ] Cache hit-rate dashboard pane: on hold, no good way yet to aggregate stats across concurrent MCP processes.
+- [ ] #31 multi-agent install: parked until a second agent is asked for.
+
+---
+
 ## Backlog (Unprioritized)
 
 - [x] `--aggressive` / `--balanced` / `--conservative` filter modes
