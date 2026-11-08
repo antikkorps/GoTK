@@ -326,6 +326,13 @@ Other flags:
   --uninstall   Remove GoTK hook configuration at the chosen scope
   --status      Check if GoTK hook is installed at the chosen scope
 
+Instructions (opt-in, any scope):
+  --instructions     Write ~/.claude/GOTK.md and add "@GOTK.md" at the top of
+                     ~/.claude/CLAUDE.md, so Claude knows its output is filtered
+                     and how to get it raw. Asked on a terminal when omitted.
+  --no-instructions  Do not ask, do not touch ~/.claude/CLAUDE.md.
+  Removed by "--uninstall --global" and by "gotk uninstall".
+
 How it works:
   GoTK registers as a PreToolUse hook for the Bash tool. When Claude Code
   runs a shell command, the hook wraps it with "| gotk" so the output is
@@ -338,6 +345,7 @@ Examples:
   gotk install claude                  Install to .claude/settings.local.json (personal)
   gotk install claude --project        Install to .claude/settings.json (shared with team)
   gotk install claude --global         Install to ~/.claude/settings.json (all projects)
+  gotk install claude --instructions   Install the hook and the GOTK.md notes, no prompt
   gotk install claude --status         Check installation status (--local by default)
   gotk install claude --uninstall      Remove hook (--local by default)`,
 

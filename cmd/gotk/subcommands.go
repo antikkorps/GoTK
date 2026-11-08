@@ -710,50 +710,13 @@ func runInstall(args []string) {
 		fmt.Fprintln(os.Stderr, "gotk install: missing target (claude)")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "Usage:")
-		fmt.Fprintln(os.Stderr, "  gotk install claude [--local | --project | --global] [--uninstall] [--status]")
+		fmt.Fprintln(os.Stderr, "  gotk install claude [--local | --project | --global] [--uninstall] [--status] [--instructions | --no-instructions]")
 		os.Exit(1)
 	}
 
 	switch args[0] {
 	case "claude":
-		scope := install.ScopeLocal
-		uninstallFlag := false
-		statusFlag := false
-
-		for _, a := range args[1:] {
-			switch a {
-			case "--global":
-				scope = install.ScopeGlobal
-			case "--project":
-				scope = install.ScopeProject
-			case "--local":
-				scope = install.ScopeLocal
-			case "--uninstall":
-				uninstallFlag = true
-			case "--status":
-				statusFlag = true
-			default:
-				fmt.Fprintf(os.Stderr, "gotk install claude: unknown flag %q\n", a)
-				os.Exit(1)
-			}
-		}
-
-		var err error
-		switch {
-		case statusFlag:
-			err = install.ClaudeStatus(scope)
-		case uninstallFlag:
-			err = install.ClaudeUninstall(scope)
-		default:
-			err = install.ClaudeInstall(scope)
-		}
-
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "gotk install claude: %v\n", err)
-			fmt.Fprintln(os.Stderr, "  hint: use --status to check current state, --global for ~/.claude/settings.json")
-			os.Exit(1)
-		}
-
+		runInstallClaude(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "gotk install: unknown target %q (supported: claude)\n", args[0])
 		os.Exit(1)
@@ -831,19 +794,14 @@ func runUninstall(args []string) {
 func runUninstallClaude(args []string) {
 	scope := install.ScopeLocal
 	for _, a := range args {
-		switch a {
-		case "--global":
-			scope = install.ScopeGlobal
-		case "--project":
-			scope = install.ScopeProject
-		case "--local":
-			scope = install.ScopeLocal
-		default:
+		sc, ok := parseScopeFlag(a)
+		if !ok {
 			fmt.Fprintf(os.Stderr, "gotk uninstall claude: unknown flag %q\n", a)
 			os.Exit(1)
 		}
+		scope = sc
 	}
-	if err := install.ClaudeUninstall(scope); err != nil {
+	if err := claudeUninstall(scope); err != nil {
 		fmt.Fprintf(os.Stderr, "gotk uninstall claude: %v\n", err)
 		os.Exit(1)
 	}

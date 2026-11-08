@@ -94,29 +94,11 @@ func WritePerFilterSnapshot(path string, snap PerFilterSnapshot) error {
 	if path == "" {
 		return fmt.Errorf("per-filter snapshot: empty path")
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, "perfilter-*.json.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return os.Rename(tmpPath, path)
+	return paths.WriteFileAtomic(path, data, 0o600)
 }
 
 // ReadPerFilterSnapshot loads a snapshot from disk. A missing file is

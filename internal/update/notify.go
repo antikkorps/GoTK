@@ -116,30 +116,12 @@ func readCache(path string) (cacheEntry, error) {
 }
 
 func writeCache(path string, entry cacheEntry) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
 		return err
 	}
 	// Atomic rename to avoid racing with a concurrent reader.
-	tmp, err := os.CreateTemp(dir, "update_check-*.json.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return os.Rename(tmpPath, path)
+	return paths.WriteFileAtomic(path, data, 0o600)
 }
 
 // refreshCacheAsync fetches the latest release from GitHub and writes the
