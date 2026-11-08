@@ -283,3 +283,41 @@ func contains(haystack []string, needle string) bool {
 	}
 	return false
 }
+
+// install quotes a binary path containing a space (buildHookCmd); the full
+// uninstall must look for and remove that same quoted command (#113).
+func TestUninstall_FindsHookFromPathWithSpaces(t *testing.T) {
+	home := fakeHome(t)
+	bin := filepath.Join(home, "My Tools", "gotk")
+	globalSettings := filepath.Join(home, ".claude", "settings.json")
+	settings := make(map[string]interface{})
+	addHook(settings, buildHookCmd(bin))
+	if err := writeSettings(globalSettings, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := planUninstallFor(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var present bool
+	for _, h := range plan.ClaudeHooks {
+		if h.Scope == ScopeGlobal {
+			present = h.Present
+		}
+	}
+	if !present {
+		t.Fatalf("quoted hook not detected: %+v", plan.ClaudeHooks)
+	}
+
+	if res := ExecuteUninstall(plan); !contains(res.RemovedHooks, globalSettings) {
+		t.Errorf("quoted hook not removed: %+v", res)
+	}
+	after, err := readSettings(globalSettings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isHookInstalled(after, buildHookCmd(bin)) {
+		t.Error("hook still in settings.json")
+	}
+}

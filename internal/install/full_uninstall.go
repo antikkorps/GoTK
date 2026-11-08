@@ -41,10 +41,15 @@ func PlanUninstall() (*UninstallPlan, error) {
 	if err != nil {
 		return nil, fmt.Errorf("locating gotk binary: %w", err)
 	}
+	return planUninstallFor(binaryPath)
+}
 
+// planUninstallFor builds the plan for a given binary path, so tests can
+// exercise paths the test binary does not live under.
+func planUninstallFor(binaryPath string) (*UninstallPlan, error) {
 	plan := &UninstallPlan{BinaryPath: binaryPath}
 
-	hookCmd := binaryPath + " hook"
+	hookCmd := buildHookCmd(binaryPath)
 	for _, scope := range []Scope{ScopeLocal, ScopeProject, ScopeGlobal} {
 		path, err := settingsFilePath(scope)
 		if err != nil {
@@ -116,7 +121,7 @@ func ExecuteUninstall(plan *UninstallPlan) *UninstallResult {
 			res.Errors = append(res.Errors, fmt.Errorf("reading %s: %w", target.Path, err))
 			continue
 		}
-		if removeHook(settings, plan.BinaryPath+" hook") {
+		if removeHook(settings, buildHookCmd(plan.BinaryPath)) {
 			if err := writeSettings(target.Path, settings); err != nil {
 				res.Errors = append(res.Errors, fmt.Errorf("writing %s: %w", target.Path, err))
 				continue
