@@ -45,11 +45,25 @@ piped through GoTK are not double-wrapped.
 **Options:**
 
 ```bash
-gotk install claude                 # Install for current project (.claude/settings.json)
+gotk install claude                 # Install for current project (.claude/settings.local.json)
+gotk install claude --project       # Shared with the team (.claude/settings.json)
 gotk install claude --global        # Install for all projects (~/.claude/settings.json)
-gotk install claude --status        # Check installation status
+gotk install claude --instructions  # Also import GOTK.md in ~/.claude/CLAUDE.md, no prompt
+gotk install claude --status        # Check installation status (hook + instructions)
 gotk install claude --uninstall     # Remove the hook
 ```
+
+**Instructions (opt-in).** The hook filters output silently. On request,
+install also writes `~/.claude/GOTK.md` (a dozen lines: output is filtered,
+markers are counts, `GOTK_PASSTHROUGH=1` gets raw output, `gotk ctx` for
+search) and adds `@GOTK.md` as the first line of `~/.claude/CLAUDE.md`.
+Nothing else in that file is touched, and a project CLAUDE.md never is.
+On a terminal, install asks (default: no); `--instructions` /
+`--no-instructions` decide without asking, and without a terminal nothing
+is written unless `--instructions` is given. Re-running install refreshes
+GOTK.md after an upgrade. `--uninstall --global` and `gotk uninstall`
+remove both the file and the import line; a local or project uninstall
+leaves them, since they serve every project.
 
 The hook configuration added to `settings.json`:
 

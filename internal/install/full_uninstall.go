@@ -18,10 +18,11 @@ import (
 // system. Executing it lives in ExecuteUninstall so CLI consumers can
 // render a summary, prompt the user, and then commit.
 type UninstallPlan struct {
-	BinaryPath  string
-	ClaudeHooks []ClaudeHookTarget
-	ConfigFiles []string
-	ConfigDirs  []string
+	BinaryPath   string
+	ClaudeHooks  []ClaudeHookTarget
+	Instructions InstructionsTarget
+	ConfigFiles  []string
+	ConfigDirs   []string
 }
 
 // ClaudeHookTarget records one Claude Code settings file we might touch.
@@ -56,6 +57,8 @@ func PlanUninstall() (*UninstallPlan, error) {
 		plan.ClaudeHooks = append(plan.ClaudeHooks, target)
 	}
 
+	plan.Instructions = planInstructions()
+
 	if cfgFile, ok := paths.ConfigFile(); ok && fileExists(cfgFile) {
 		plan.ConfigFiles = append(plan.ConfigFiles, cfgFile)
 	}
@@ -87,7 +90,10 @@ type UninstallResult struct {
 	RemovedFiles []string
 	RemovedDirs  []string
 	SkippedHooks []string
-	Errors       []error
+	// InstructionChanges lists "updated|deleted <path>" for CLAUDE.md and
+	// GOTK.md, since CLAUDE.md is edited rather than removed.
+	InstructionChanges []string
+	Errors             []error
 }
 
 // ExecuteUninstall applies the plan: removes the Claude hook from each
@@ -118,6 +124,8 @@ func ExecuteUninstall(plan *UninstallPlan) *UninstallResult {
 			res.RemovedHooks = append(res.RemovedHooks, target.Path)
 		}
 	}
+
+	executeInstructions(plan.Instructions, res)
 
 	for _, f := range plan.ConfigFiles {
 		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
@@ -173,6 +181,8 @@ func PrintPlan(w io.Writer, plan *UninstallPlan) {
 		linef(w, "    %s %s  %s %s\n", mark, label, h.Path, note)
 	}
 
+	printInstructionsPlan(w, plan.Instructions)
+
 	line(w)
 	line(w, "  GoTK config / data files:")
 	if len(plan.ConfigFiles) == 0 {
@@ -193,6 +203,9 @@ func PrintPlan(w io.Writer, plan *UninstallPlan) {
 func PrintResult(w io.Writer, plan *UninstallPlan, res *UninstallResult) {
 	for _, p := range res.RemovedHooks {
 		linef(w, "Removed Claude hook from %s\n", p)
+	}
+	for _, c := range res.InstructionChanges {
+		linef(w, "Instructions: %s\n", c)
 	}
 	for _, p := range res.RemovedFiles {
 		linef(w, "Removed %s\n", p)

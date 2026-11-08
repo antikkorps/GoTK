@@ -86,9 +86,13 @@ gotk install claude
 
 This registers GoTK as a Claude Code hook. Every Bash command Claude runs
 is automatically filtered — no CLAUDE.md instructions needed, no MCP overhead.
+Install then offers to import a short `GOTK.md` in `~/.claude/CLAUDE.md` so
+Claude knows how to read gotk's markers (opt-in, see
+[integrations](integrations.md#method-1-pretooluse-hook-recommended)).
 
 ```bash
-gotk install claude --global     # All projects (~/. claude/settings.json)
+gotk install claude --global     # All projects (~/.claude/settings.json)
+gotk install claude --instructions  # Also tell Claude about gotk via ~/.claude/CLAUDE.md
 gotk install claude --status     # Check if installed
 gotk uninstall claude            # Remove (symmetric alias for --uninstall)
 gotk uninstall claude --global   # Remove the global-scope hook specifically
