@@ -93,3 +93,8 @@ func TestGolden_FullGenericPipeline(t *testing.T) {
 	expectedPath := filepath.Join(dir, "messy_output.expected")
 	testutil.RunGoldenTestSingle(t, "whitespace_through_full_pipeline", inputPath, expectedPath, pipeline)
 }
+
+func TestGolden_NodeStackTraces(t *testing.T) {
+	dir := filepath.Join(testdataDir(), "stacktrace_node")
+	testutil.RunGoldenTest(t, dir, filter.CompressStackTraces)
+}

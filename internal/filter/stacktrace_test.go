@@ -303,6 +303,72 @@ func TestCompressNodeStackTraces(t *testing.T) {
     at b (/app/b.js:2:2)
     [... 2 more app frames]`,
 		},
+		{
+			// console.error('msg:', err) prints the error after a caller
+			// prefix; Jest then dumps its own runner frames (issue #95).
+			name: "error embedded after a log prefix",
+			input: `    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+        at Promise.then.completed (/app/node_modules/jest-circus/build/utils.js:298:28)
+        at callAsyncCircusFn (/app/node_modules/jest-circus/build/utils.js:231:10)`,
+			want: `    Failed to send mail: Error: SMTP down
+        at send (/app/src/mail.js:1:31)
+    [... 2 node_modules frames]`,
+		},
+		{
+			name: "anonymous builtin frames count as internals",
+			input: `TypeError: x is not a function
+    at main (/app/app.js:5:3)
+    at new Promise (<anonymous>)
+    at Array.forEach (<anonymous>)`,
+			want: `TypeError: x is not a function
+    at main (/app/app.js:5:3)
+    [... 2 node internals]`,
+		},
+		{
+			// Without an error class the frames may be anything (a Jest
+			// console trailer, a hand-written trace): leave them alone.
+			name: "prefix without error class is untouched",
+			input: `Request done: status 200
+    at a (/app/node_modules/x/a.js:1:1)
+    at b (/app/node_modules/x/b.js:2:2)`,
+			want: `Request done: status 200
+    at a (/app/node_modules/x/a.js:1:1)
+    at b (/app/node_modules/x/b.js:2:2)`,
+		},
+		{
+			// JVM frames carry one line number, not line:col; an embedded
+			// exception class must not drag Java causes into the Node path.
+			name: "java caused-by block is untouched",
+			input: "Caused by: java.io.IOException: disk\n" +
+				"\tat com.a.B.read(B.java:42)\n" +
+				"\tat com.a.B.open(B.java:30)\n" +
+				"\tat com.a.C.go(C.java:7)",
+			want: "Caused by: java.io.IOException: disk\n" +
+				"\tat com.a.B.read(B.java:42)\n" +
+				"\tat com.a.B.open(B.java:30)\n" +
+				"\tat com.a.C.go(C.java:7)",
+		},
+		{
+			name: "node nested cause is folded like a top-level error",
+			input: `    [cause]: TypeError: inner
+        at a (/app/a.js:1:1)
+        at b (/app/b.js:2:2)
+        at c (/app/node_modules/x/c.js:3:3)`,
+			want: `    [cause]: TypeError: inner
+        at a (/app/a.js:1:1)
+        at b (/app/b.js:2:2)
+    [... 1 node_modules frames]`,
+		},
+		{
+			name: "lowercase identifier ending in Error is not a class",
+			input: `handled myError: boom
+    at a (/app/node_modules/x/a.js:1:1)
+    at b (/app/node_modules/x/b.js:2:2)`,
+			want: `handled myError: boom
+    at a (/app/node_modules/x/a.js:1:1)
+    at b (/app/node_modules/x/b.js:2:2)`,
+		},
 	}
 
 	for _, tt := range tests {
