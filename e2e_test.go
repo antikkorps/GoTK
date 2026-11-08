@@ -1008,3 +1008,26 @@ echo "5 out: done"
 		last += 1 + idx
 	}
 }
+
+// A script that closes stdin with </dev/null and pipes nothing must get
+// pipe mode (empty output), not the usage text: /dev/null is a character
+// device but not a terminal (#112).
+func TestE2E_PipeMode_DevNullStdin(t *testing.T) {
+	bin := binary(t)
+	devnull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devnull.Close() //nolint:errcheck
+	cmd := exec.Command(bin)
+	cmd.Stdin = devnull
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("gotk </dev/null: %v", err)
+	}
+	// Output() already fails on a non-zero exit; empty input must also
+	// give empty output, so a silent crash cannot pass for pipe mode.
+	if got := strings.TrimSpace(string(out)); got != "" {
+		t.Errorf("want empty output from pipe mode, got:\n%s", got)
+	}
+}

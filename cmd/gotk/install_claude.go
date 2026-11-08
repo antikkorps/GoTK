@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mattn/go-isatty"
-
 	"github.com/antikkorps/GoTK/internal/install"
 )
 
@@ -97,7 +95,9 @@ func claudeInstall(o installClaudeOpts) error {
 	if err := install.ClaudeInstall(o.scope); err != nil {
 		return err
 	}
-	interactive := isInteractive(os.Stdin) && isInteractive(os.Stderr)
+	// Both ends must be a terminal: with stderr redirected the question is
+	// invisible and install would wait for an answer nobody knows to give.
+	interactive := isTerminal(os.Stdin) && isTerminal(os.Stderr)
 	ok, err := install.ShouldInstallInstructions(o.instructions, interactive, os.Stdin, os.Stderr)
 	if err != nil {
 		return err
@@ -113,12 +113,4 @@ func claudeInstall(o installClaudeOpts) error {
 		return fmt.Errorf("hook installed, but instructions not written: %w", err)
 	}
 	return nil
-}
-
-// isInteractive reports a real terminal. Unlike isTerminal it does not
-// take /dev/null (also a character device) for one. Prompting needs both
-// stdin and stderr on a terminal: with stderr redirected the question is
-// invisible and install would wait for an answer nobody knows to give.
-func isInteractive(f *os.File) bool {
-	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
