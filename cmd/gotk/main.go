@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mattn/go-isatty"
+
 	"github.com/antikkorps/GoTK/internal/config"
 	"github.com/antikkorps/GoTK/internal/detect"
 	"github.com/antikkorps/GoTK/internal/exec"
@@ -423,13 +425,11 @@ func emitStats(s measure.ByteStats) bool {
 	return true
 }
 
-// isTerminal checks if a file is connected to a terminal.
+// isTerminal reports whether f is a real terminal. A ModeCharDevice check
+// is not enough: /dev/null (NUL on Windows) is a character device too, so
+// `gotk </dev/null` printed the usage instead of running pipe mode (#112).
 func isTerminal(f *os.File) bool {
-	stat, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return (stat.Mode() & os.ModeCharDevice) != 0
+	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
 
 // setupSignalHandler catches SIGINT and SIGTERM for graceful shutdown.
